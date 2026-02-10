@@ -1,0 +1,9 @@
+PyQt5
+PyQt-Fluent-Widgets
+openai
+sherpa-onnx
+sounddevice
+numpy
+requests
+psutil
+sentencepiece

@@ -1,0 +1,288 @@
+/* Global Styles */
+QWidget {
+    font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    outline: none;
+}
+
+QDialog QWidget {
+    background-color: #f9f9f9;
+    color: #000000;
+}
+
+/* Chat Interface Styles */
+QWidget#chat_scroll {
+    background-color: transparent;
+    border: none;
+}
+
+/* Scroll Area */
+QScrollArea {
+    background-color: transparent;
+    border: none;
+}
+
+/* Scroll Bar */
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background: #cccccc;
+    border-radius: 4px;
+    min-height: 30px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #999999;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar:horizontal {
+    background: transparent;
+    height: 8px;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background: #cccccc;
+    border-radius: 4px;
+    min-width: 30px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #999999;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+
+/* Text Edit */
+QTextEdit, QPlainTextEdit {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    color: #000000;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+QTextEdit:focus, QPlainTextEdit:focus {
+    border: 1px solid #0078d4;
+    background-color: #ffffff;
+}
+
+/* Line Edit */
+QLineEdit {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    padding: 5px;
+    color: #000000;
+    selection-background-color: #0078d4;
+    selection-color: #ffffff;
+}
+QLineEdit:hover {
+    background-color: #fdfdfd;
+    border: 1px solid #d0d0d0;
+}
+QLineEdit:focus {
+    border: 1px solid #0078d4;
+    background-color: #ffffff;
+}
+
+/* List Widget */
+QListWidget {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+QListWidget::item {
+    height: 36px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #000000;
+    margin: 2px 4px;
+}
+QListWidget::item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+QListWidget::item:selected {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: #000000;
+}
+QListWidget::item:selected:hover {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+/* Combo Box */
+QComboBox {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: #000000;
+}
+QComboBox:hover {
+    background-color: #fdfdfd;
+    border: 1px solid #d0d0d0;
+}
+QComboBox:focus {
+    border: 1px solid #0078d4;
+}
+QComboBox::drop-down {
+    border: none;
+    width: 20px;
+}
+QComboBox QAbstractItemView {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    outline: none;
+    padding: 4px;
+}
+QComboBox QAbstractItemView::item {
+    height: 32px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: #000000;
+}
+QComboBox QAbstractItemView::item:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+}
+QComboBox QAbstractItemView::item:selected {
+    background-color: rgba(0, 0, 0, 0.08);
+    color: #000000;
+}
+
+/* Menu */
+QMenu {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    padding: 4px;
+    color: #000000;
+}
+QMenu::item {
+    padding: 6px 24px 6px 12px;
+    border-radius: 4px;
+    color: #000000;
+    margin: 2px;
+}
+QMenu::item:selected {
+    background-color: rgba(0, 0, 0, 0.06);
+    color: #000000;
+}
+QMenu::separator {
+    height: 1px;
+    background-color: #e5e5e5;
+    margin: 4px;
+}
+
+/* RoundMenu for qfluentwidgets compatibility */
+RoundMenu {
+    background-color: #ffffff;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+    color: #000000;
+}
+RoundMenu::item {
+    color: #000000;
+    border-radius: 4px;
+    padding: 6px 24px 6px 12px;
+}
+RoundMenu::item:selected {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+/* Tooltips */
+QToolTip, ToolTip {
+    background-color: #ffffff;
+    color: #000000;
+    border: 1px solid #e5e5e5;
+    padding: 4px;
+    border-radius: 4px;
+}
+
+ToolTip > QLabel {
+    color: #000000;
+    background-color: transparent;
+}
+
+/* Specific ID styles for Chat UI components */
+QWidget#toolbar {
+    background-color: #ffffff;
+    border-top: 1px solid #e5e5e5;
+}
+
+QTextEdit#inputbox {
+    background-color: transparent;
+    border: none;
+    color: #000000;
+}
+
+QPushButton#SendBtn {
+    background-color: #0078d4;
+    color: white;
+    border-radius: 4px;
+    border: none;
+    padding: 6px 12px;
+    font-weight: bold;
+}
+QPushButton#SendBtn:hover {
+    background-color: #0078d4;
+}
+QPushButton#SendBtn:pressed {
+    background-color: #005a9e;
+}
+
+/* Menu Widget in Chat */
+QWidget#menuwidget {
+    background-color: #f0f0f0;
+    border-right: 1px solid #e5e5e5;
+}
+
+
+/* Chat Action Buttons */
+QToolButton#chatActionButton {
+    background-color: transparent;
+    border: none;
+    border-radius: 4px;
+}
+QToolButton#chatActionButton:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Thinking Widget (Light Theme) */
+QLabel#thinkingText {
+    color: #666666;
+    font-style: italic;
+    background-color: transparent;
+}
+QPushButton#thinkingHeader {
+    text-align: left;
+    border: none;
+    background-color: transparent;
+    color: #666666;
+}
+QPushButton#thinkingHeader:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+}
+QLabel#thinkingContent {
+    color: #666666;
+    font-style: italic;
+    border-left: 2px solid #cccccc;
+    padding-left: 10px;
+}
+
+/* Ensure Chat Bubbles are Visible */
+QFrame#messageContainer_user {
+    background-color: #0078d4;
+    color: #ffffff;
+    border: 1px solid #0078d4;
+    border-radius: 8px;
+}
+QFrame#messageContainer_assistant {
+    background-color: #e5e5e5;
+    color: #000000;
+    border: 1px solid #e5e5e5;
+    border-radius: 8px;
+}
