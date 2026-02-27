@@ -158,7 +158,7 @@ Manage and configure Doro's skills:
 
 ## License
 
-This project uses the MIT License, see [LICENSE](LICENSE) file for details.
+This project uses the Apache-2.0 License, see [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
