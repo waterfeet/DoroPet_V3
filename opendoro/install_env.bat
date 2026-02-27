@@ -78,8 +78,8 @@ echo [4/7] Installing dependencies from requirements.txt...
 
 echo [5/7] Installing local pylive2d...
 :: Using the specific wheel found in your project
-if exist "live2dpy\Live2D-Python\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" (
-    "%RUNTIME_DIR%\python.exe" -m pip install "live2dpy\Live2D-Python\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" --no-warn-script-location
+if exist "live2dpy\src\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" (
+    "%RUNTIME_DIR%\python.exe" -m pip install "live2dpy\src\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" --no-warn-script-location
 ) else (
     echo Warning: pylive2d wheel not found! Please ensure live2dpy folder is present.
 )
