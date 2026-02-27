@@ -73,7 +73,8 @@ class LogInterface(QWidget):
         # Header
         header_layout = QHBoxLayout()
         self.title_label = StrongBodyLabel("运行日志", self)
-        self.title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.title_label.setObjectName("logTitleLabel")
+        # self.title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         
         self.clear_btn = PrimaryPushButton(FluentIcon.DELETE, "清空日志", self)
         self.clear_btn.clicked.connect(self.clear_logs)
@@ -87,12 +88,13 @@ class LogInterface(QWidget):
         # Log Text Area
         # Use TextEdit from qfluentwidgets or QPlainTextEdit
         self.log_view = TextEdit(self)
+        self.log_view.setObjectName("logView")
         self.log_view.setReadOnly(True)
-        # Set a monospaced font for logs
-        font = self.log_view.font()
-        font.setFamily("Consolas")
-        font.setPointSize(10)
-        self.log_view.setFont(font)
+        # Set a monospaced font for logs (Moved to QSS)
+        # font = self.log_view.font()
+        # font.setFamily("Consolas")
+        # font.setPointSize(10)
+        # self.log_view.setFont(font)
         
         self.layout.addWidget(self.log_view)
 

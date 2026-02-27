@@ -5,9 +5,9 @@ try:
     import psutil
 except ImportError:
     psutil = None
-from PyQt5.QtCore import QTimerEvent, Qt, QTimer, QSize, QSettings
-from PyQt5.QtGui import QMouseEvent, QWheelEvent, QCursor, QPixmap
-from PyQt5.QtWidgets import QOpenGLWidget, QLabel, QMenu, QAction, QApplication
+from PyQt5.QtCore import QTimerEvent, Qt, QTimer, QSize, QSettings, QPoint
+from PyQt5.QtGui import QMouseEvent, QWheelEvent, QCursor, QPixmap, QPainter, QPainterPath, QColor, QPen, QBrush
+from PyQt5.QtWidgets import QOpenGLWidget, QLabel, QMenu, QAction, QApplication, QStyleOption, QStyle, QProgressBar, QWidget
 from src.ui.main_window import MainWindow
 from src.resource_utils import resource_path
 from qfluentwidgets import isDarkTheme
@@ -17,29 +17,24 @@ class SpeechBubble(QLabel):
     自定义的气泡控件，用于显示对话文本
     """
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(None) # 设置为无父对象，使其成为独立顶层窗口
+        self.owner = parent
+        self.setObjectName("speechBubble")
         
-        if isDarkTheme():
-            bg = "rgba(43, 43, 43, 240)"
-            border = "#454545"
-            color = "#ffffff"
-        else:
-            bg = "rgba(255, 255, 255, 240)"
-            border = "#e5e5e5"
-            color = "#000000"
-
-        self.setStyleSheet(f"""
-            QLabel {{
-                background-color: {bg};
-                border: 2px solid {border};
-                border-radius: 10px;
-                padding: 10px;
-                color: {color};
-                font-size: 14px;
-            }}
-        """)
+        # 设置窗口标志：无边框 | 置顶 | 工具窗口(不在任务栏显示)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAttribute(Qt.WA_ShowWithoutActivating) # 显示时不抢占焦点
+        
         self.setWordWrap(True)
         self.setAlignment(Qt.AlignCenter)
+        
+        # 设置内容边距，留出气泡尾巴的空间 (左, 上, 右, 下)
+        self.setContentsMargins(15, 15, 15, 30)
+        
+        # 设置样式
+        self.setStyleSheet("color: black; font-family: 'Microsoft YaHei'; font-size: 14px; font-weight: bold;")
+        
         self.hide()
         
         self.hide_timer = QTimer(self)
@@ -50,7 +45,7 @@ class SpeechBubble(QLabel):
         self.setText(text)
         self.adjustSize()
         
-        max_width = 200
+        max_width = 250
         if self.width() > max_width:
             self.setFixedWidth(max_width)
             self.adjustSize()
@@ -60,6 +55,86 @@ class SpeechBubble(QLabel):
 
     def fade_out(self):
         self.hide()
+
+    def paintEvent(self, event):
+        """
+        绘制漫画风格的气泡
+        """
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # 气泡样式配置
+        bg_color = QColor(255, 255, 255)
+        border_color = QColor(0, 0, 0)
+        border_width = 3
+        
+        rect = self.rect()
+        w = rect.width()
+        h = rect.height()
+        
+        # 留给尾巴的高度 (需与 setContentsMargins 的底部边距配合)
+        tail_height = 15
+        # 气泡主体的高度
+        body_h = h - tail_height
+        
+        # 调整绘制区域，避免边框被裁剪
+        margin = border_width / 2
+        
+        path = QPainterPath()
+        
+        # 圆角半径
+        r = 10
+        
+        # --- 绘制路径 (顺时针) ---
+        
+        # 1. 左上角起点
+        path.moveTo(margin + r, margin)
+        
+        # 2. 上边
+        path.lineTo(w - margin - r, margin)
+        
+        # 3. 右上圆角
+        path.quadTo(w - margin, margin, w - margin, margin + r)
+        
+        # 4. 右边
+        path.lineTo(w - margin, body_h - margin - r)
+        
+        # 5. 右下圆角
+        path.quadTo(w - margin, body_h - margin, w - margin - r, body_h - margin)
+        
+        # 6. 底部 (含尾巴)
+        tail_width = 20
+        # tail_x_center = w / 2  # 居中
+        tail_x_center = w / 3    # 偏左 1/3
+        
+        # 右底边 -> 尾巴右侧
+        path.lineTo(tail_x_center + tail_width / 2, body_h - margin)
+        # 尾巴尖端 (指向下方)
+        path.lineTo(tail_x_center, h - margin)
+        # 尾巴左侧
+        path.lineTo(tail_x_center - tail_width / 2, body_h - margin)
+        
+        # 左底边
+        path.lineTo(margin + r, body_h - margin)
+        
+        # 7. 左下圆角
+        path.quadTo(margin, body_h - margin, margin, body_h - margin - r)
+        
+        # 8. 左边
+        path.lineTo(margin, margin + r)
+        
+        # 9. 左上圆角
+        path.quadTo(margin, margin, margin + r, margin)
+        
+        path.closeSubpath()
+        
+        # 绘制
+        painter.setPen(QPen(border_color, border_width))
+        painter.setBrush(QBrush(bg_color))
+        painter.drawPath(path)
+        
+        # 绘制文本
+        super().paintEvent(event)
 
 
 class Live2DWidget(QOpenGLWidget):
@@ -84,6 +159,50 @@ class Live2DWidget(QOpenGLWidget):
         
         # 锁定状态
         self.is_locked = False
+
+        # ==================== 饱食度系统 ====================
+        self.hunger = 80.0        # 饱食度 (0-100, 100=饱)
+        self.max_hunger = 100
+        self.hunger_decay_rate = 1.5  # 每分钟减少的饱食度
+        self.hunger_timer = QTimer(self)
+        self.hunger_timer.timeout.connect(self.update_hunger)
+        self.hunger_timer.start(60000)  # 每分钟检查一次饱食度
+        
+        # 饱食度进度条
+        self.hunger_container = QWidget(self)
+        self.hunger_container.setFixedWidth(100)
+        self.hunger_container.setFixedHeight(24)
+        self.hunger_container.setStyleSheet("background: transparent;")
+        
+        self.hunger_label = QLabel("饱食度", self.hunger_container)
+        self.hunger_label.setStyleSheet("color: #333; font-size: 11px; font-weight: bold;")
+        self.hunger_label.setFixedHeight(12)
+        self.hunger_label.setAlignment(Qt.AlignCenter)
+        
+        self.hunger_bar = QProgressBar(self.hunger_container)
+        self.hunger_bar.setRange(0, 100)
+        self.hunger_bar.setValue(int(self.hunger))
+        self.hunger_bar.setFixedWidth(80)
+        self.hunger_bar.setFixedHeight(8)
+        self.hunger_bar.setTextVisible(False)
+        self.hunger_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #888;
+                border-radius: 4px;
+                background-color: #eee;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 3px;
+            }
+        """)
+        self.hunger_label.setFixedWidth(80)
+        self.hunger_label.move(10, 0)
+        self.hunger_bar.move(10, 14)
+        
+        # 初始隐藏饱食度UI，由鼠标悬停控制显示
+        self.hunger_container.hide()
+        # ====================================================
 
         # Load and apply settings
         self.settings = QSettings("DoroPet", "Settings")
@@ -117,44 +236,178 @@ class Live2DWidget(QOpenGLWidget):
         
         # 初始化系统监控
         self.init_system_monitor()
+        
+        # 显示饱食度进度条（初始隐藏，由鼠标控制显示）
+        self.update_hunger_bar_position()
 
     def paintGL(self) -> None:
         self.model.draw(self.width(), self.height())
 
-    def set_locked(self, locked: bool):
+    # ==================== 饱食度系统 ====================
+    def update_hunger(self):
+        """自动衰减饱食度"""
+        if self.hunger > 0:
+            self.hunger = max(0, self.hunger - self.hunger_decay_rate)
+        
+        # 更新进度条
+        self.hunger_bar.setValue(int(self.hunger))
+        if self.hunger_container.isVisible():
+            self.hunger_container.hide()
+        
+        # 根据饱食度改变进度条颜色
+        if self.hunger <= 20:
+            self.hunger_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #888;
+                    border-radius: 5px;
+                    background-color: #eee;
+                }
+                QProgressBar::chunk {
+                    background-color: #f44336;
+                    border-radius: 4px;
+                }
+            """)
+        elif self.hunger <= 50:
+            self.hunger_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #888;
+                    border-radius: 5px;
+                    background-color: #eee;
+                }
+                QProgressBar::chunk {
+                    background-color: #ff9800;
+                    border-radius: 4px;
+                }
+            """)
+        else:
+            self.hunger_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 1px solid #888;
+                    border-radius: 5px;
+                    background-color: #eee;
+                }
+                QProgressBar::chunk {
+                    background-color: #4CAF50;
+                    border-radius: 4px;
+                }
+            """)
+            
+        # 根据饱食度触发不同反应
+        if self.hunger <= 0:
+            self.talk("好饿啊...我要饿晕了...", 4000)
+            if "失去高光" in self.expression_ids:
+                self.model.set_expression("失去高光")
+        elif self.hunger <= 20:
+            self.talk("肚子好饿...有什么吃的吗?", 3000)
+            if "黑脸" in self.expression_ids:
+                self.model.set_expression("黑脸")
+        elif self.hunger <= 50 and random.random() < 0.3:
+            self.talk("有点饿了...", 2500)
+            if "感叹号" in self.expression_ids:
+                self.model.set_expression("感叹号")
+
+    def feed_pet(self, food_name: str = "欧润吉"):
+        """投喂宠物"""
+        self.hunger = min(self.max_hunger, self.hunger + 20)
+        
+        # 更新进度条
+        self.hunger_bar.setValue(int(self.hunger))
+        
+        # 恢复绿色
+        self.hunger_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #888;
+                border-radius: 5px;
+                background-color: #eee;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 4px;
+            }
+        """)
+        
+        responses = [
+            f"谢谢'人'的{food_name}！好甜呀~",
+            f"啊呜~ {food_name}最好吃啦！",
+            f"还要更多{food_name}！",
+            f"{food_name}补充能量中... 滴！"
+        ]
+        self.talk(random.choice(responses), 3000)
+        
+        # 投喂时随机切换一个开心表情
+        happy_exps = ["星星眼", "吐舌", "默认"]
+        available_happy = [e for e in happy_exps if e in self.expression_ids]
+        if available_happy:
+            self.model.set_expression(random.choice(available_happy))
+        
+        # 播放一个动作
+        if self.motion_ids:
+            self.model.set_motion(random.choice(self.motion_ids))
+            
+    def get_hunger_status(self) -> str:
+        """获取饱食度状态文字"""
+        if self.hunger >= 80:
+            return "饱饱的~"
+        elif self.hunger >= 50:
+            return "有点饿"
+        elif self.hunger >= 20:
+            return "好饿啊..."
+        else:
+            return "要饿晕了..."
+    # ====================================================
+
+    def set_locked(self, locked: bool, silent: bool = False):
         """设置锁定状态"""
         self.is_locked = locked
         if locked:
-            # 锁定被动：取消所有鼠标追踪，重置视线
+            # 锁定被动：取消鼠标追踪（防止窗口拖拽），但视线跟随在 timerEvent 中继续
             self.setMouseTracking(False)
-            self.setCursor(Qt.ArrowCursor) # 或者隐藏鼠标？通常锁定后恢复普通鼠标
-            # 重置视线到中心
-            center_x = self.width() / 2
-            center_y = self.height() / 2
-            self.model.set_dragging(center_x, center_y)
-            print(f"Locked at: {center_x, center_y}")
+            self.setCursor(Qt.ArrowCursor) 
             self.update()
-            self.talk("已锁定位置，解除请右键托盘图标~", 3000)
+            if not silent:
+                self.talk("已锁定位置，解除请右键托盘图标~", 3000)
         else:
             self.setMouseTracking(True)
             # 恢复自定义鼠标（如果需要）
             self.init_custom_cursor(resource_path("data/icons/orange.ico"))
-            self.talk("解锁啦！又可以一起玩了~", 3000)
+            if not silent:
+                self.talk("解锁啦！又可以一起玩了~", 3000)
 
     def timerEvent(self, event: QTimerEvent | None):
         if event.timerId() == self.refresh:
-            if not self.is_locked:
-                # 全屏鼠标跟随逻辑
-                # 获取全局鼠标位置并转换为局部坐标
-                global_pos = QCursor.pos()
-                local_pos = self.mapFromGlobal(global_pos)
-                self.model.set_dragging(local_pos.x(), local_pos.y())
-            else:
-                # 锁定时持续强制视线回到中心
-                center_x = self.width() / 2
-                center_y = self.height() / 2
-                self.model.set_dragging(center_x, center_y)
+            # 无论锁定与否，都执行鼠标跟随
+            # 获取全局鼠标位置
+            global_pos = QCursor.pos()
             
+            # 获取窗口中心点的全局坐标
+            center_local = QPoint(self.width() // 2, self.height() // 2)
+            center_global = self.mapToGlobal(center_local)
+            
+            # 计算鼠标相对于窗口中心的偏移量
+            dx = global_pos.x() - center_global.x()
+            dy = global_pos.y() - center_global.y()
+            
+            # 获取屏幕尺寸 (用于归一化映射)
+            screen = QApplication.screenAt(global_pos)
+            if not screen:
+                screen = QApplication.primaryScreen()
+            screen_geo = screen.geometry()
+            
+            # 计算最大可能的偏移量 (使用屏幕尺寸的一半作为参考)
+            max_dx = screen_geo.width() / 2
+            max_dy = screen_geo.height() / 2
+            
+            # 计算归一化比例 (-1.0 到 1.0)
+            ratio_x = max(-1.0, min(1.0, dx / max_dx))
+            ratio_y = max(-1.0, min(1.0, dy / max_dy))
+            
+            # 映射回模型内部坐标系
+            # 模型通常以窗口中心为基准，范围是窗口宽高
+            # 映射公式: target = center + ratio * (width / 2)
+            target_x = center_local.x() + ratio_x * (self.width() / 2)
+            target_y = center_local.y() + ratio_y * (self.height() / 2)
+            
+            self.model.set_dragging(target_x, target_y)
             self.update()
 
     def talk(self, text: str, duration: int = None):
@@ -165,11 +418,57 @@ class Live2DWidget(QOpenGLWidget):
             duration = 4000
             
         self.bubble.show_text(text, duration)
-        bubble_x = (self.width() - self.bubble.width()) // 2
-        bubble_y = 50 
-        bubble_x = max(0, bubble_x)
-        bubble_y = max(0, bubble_y)
-        self.bubble.move(bubble_x, bubble_y)
+        self.update_bubble_position()
+
+    def update_bubble_position(self):
+        """更新气泡位置，使其跟随模型并在上方显示"""
+        if not self.bubble.isVisible(): return
+        
+        # 计算全局位置
+        global_pos = self.mapToGlobal(QPoint(0, 0))
+        
+        # 水平居中
+        x = global_pos.x() + (self.width() - self.bubble.width()) // 2
+        
+        # 放置在模型上方 (预留20px间距)
+        y = global_pos.y() - self.bubble.height() - 20
+        
+        # 边界检查：如果超出屏幕顶部，则放置在模型内部顶部
+        screen = QApplication.screenAt(global_pos)
+        if not screen: screen = QApplication.primaryScreen()
+        
+        if y < screen.availableGeometry().top():
+            y = global_pos.y() + 20
+            
+        self.bubble.move(x, y)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if hasattr(self, 'bubble'):
+            self.update_bubble_position()
+        if hasattr(self, 'hunger_bar'):
+            self.update_hunger_bar_position()
+
+    def update_hunger_bar_position(self):
+        """更新饱食度进度条位置"""
+        bar_x = (self.width() - 100) // 2
+        bar_y = self.height() - 30
+        self.hunger_container.move(bar_x, bar_y)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'hunger_bar'):
+            self.update_hunger_bar_position()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if hasattr(self, 'bubble'):
+            self.bubble.hide()
+
+    def closeEvent(self, event):
+        super().closeEvent(event)
+        if hasattr(self, 'bubble'):
+            self.bubble.close()
 
     # --- 【新增】自定义鼠标逻辑方法 ---
     def init_custom_cursor(self, image_path):
@@ -202,54 +501,7 @@ class Live2DWidget(QOpenGLWidget):
 
     def show_context_menu(self, global_pos):
         menu = QMenu(self)
-        
-        if isDarkTheme():
-            style = """
-                QMenu {
-                    background-color: #2b2b2b;
-                    border: 1px solid #454545;
-                    border-radius: 8px;
-                    padding: 4px;
-                }
-                QMenu::item {
-                    padding: 6px 24px 6px 12px;
-                    border-radius: 4px;
-                    color: #ffffff;
-                    margin: 2px;
-                }
-                QMenu::item:selected {
-                    background-color: rgba(255, 255, 255, 0.06);
-                }
-                QMenu::separator {
-                    height: 1px;
-                    background-color: #454545;
-                    margin: 4px;
-                }
-            """
-        else:
-            style = """
-                QMenu {
-                    background-color: #ffffff;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 8px;
-                    padding: 4px;
-                }
-                QMenu::item {
-                    padding: 6px 24px 6px 12px;
-                    border-radius: 4px;
-                    color: #000000;
-                    margin: 2px;
-                }
-                QMenu::item:selected {
-                    background-color: rgba(0, 0, 0, 0.06);
-                }
-                QMenu::separator {
-                    height: 1px;
-                    background-color: #e5e5e5;
-                    margin: 4px;
-                }
-            """
-        menu.setStyleSheet(style)
+        # Theme handling is now done via global QSS
 
         action_talk = QAction("打个招呼", self)
         action_talk.triggered.connect(lambda: self.talk("你好呀！我是你的桌面宠物。", 3000))
@@ -310,12 +562,19 @@ class Live2DWidget(QOpenGLWidget):
         menu.exec_(global_pos)
 
     def open_main_window(self):
-        if self.main_window is None:
-            self.main_window = MainWindow()
-            self.main_window.set_live2d_widget(self)
-        self.main_window.show()
-        self.main_window.raise_()
-        self.main_window.activateWindow()
+        try:
+            if self.main_window is None:
+                self.main_window = MainWindow()
+                self.main_window.set_live2d_widget(self)
+            self.main_window.show()
+            self.main_window.raise_()
+            self.main_window.activateWindow()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            from src.core.logger import logger
+            logger.error(f"Failed to open main window: {e}")
+            logger.error(traceback.format_exc())
 
     # def toggle_mirror(self, checked):
     #     self.is_mirrored = checked
@@ -343,20 +602,7 @@ class Live2DWidget(QOpenGLWidget):
         # 根据点击区域做出不同反应
         if hit_area == "Face":
             # 点击 Face -> 投喂欧润吉
-            responses = [
-                "谢谢‘人’的欧润吉！好甜呀~", 
-                "啊呜~ 欧润吉最好吃啦！", 
-                "还要更多欧润吉！", 
-                "欧润吉补充能量中... 滴！"
-            ]
-            self.talk(random.choice(responses), 3000)
-            
-            # 投喂时随机切换一个开心表情
-            happy_exps = ["星星眼", "吐舌", "默认"]
-            # 过滤出存在的表情
-            available_happy = [e for e in happy_exps if e in self.expression_ids]
-            if available_happy:
-                self.model.set_expression(random.choice(available_happy))
+            self.feed_pet("欧润吉")
 
         elif hit_area == "Body":
              # 点击身体 -> 概率触发表情对话，或者普通摸摸
@@ -418,7 +664,7 @@ class Live2DWidget(QOpenGLWidget):
         if psutil:
             self.monitor_timer = QTimer(self)
             self.monitor_timer.timeout.connect(self.check_system_status)
-            self.monitor_timer.start(30000) # 每30秒检查一次
+            self.monitor_timer.start(3000) # 每30秒检查一次
     
     def check_system_status(self):
         """检查系统状态并触发反应"""
@@ -428,11 +674,11 @@ class Live2DWidget(QOpenGLWidget):
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
             
-            if cpu > 80:
+            if cpu > 50:
                 self.talk(f"CPU好烫 ({cpu}%)！我要融化了...", 4000)
                 if "失去高光" in self.expression_ids:
                     self.model.set_expression("失去高光")
-            elif mem > 90:
+            elif mem > 80:
                 self.talk(f"内存快满了 ({mem}%)！", 4000)
                 if "无语" in self.expression_ids:
                     self.model.set_expression("无语")
@@ -565,7 +811,10 @@ class Live2DWidget(QOpenGLWidget):
         self.move(target_x, target_y)
 
     def enterEvent(self, event):
-        """鼠标移入：如果是吸附状态，弹出来"""
+        """鼠标移入：显示饱食度，如果是吸附状态则弹出来"""
+        if hasattr(self, "hunger_container"):
+            self.hunger_container.show()
+        
         if hasattr(self, "is_docked") and self.is_docked == "right":
             # 恢复完全显示
             screen = QApplication.primaryScreen()
@@ -575,7 +824,10 @@ class Live2DWidget(QOpenGLWidget):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        """鼠标移出：如果是吸附状态，缩回去"""
+        """鼠标移出：隐藏饱食度，如果是吸附状态则缩回去"""
+        if hasattr(self, "hunger_container"):
+            self.hunger_container.hide()
+        
         if hasattr(self, "is_docked") and self.is_docked == "right":
             # 缩回去，只露头
             screen = QApplication.primaryScreen()

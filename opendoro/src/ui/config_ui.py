@@ -2,13 +2,13 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QLis
 from PyQt5.QtCore import Qt, QSettings
 from qfluentwidgets import (ScrollArea, ComboBox, LineEdit, StrongBodyLabel, 
                             TitleLabel, PushButton, FluentIcon, ListWidget, 
-                            BodyLabel, PrimaryPushButton, isDarkTheme, SegmentedWidget)
+                            BodyLabel, PrimaryPushButton, isDarkTheme, SegmentedWidget, CheckBox)
 
 class ConfigInterface(QWidget):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        self.setObjectName("ConfigInterface")
+        self.setObjectName("ModelConfigInterface")
         self.current_model_id = None
         self.current_mode = "LLM" # "LLM" or "TTS"
         
@@ -38,6 +38,7 @@ class ConfigInterface(QWidget):
 
         # --- Left Panel: Model List ---
         self.left_panel = QWidget()
+        self.left_panel.setObjectName("left_panel")
         self.left_panel.setFixedWidth(250)
             
         left_layout = QVBoxLayout(self.left_panel)
@@ -56,6 +57,7 @@ class ConfigInterface(QWidget):
         left_layout.addWidget(StrongBodyLabel("模型列表", self.left_panel))
 
         self.model_list = ListWidget(self.left_panel)
+        self.model_list.setObjectName("model_list")
         self.model_list.itemClicked.connect(self.on_model_selected)
         left_layout.addWidget(self.model_list)
 
@@ -68,53 +70,91 @@ class ConfigInterface(QWidget):
         # --- Right Panel: Edit Form ---
         right_panel = ScrollArea(self)
         right_panel.setWidgetResizable(True)
-        right_panel.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        # right_panel.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
         
         self.edit_widget = QWidget()
+        self.edit_widget.setObjectName("configEditWidget")
         right_layout = QVBoxLayout(self.edit_widget)
         right_layout.setContentsMargins(36, 36, 36, 36)
         right_layout.setSpacing(20)
 
         right_layout.addWidget(TitleLabel("模型配置", self.edit_widget))
 
+        # --- Content Area (Form + Sidebar) ---
+        content_container = QWidget(self.edit_widget)
+        content_layout = QHBoxLayout(content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(20)
+
+        # 1. Main Form (Left)
+        form_widget = QWidget(content_container)
+        form_layout = QVBoxLayout(form_widget)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setSpacing(15)
+
         # 1. Configuration Name
-        right_layout.addWidget(StrongBodyLabel("配置名称 (显示名)", self.edit_widget))
-        self.name_input = LineEdit(self.edit_widget)
+        form_layout.addWidget(StrongBodyLabel("配置名称 (显示名)", form_widget))
+        self.name_input = LineEdit(form_widget)
         self.name_input.setPlaceholderText("例如: 我的 DeepSeek")
-        right_layout.addWidget(self.name_input)
+        form_layout.addWidget(self.name_input)
 
         # 2. Provider Preset
-        right_layout.addWidget(StrongBodyLabel("预设模版 (自动填充 URL)", self.edit_widget))
-        self.provider_combo = ComboBox(self.edit_widget)
+        form_layout.addWidget(StrongBodyLabel("预设模版 (自动填充 URL)", form_widget))
+        self.provider_combo = ComboBox(form_widget)
         self.provider_combo.addItems(["Custom (自定义)", "OpenAI", "DeepSeek", "Anthropic", "Ollama", "Moonshot (Kimi)"])
         self.provider_combo.currentIndexChanged.connect(self.on_provider_changed)
-        right_layout.addWidget(self.provider_combo)
+        form_layout.addWidget(self.provider_combo)
 
         # 3. Model ID
-        right_layout.addWidget(StrongBodyLabel("模型 ID (Model Name)", self.edit_widget))
-        self.model_id_input = LineEdit(self.edit_widget)
+        form_layout.addWidget(StrongBodyLabel("模型 ID (Model Name)", form_widget))
+        self.model_id_input = LineEdit(form_widget)
         self.model_id_input.setPlaceholderText("例如: gpt-4, deepseek-chat")
-        right_layout.addWidget(self.model_id_input)
+        form_layout.addWidget(self.model_id_input)
 
         # 4. Voice (TTS only)
-        self.voice_label = StrongBodyLabel("Voice (语音包名)", self.edit_widget)
-        right_layout.addWidget(self.voice_label)
-        self.voice_input = LineEdit(self.edit_widget)
+        self.voice_label = StrongBodyLabel("Voice (语音包名)", form_widget)
+        form_layout.addWidget(self.voice_label)
+        self.voice_input = LineEdit(form_widget)
         self.voice_input.setPlaceholderText("例如: fishaudio/fish-speech-1.5:alex")
-        right_layout.addWidget(self.voice_input)
+        form_layout.addWidget(self.voice_input)
 
         # 5. API Key
-        right_layout.addWidget(StrongBodyLabel("API Key", self.edit_widget))
-        self.api_key_input = LineEdit(self.edit_widget)
+        form_layout.addWidget(StrongBodyLabel("API Key", form_widget))
+        self.api_key_input = LineEdit(form_widget)
         self.api_key_input.setEchoMode(QLineEdit.Password)
         self.api_key_input.setPlaceholderText("sk-...")
-        right_layout.addWidget(self.api_key_input)
+        form_layout.addWidget(self.api_key_input)
 
         # 6. Base URL
-        right_layout.addWidget(StrongBodyLabel("Base URL", self.edit_widget))
-        self.base_url_input = LineEdit(self.edit_widget)
+        form_layout.addWidget(StrongBodyLabel("Base URL", form_widget))
+        self.base_url_input = LineEdit(form_widget)
         self.base_url_input.setPlaceholderText("API 基础地址")
-        right_layout.addWidget(self.base_url_input)
+        form_layout.addWidget(self.base_url_input)
+
+        content_layout.addWidget(form_widget, 1) # Stretch factor 1
+
+        # 2. Sidebar (Right)
+        self.sidebar_widget = QWidget(content_container)
+        self.sidebar_widget.setFixedWidth(200)
+        sidebar_layout = QVBoxLayout(self.sidebar_widget)
+        sidebar_layout.setContentsMargins(10, 0, 0, 0)
+        sidebar_layout.setSpacing(15)
+
+        sidebar_layout.addWidget(StrongBodyLabel("高级选项", self.sidebar_widget))
+        
+        self.chk_visual = CheckBox("视觉模型", self.sidebar_widget)
+        self.chk_visual.setToolTip("勾选后，该模型将具备处理图片的能力")
+        sidebar_layout.addWidget(self.chk_visual)
+        
+        self.chk_thinking = CheckBox("思考模型", self.sidebar_widget)
+        self.chk_thinking.setToolTip("勾选后，该模型将支持思维链 (Thinking Chain)")
+        sidebar_layout.addWidget(self.chk_thinking)
+        
+        sidebar_layout.addStretch()
+        
+        content_layout.addWidget(self.sidebar_widget)
+        
+        right_layout.addWidget(content_container)
 
         # Buttons
         btn_layout = QHBoxLayout()
@@ -154,6 +194,10 @@ class ConfigInterface(QWidget):
         is_tts = (self.current_mode == "TTS")
         self.voice_label.setVisible(is_tts)
         self.voice_input.setVisible(is_tts)
+        
+        # Hide sidebar if not LLM mode
+        is_llm = (self.current_mode == "LLM")
+        self.sidebar_widget.setVisible(is_llm)
         
         # Update provider options based on mode
         self.provider_combo.blockSignals(True)
@@ -244,6 +288,18 @@ class ConfigInterface(QWidget):
             if self.current_mode == "TTS":
                 # TTS has voice at index 6
                 self.voice_input.setText(target[6])
+            elif self.current_mode == "LLM":
+                # LLM: is_active(6), is_visual(7), is_thinking(8)
+                # Check if tuple has enough elements (in case of old DB read, though we updated query)
+                if len(target) > 7:
+                    self.chk_visual.setChecked(bool(target[7]))
+                else:
+                    self.chk_visual.setChecked(False)
+                    
+                if len(target) > 8:
+                    self.chk_thinking.setChecked(bool(target[8]))
+                else:
+                    self.chk_thinking.setChecked(False)
 
     def create_new_model(self):
         self.model_list.clearSelection()
@@ -256,6 +312,11 @@ class ConfigInterface(QWidget):
         self.base_url_input.clear()
         self.model_id_input.clear()
         self.voice_input.clear()
+        
+        # Reset checkboxes
+        self.chk_visual.setChecked(False)
+        self.chk_thinking.setChecked(False)
+        
         self.name_input.setFocus()
 
     def on_provider_changed(self, index):
@@ -274,7 +335,7 @@ class ConfigInterface(QWidget):
                 self.model_id_input.setText("stabilityai/stable-diffusion-3-5-large")
             elif "Gitee AI" in text:
                 self.base_url_input.setText("https://ai.gitee.com/v1")
-                self.model_id_input.setText("Z-Image")
+                self.model_id_input.setText("z-image-turbo")
         else:
             if "OpenAI" in text:
                 self.base_url_input.setText("https://api.openai.com/v1")
@@ -314,10 +375,13 @@ class ConfigInterface(QWidget):
             else:
                 self.current_model_id = self.db.add_image_model(name, provider, base_url, api_key, model_name)
         else:
+            is_visual = 1 if self.chk_visual.isChecked() else 0
+            is_thinking = 1 if self.chk_thinking.isChecked() else 0
+            
             if self.current_model_id:
-                self.db.update_model(self.current_model_id, name, provider, api_key, base_url, model_name)
+                self.db.update_model(self.current_model_id, name, provider, api_key, base_url, model_name, is_visual, is_thinking)
             else:
-                self.current_model_id = self.db.add_model(name, provider, api_key, base_url, model_name)
+                self.current_model_id = self.db.add_model(name, provider, api_key, base_url, model_name, is_visual, is_thinking)
             
         self.load_models()
 
@@ -349,133 +413,5 @@ class ConfigInterface(QWidget):
         self.load_models()
 
     def update_theme(self):
-        if isDarkTheme():
-            # Main Window Background
-            self.setStyleSheet("background-color: #272727; color: white;")
-            
-            self.left_panel.setStyleSheet("background-color: rgba(255, 255, 255, 0.03); border-right: 1px solid #333333;")
-            self.model_list.setStyleSheet("""
-                QListWidget {
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                }
-                QListWidget::item {
-                    height: 36px;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    color: #ffffff;
-                    margin: 2px 4px;
-                }
-                QListWidget::item:hover {
-                    background-color: rgba(255, 255, 255, 0.04);
-                }
-                QListWidget::item:selected {
-                    background-color: rgba(255, 255, 255, 0.08);
-                    color: #ffffff;
-                }
-                QListWidget::item:selected:hover {
-                    background-color: rgba(255, 255, 255, 0.12);
-                }
-            """)
-            
-            # Input fields style for Dark Mode
-            input_style = """
-                QLineEdit {
-                    color: white;
-                    background-color: #333333;
-                    border: 1px solid #454545;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #383838; }
-                QLineEdit:focus { border: 1px solid #4cc2ff; background-color: #2b2b2b; }
-            """
-            self.name_input.setStyleSheet(input_style)
-            self.model_id_input.setStyleSheet(input_style)
-            self.api_key_input.setStyleSheet(input_style)
-            self.base_url_input.setStyleSheet(input_style)
-            self.voice_input.setStyleSheet(input_style)
-            
-            # Combo Box
-            self.provider_combo.setStyleSheet("""
-                QComboBox {
-                    background-color: #333333;
-                    border: 1px solid #454545;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    color: white;
-                }
-                QComboBox:hover { background-color: #383838; }
-                QComboBox::drop-down { border: none; width: 20px; }
-                QComboBox QAbstractItemView {
-                    background-color: #2b2b2b;
-                    border: 1px solid #454545;
-                    color: white;
-                }
-            """)
-        else:
-            # Main Window Background
-            self.setStyleSheet("background-color: #f9f9f9; color: black;")
-            
-            self.left_panel.setStyleSheet("background-color: rgba(255, 255, 255, 0.5); border-right: 1px solid #E0E0E0;")
-            self.model_list.setStyleSheet("""
-                QListWidget {
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                }
-                QListWidget::item {
-                    height: 36px;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    color: black;
-                    margin: 2px 4px;
-                }
-                QListWidget::item:hover {
-                    background-color: rgba(0, 0, 0, 0.04);
-                }
-                QListWidget::item:selected {
-                    background-color: rgba(0, 0, 0, 0.08);
-                    color: black;
-                }
-                QListWidget::item:selected:hover {
-                    background-color: rgba(0, 0, 0, 0.12);
-                }
-            """)
-            
-            # Input fields style for Light Mode
-            input_style = """
-                QLineEdit {
-                    color: black;
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #fdfdfd; }
-                QLineEdit:focus { border: 1px solid #0078d4; background-color: white; }
-            """
-            self.name_input.setStyleSheet(input_style)
-            self.model_id_input.setStyleSheet(input_style)
-            self.api_key_input.setStyleSheet(input_style)
-            self.base_url_input.setStyleSheet(input_style)
-            self.voice_input.setStyleSheet(input_style)
-            
-            # Combo Box
-            self.provider_combo.setStyleSheet("""
-                QComboBox {
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 4px;
-                    padding: 4px 8px;
-                    color: black;
-                }
-                QComboBox:hover { background-color: #fdfdfd; }
-                QComboBox::drop-down { border: none; width: 20px; }
-                QComboBox QAbstractItemView {
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    color: black;
-                }
-            """)
+        # Styles are handled by global QSS
+        pass

@@ -12,7 +12,8 @@ class TitleBar(QWidget):
         
         # 标题
         self.title_label = QLabel(title)
-        self.title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.title_label.setObjectName("windowTitleLabel")
+        # self.title_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         layout.addWidget(self.title_label)
         
         layout.addSpacerItem(QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))

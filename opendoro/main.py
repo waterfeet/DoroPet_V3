@@ -8,54 +8,16 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from src.live2dview import Live2DWidget
 from src.resource_utils import resource_path
 from src.core.logger import setup_logger
+from src.splash_screen import SplashScreen
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtCore import QSettings
 from PyQt5.QtGui import *
 
 # Initialize Logger
 logger = setup_logger()
 
-def main():
-    app = QApplication(sys.argv)
-    logger.info("Application started.")
-    
-    # 防止关闭主窗口（设置界面）时导致程序退出
-    # 同时也配合系统托盘功能，使程序可以后台运行
-    app.setQuitOnLastWindowClosed(False) 
-
-    # --- 设置全局字体开始 ---
-    font_path = resource_path("cfg/zxf.ttf")
-    
-    # 检查文件是否存在
-    if os.path.exists(font_path):
-        # 1. 将字体文件加载到数据库
-        font_id = QFontDatabase.addApplicationFont(font_path)
-        
-        # 2. 如果加载成功 (font_id != -1)
-        if font_id != -1:
-            # 获取字体的真实家族名称 (文件名不一定等于字体名)
-            font_families = QFontDatabase.applicationFontFamilies(font_id)
-            if font_families:
-                font_name = font_families[0]
-                
-                # 3. 创建字体对象，设置大小为 12 (可以根据需要调整)
-                custom_font = QFont(font_name, 12)
-                
-                # 4. 应用到整个程序
-                app.setFont(custom_font)
-                logger.info(f"成功加载字体: {font_name}")
-        else:
-            logger.warning(f"无法加载字体文件: {font_path}")
-    else:
-        logger.warning(f"未找到字体文件: {font_path}，将使用系统默认字体")
-    # --- 设置全局字体结束 ---
-
-    # 确保路径正确
-    logger.info("Initializing Live2DWidget...")
-    w = Live2DWidget(path=resource_path("models/Doro/Doro.model3.json"))
-    
-    w.show()
-    
-    # --- 系统托盘设置 ---
+def setup_tray_icon(app, widget):
+    """设置系统托盘"""
     tray_icon = QSystemTrayIcon(app)
     
     # 尝试加载图标
@@ -74,17 +36,17 @@ def main():
     # 1. 显示/隐藏桌宠
     action_toggle = QAction("显示/隐藏桌宠", app)
     def toggle_pet():
-        if w.isVisible():
-            w.hide()
+        if widget.isVisible():
+            widget.hide()
         else:
-            w.show()
-            w.activateWindow()
+            widget.show()
+            widget.activateWindow()
     action_toggle.triggered.connect(toggle_pet)
     tray_menu.addAction(action_toggle)
     
     # 2. 打开主界面
     action_settings = QAction("打开主界面", app)
-    action_settings.triggered.connect(w.open_main_window)
+    action_settings.triggered.connect(widget.open_main_window)
     tray_menu.addAction(action_settings)
     
     # 3. 锁定/解锁
@@ -92,7 +54,7 @@ def main():
     action_lock.setCheckable(True)
     action_lock.setChecked(False)
     def toggle_lock(checked):
-        w.set_locked(checked)
+        widget.set_locked(checked)
         if checked:
             action_lock.setText("解锁")
         else:
@@ -114,13 +76,77 @@ def main():
     # 双击托盘显示主界面
     def on_tray_activated(reason):
         if reason == QSystemTrayIcon.DoubleClick:
-            w.open_main_window()
+            widget.open_main_window()
             
     tray_icon.activated.connect(on_tray_activated)
+    
+    return tray_icon
+
+def main():
+    app = QApplication(sys.argv)
+    # 显示启动画面（立即显示，让用户知道程序正在启动）
+    splash = SplashScreen()
+    splash.show()
+    app.processEvents()
+
+    logger.info("Application started.")
+
+    # 设置应用程序图标 (任务栏图标)
+    icon_path = resource_path("data/icons/logo-small.png")
+    if os.path.exists(icon_path):
+        app.setWindowIcon(QIcon(icon_path))
+    
+    # Windows 任务栏图标设置
+    try:
+        import ctypes
+        app_id = "DoroPet.Application.v3"
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+    except Exception as e:
+        logger.warning(f"Failed to set AppUserModelID: {e}")
+    
+    # 防止关闭主窗口（设置界面）时导致程序退出
+    # 同时也配合系统托盘功能，使程序可以后台运行
+    app.setQuitOnLastWindowClosed(False) 
+
+    # Load light.qss
+    qss_path = resource_path("themes/light.qss")
+    if os.path.exists(qss_path):
+        try:
+            with open(qss_path, "r", encoding="utf-8") as f:
+                app.setStyleSheet(f.read())
+            logger.info(f"Loaded stylesheet: {qss_path}")
+        except Exception as e:
+            logger.error(f"Failed to load stylesheet: {e}")
+    else:
+        logger.warning(f"Stylesheet not found: {qss_path}")
+
+    # 确保路径正确
+    logger.info("Initializing Live2DWidget...")
+    splash.set_status("正在加载Live2D模型...")
+    w = Live2DWidget(path=resource_path("models/Doro/Doro.model3.json"))
+    
+    # 读取启动设置
+    settings = QSettings("DoroPet", "Settings")
+    hide_pet_on_startup = settings.value("hide_pet_on_startup", False, type=bool)
+    
+    if hide_pet_on_startup:
+        w.hide()
+        w.open_main_window()
+        logger.info("Pet hidden on startup, showing main window instead.")
+    else:
+        w.show()
+    
+    # --- 系统托盘设置 ---
+    tray_icon = setup_tray_icon(app, w)
     # -------------------
     
     # 测试：启动时说一句话
-    w.talk("欢迎回来！")
+    if not hide_pet_on_startup:
+        w.talk("欢迎回来！")
+    
+    # 关闭启动画面
+    splash.close_splash()
+    logger.info("Splash screen closed")
     
 
     sys.exit(app.exec())

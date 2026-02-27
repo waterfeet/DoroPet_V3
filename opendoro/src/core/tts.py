@@ -80,11 +80,14 @@ class TTSManager(QObject):
     def speak(self, msg_id, text):
         # Stop current if playing
         if self.player.state() == QMediaPlayer.PlayingState:
+            previous_msg_id = self.current_msg_id
             self.player.stop()
             # If same message was clicked, we just stop (toggle).
-            if self.current_msg_id == msg_id:
-                self.current_msg_id = None
-                self.playback_stopped.emit(msg_id)
+            # Note: player.stop() triggers on_state_changed which sets self.current_msg_id to None
+            # So we compare with the captured previous_msg_id
+            if previous_msg_id == msg_id:
+                # The on_state_changed will handle the reset/emit
+                # We just ensure we don't start it again
                 return
 
         self.current_msg_id = msg_id
@@ -96,8 +99,8 @@ class TTSManager(QObject):
             self.current_msg_id = None
             return
             
-        # config: id, name, provider, api_key, base_url, model_name, voice, is_active
-        _, _, _, api_key, base_url, model_name, voice, _ = config
+        # config: id, name, provider, api_key, base_url, model_name, voice
+        _, _, _, api_key, base_url, model_name, voice = config
         
         # Determine cache path
         # Hash based on content + model + voice to allow re-gen if config changes

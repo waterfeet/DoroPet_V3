@@ -1,13 +1,178 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget
 from PyQt5.QtCore import Qt, QSettings
 from qfluentwidgets import (ScrollArea, CheckBox, Slider, TitleLabel, 
-                            StrongBodyLabel, CaptionLabel, PushButton, FluentIcon, isDarkTheme, LineEdit)
+                            StrongBodyLabel, CaptionLabel, PushButton, FluentIcon, 
+                            isDarkTheme, LineEdit, Pivot, CardWidget, BodyLabel)
 from src.core.logger import logger
+
+
+class SettingCard(CardWidget):
+    def __init__(self, title: str, parent=None):
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setSpacing(12)
+        
+        self.title_label = StrongBodyLabel(title, self)
+        layout.addWidget(self.title_label)
+        
+        self.content_widget = QWidget(self)
+        self.content_layout = QVBoxLayout(self.content_widget)
+        self.content_layout.setContentsMargins(0, 0, 0, 0)
+        self.content_layout.setSpacing(8)
+        layout.addWidget(self.content_widget)
+    
+    def addWidget(self, widget):
+        self.content_layout.addWidget(widget)
+    
+    def addLayout(self, layout):
+        self.content_layout.addLayout(layout)
+
+
+class GeneralSettingsPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        
+        card = SettingCard("常规设置", self)
+        
+        self.check_autorun = CheckBox("开机自动启动", self)
+        self.check_hide_pet_on_startup = CheckBox("启动时隐藏桌宠 (仅显示主界面)", self)
+        self.check_mouse_interact = CheckBox("启用鼠标交互 (取消勾选以锁定)", self)
+        self.check_mouse_interact.setChecked(True)
+        
+        card.addWidget(self.check_autorun)
+        card.addWidget(self.check_hide_pet_on_startup)
+        card.addWidget(self.check_mouse_interact)
+        
+        layout.addWidget(card)
+        layout.addStretch()
+
+
+class DisplaySettingsPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        
+        card = SettingCard("显示设置", self)
+        self.sliders = {}
+        
+        self.add_slider_option(card, "模型缩放", 20, 150, 100, "%")
+        self.add_slider_option(card, "气泡显示时长", 1000, 10000, 3000, " ms")
+        
+        layout.addWidget(card)
+        layout.addStretch()
+    
+    def add_slider_option(self, parent_card, text, min_val, max_val, default_val, unit_suffix=""):
+        parent_card.addWidget(StrongBodyLabel(text, self))
+        
+        h_layout = QHBoxLayout()
+        slider = Slider(Qt.Horizontal, self)
+        slider.setRange(min_val, max_val)
+        slider.setValue(default_val)
+        
+        val_label = CaptionLabel(f"{default_val}{unit_suffix}", self)
+        val_label.setFixedWidth(60)
+        
+        slider.valueChanged.connect(lambda v: val_label.setText(f"{v}{unit_suffix}"))
+        
+        h_layout.addWidget(slider)
+        h_layout.addWidget(val_label)
+        parent_card.addLayout(h_layout)
+        
+        self.sliders[text] = slider
+
+
+class SoundSettingsPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        
+        card = SettingCard("声音设置", self)
+        self.sliders = {}
+        
+        self.add_slider_option(card, "TTS 音量", 0, 100, 80, "%")
+        
+        layout.addWidget(card)
+        layout.addStretch()
+    
+    def add_slider_option(self, parent_card, text, min_val, max_val, default_val, unit_suffix=""):
+        parent_card.addWidget(StrongBodyLabel(text, self))
+        
+        h_layout = QHBoxLayout()
+        slider = Slider(Qt.Horizontal, self)
+        slider.setRange(min_val, max_val)
+        slider.setValue(default_val)
+        
+        val_label = CaptionLabel(f"{default_val}{unit_suffix}", self)
+        val_label.setFixedWidth(60)
+        
+        slider.valueChanged.connect(lambda v: val_label.setText(f"{v}{unit_suffix}"))
+        
+        h_layout.addWidget(slider)
+        h_layout.addWidget(val_label)
+        parent_card.addLayout(h_layout)
+        
+        self.sliders[text] = slider
+
+
+class AISettingsPage(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(16)
+        
+        card = SettingCard("AI 设置", self)
+        self.sliders = {}
+        
+        self.check_inject_time = CheckBox("在上下文注入当前时间", self)
+        self.check_expression_response = CheckBox("开启表情响应 (AI自动控制表情)", self)
+        
+        card.addWidget(self.check_inject_time)
+        card.addWidget(self.check_expression_response)
+        
+        card.addWidget(StrongBodyLabel("LLM 最大输出长度", self))
+        
+        h_layout = QHBoxLayout()
+        slider = Slider(Qt.Horizontal, self)
+        slider.setRange(1024, 32768)
+        slider.setValue(8192)
+        
+        val_label = CaptionLabel("8192 tokens", self)
+        val_label.setFixedWidth(80)
+        
+        slider.valueChanged.connect(lambda v: val_label.setText(f"{v} tokens"))
+        
+        h_layout.addWidget(slider)
+        h_layout.addWidget(val_label)
+        card.addLayout(h_layout)
+        
+        self.sliders["LLM 最大输出长度"] = slider
+        
+        hint = CaptionLabel("(值越大，AI可生成的内容越长。代码/页面生成建议≥16384)", self)
+        hint.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        card.addWidget(hint)
+        
+        layout.addWidget(card)
+        layout.addStretch()
+
 
 class SettingsInterface(ScrollArea):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.view = QWidget(self)
+        self.view.setObjectName("settingsView")
         self.setWidget(self.view)
         self.setWidgetResizable(True)
         self.setObjectName("SettingsInterface")
@@ -15,104 +180,69 @@ class SettingsInterface(ScrollArea):
         self.live2d_widget = None
         self.settings = QSettings("DoroPet", "Settings")
         
-        layout = QVBoxLayout(self.view)
-        layout.setContentsMargins(36, 36, 36, 36)
-        layout.setSpacing(20)
+        main_layout = QVBoxLayout(self.view)
+        main_layout.setContentsMargins(36, 36, 36, 36)
+        main_layout.setSpacing(20)
         
-        # 标题
         title = TitleLabel("软件设置", self.view)
-        layout.addWidget(title)
+        main_layout.addWidget(title)
         
-        # --- 1. 常规设置 ---
-        layout.addWidget(StrongBodyLabel("常规", self.view))
+        self.pivot = Pivot(self.view)
+        self.pivot.setFixedHeight(40)
+        main_layout.addWidget(self.pivot)
         
-        # 开机自启
-        self.check_autorun = CheckBox("开机自动启动", self.view)
-        self.check_autorun.stateChanged.connect(self.on_autorun_changed)
-        layout.addWidget(self.check_autorun)
+        self.stacked_widget = QStackedWidget(self.view)
+        main_layout.addWidget(self.stacked_widget)
         
-        # 鼠标交互 (锁定)
-        self.check_mouse_interact = CheckBox("启用鼠标交互 (取消勾选以锁定)", self.view)
-        self.check_mouse_interact.setChecked(True) # Default true
-        self.check_mouse_interact.stateChanged.connect(self.on_mouse_interact_changed)
-        layout.addWidget(self.check_mouse_interact)
+        self.general_page = GeneralSettingsPage(self)
+        self.display_page = DisplaySettingsPage(self)
+        self.sound_page = SoundSettingsPage(self)
+        self.ai_page = AISettingsPage(self)
         
-        layout.addSpacing(10)
+        self.stacked_widget.addWidget(self.general_page)
+        self.stacked_widget.addWidget(self.display_page)
+        self.stacked_widget.addWidget(self.sound_page)
+        self.stacked_widget.addWidget(self.ai_page)
         
-        # --- 2. 显示设置 ---
-        layout.addWidget(StrongBodyLabel("显示", self.view))
+        self.pivot.addItem(routeKey="general", text="⚙️ 常规", 
+                          onClick=lambda: self.stacked_widget.setCurrentWidget(self.general_page))
+        self.pivot.addItem(routeKey="display", text="🖥️ 显示", 
+                          onClick=lambda: self.stacked_widget.setCurrentWidget(self.display_page))
+        self.pivot.addItem(routeKey="sound", text="🔊 声音", 
+                          onClick=lambda: self.stacked_widget.setCurrentWidget(self.sound_page))
+        self.pivot.addItem(routeKey="ai", text="🤖 AI", 
+                          onClick=lambda: self.stacked_widget.setCurrentWidget(self.ai_page))
         
-        # 缩放
-        self.add_slider_option(layout, "模型缩放", 20, 150, 100, self.on_scale_changed, "%")
+        self.pivot.setCurrentItem("general")
         
-        # 气泡持续时间
-        self.add_slider_option(layout, "气泡显示时长", 1000, 10000, 3000, self.on_bubble_duration_changed, " ms")
-        
-        layout.addSpacing(10)
-        
-        # --- 3. 声音设置 ---
-        layout.addWidget(StrongBodyLabel("声音", self.view))
-        
-        # 音量
-        self.add_slider_option(layout, "TTS 音量", 0, 100, 80, self.on_volume_changed, "%")
-        
-        layout.addSpacing(10)
-        
-        layout.addStretch()
-        
-        # 加载设置
+        self.connect_signals()
         self.load_settings()
-        
-        # 初始化主题
-        self.update_theme()
 
-    def update_theme(self):
-        if isDarkTheme():
-            self.view.setStyleSheet("background-color: #272727; color: white;")
-            self.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-        else:
-            self.view.setStyleSheet("background-color: #f9f9f9; color: black;")
-            self.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
-
-    def add_slider_option(self, parent_layout, text, min_val, max_val, default_val, callback, unit_suffix=""):
-        parent_layout.addWidget(StrongBodyLabel(text, self.view))
+    def connect_signals(self):
+        self.general_page.check_autorun.stateChanged.connect(self.on_autorun_changed)
+        self.general_page.check_hide_pet_on_startup.stateChanged.connect(self.on_hide_pet_on_startup_changed)
+        self.general_page.check_mouse_interact.stateChanged.connect(self.on_mouse_interact_changed)
         
-        h_layout = QHBoxLayout()
-        slider = Slider(Qt.Horizontal, self.view)
-        slider.setRange(min_val, max_val)
-        slider.setValue(default_val)
+        self.display_page.sliders["模型缩放"].valueChanged.connect(self.on_scale_changed)
+        self.display_page.sliders["气泡显示时长"].valueChanged.connect(self.on_bubble_duration_changed)
         
-        val_label = CaptionLabel(f"{default_val}{unit_suffix}", self.view)
-        val_label.setFixedWidth(60) # Fixed width for alignment
+        self.sound_page.sliders["TTS 音量"].valueChanged.connect(self.on_volume_changed)
         
-        slider.valueChanged.connect(lambda v: val_label.setText(f"{v}{unit_suffix}"))
-        slider.valueChanged.connect(callback)
-        
-        h_layout.addWidget(slider)
-        h_layout.addWidget(val_label)
-        parent_layout.addLayout(h_layout)
-        
-        # Store reference if needed for loading settings, e.g. using a dict
-        if not hasattr(self, 'sliders'):
-            self.sliders = {}
-        self.sliders[text] = slider
+        self.ai_page.check_inject_time.stateChanged.connect(self.on_inject_time_changed)
+        self.ai_page.check_expression_response.stateChanged.connect(self.on_expression_response_changed)
+        self.ai_page.sliders["LLM 最大输出长度"].valueChanged.connect(self.on_max_tokens_changed)
 
     def set_live2d_widget(self, widget):
         self.live2d_widget = widget
-        # Apply current settings to the widget
-        self.on_scale_changed(self.sliders["模型缩放"].value())
-        self.on_mouse_interact_changed(self.check_mouse_interact.isChecked())
-        # Bubble duration is handled by reading the value when needed or setting a property
+        self.on_scale_changed(self.display_page.sliders["模型缩放"].value())
+        self.on_mouse_interact_changed(self.general_page.check_mouse_interact.isChecked())
+
+    def update_theme(self):
+        pass
 
     def on_scale_changed(self, value):
         scale = value / 100.0
         if self.live2d_widget:
-            # We need a way to set scale in Live2DWidget. 
-            # Currently it uses wheel event to resize window.
-            # We can resize the window based on initial size?
-            # Or just simulate a resize.
-            # Live2DWidget.resize() resizes the widget.
-            # Let's assume a base size, e.g. 500x500 (implied in resize(550, 500) in context menu)
             base_w, base_h = 550, 500
             new_w = int(base_w * scale)
             new_h = int(base_h * scale)
@@ -120,15 +250,11 @@ class SettingsInterface(ScrollArea):
         self.settings.setValue("scale", value)
 
     def on_bubble_duration_changed(self, value):
-        # This might need to be stored in Live2DWidget or just global config
-        # Currently Live2DWidget.talk uses a duration param.
-        # We can update a default_duration attribute in Live2DWidget if we add it.
         if self.live2d_widget:
             self.live2d_widget.default_bubble_duration = value
         self.settings.setValue("bubble_duration", value)
 
     def on_volume_changed(self, value):
-        # Access TTSManager from MainWindow -> ChatInterface
         try:
             chat_interface = self.window().chat_interface
             if hasattr(chat_interface, 'tts_manager'):
@@ -138,12 +264,19 @@ class SettingsInterface(ScrollArea):
         self.settings.setValue("volume", value)
 
     def on_mouse_interact_changed(self, checked):
-        # Checked = Enabled -> Locked = False
-        # Unchecked = Disabled -> Locked = True
         is_locked = not checked
         if self.live2d_widget:
-            self.live2d_widget.set_locked(is_locked)
+            self.live2d_widget.set_locked(is_locked, silent=True)
         self.settings.setValue("mouse_interact", checked)
+
+    def on_inject_time_changed(self, checked):
+        self.settings.setValue("inject_time", checked)
+
+    def on_expression_response_changed(self, checked):
+        self.settings.setValue("enable_expression_response", checked)
+
+    def on_max_tokens_changed(self, value):
+        self.settings.setValue("llm_max_tokens", value)
 
     def on_autorun_changed(self, checked):
         import sys
@@ -171,16 +304,29 @@ class SettingsInterface(ScrollArea):
         except Exception as e:
             logger.error(f"Autorun error: {e}")
 
+    def on_hide_pet_on_startup_changed(self, checked):
+        self.settings.setValue("hide_pet_on_startup", checked)
+
     def load_settings(self):
-        # Defaults
         scale = self.settings.value("scale", 100, type=int)
         bubble_duration = self.settings.value("bubble_duration", 3000, type=int)
         volume = self.settings.value("volume", 80, type=int)
         mouse_interact = self.settings.value("mouse_interact", True, type=bool)
         autorun = self.settings.value("autorun", False, type=bool)
+        hide_pet_on_startup = self.settings.value("hide_pet_on_startup", False, type=bool)
+        inject_time = self.settings.value("inject_time", False, type=bool)
+        expression_response = self.settings.value("enable_expression_response", True, type=bool)
+        llm_max_tokens = self.settings.value("llm_max_tokens", 8192, type=int)
         
-        if "模型缩放" in self.sliders: self.sliders["模型缩放"].setValue(scale)
-        if "气泡显示时长" in self.sliders: self.sliders["气泡显示时长"].setValue(bubble_duration)
-        if "TTS 音量" in self.sliders: self.sliders["TTS 音量"].setValue(volume)
-        self.check_mouse_interact.setChecked(mouse_interact)
-        self.check_autorun.setChecked(autorun)
+        self.general_page.check_autorun.setChecked(autorun)
+        self.general_page.check_hide_pet_on_startup.setChecked(hide_pet_on_startup)
+        self.general_page.check_mouse_interact.setChecked(mouse_interact)
+        
+        self.display_page.sliders["模型缩放"].setValue(scale)
+        self.display_page.sliders["气泡显示时长"].setValue(bubble_duration)
+        
+        self.sound_page.sliders["TTS 音量"].setValue(volume)
+        
+        self.ai_page.check_inject_time.setChecked(inject_time)
+        self.ai_page.check_expression_response.setChecked(expression_response)
+        self.ai_page.sliders["LLM 最大输出长度"].setValue(llm_max_tokens)

@@ -1,10 +1,12 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QFileDialog, QProgressDialog
 from PyQt5.QtCore import Qt, QUrl, pyqtSignal
 from PyQt5.QtGui import QDesktopServices
 from qfluentwidgets import (ScrollArea, LineEdit, StrongBodyLabel, 
                             TitleLabel, PushButton, FluentIcon, 
                             BodyLabel, PrimaryPushButton, SwitchButton, 
                             CardWidget, IconWidget, HyperlinkButton, InfoBar, InfoBarPosition, isDarkTheme)
+import os
+from src.core.downloader import ModelDownloader
 
 class VoiceConfigInterface(QWidget):
     settingsChanged = pyqtSignal()
@@ -52,9 +54,10 @@ class VoiceConfigInterface(QWidget):
         # --- Settings Area ---
         scroll = ScrollArea(self)
         scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        # scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
         
         self.settings_widget = QWidget()
+        self.settings_widget.setObjectName("settings_widget")
         form_layout = QVBoxLayout(self.settings_widget)
         form_layout.setContentsMargins(0, 0, 0, 0)
         form_layout.setSpacing(15)
@@ -91,6 +94,12 @@ class VoiceConfigInterface(QWidget):
         self.link_btn = HyperlinkButton("https://github.com/k2-fsa/sherpa-onnx/releases", "前往 Sherpa-ONNX 模型仓库", self.settings_widget)
         self.link_btn.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://github.com/k2-fsa/sherpa-onnx/releases")))
         link_layout.addWidget(self.link_btn)
+        
+        # Download Button
+        self.download_btn = PushButton(FluentIcon.DOWNLOAD, "一键下载默认模型", self.settings_widget)
+        self.download_btn.clicked.connect(self.download_default_models)
+        link_layout.addWidget(self.download_btn)
+
         link_layout.addStretch()
         form_layout.addLayout(link_layout)
 
@@ -144,39 +153,96 @@ class VoiceConfigInterface(QWidget):
             line_edit.setText(folder)
 
     def update_theme(self):
-        if isDarkTheme():
-            self.setStyleSheet("background-color: #272727; color: white;")
-            self.settings_widget.setStyleSheet("background-color: transparent;")
+        # Styles are handled by global QSS
+        pass
+
+    def download_default_models(self):
+        models_dir = os.path.join(os.getcwd(), "models", "voice")
+        if not os.path.exists(models_dir):
+            os.makedirs(models_dir)
+
+        kws_model_name = "sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01"
+        asr_model_name = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20"
+        
+        # Prepare tasks
+        tasks = []
+        
+        # KWS Task
+        kws_target = os.path.join(models_dir, f"{kws_model_name}.tar.bz2")
+        # Check if already extracted (simple check)
+        if not os.path.exists(os.path.join(models_dir, kws_model_name, "tokens.txt")):
+             tasks.append({
+                "name": "KWS Model (唤醒词)",
+                "filename": kws_target,
+                "urls": [
+                    f"https://mirror.ghproxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/{kws_model_name}.tar.bz2",
+                    f"https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/{kws_model_name}.tar.bz2",
+                    f"https://moeyy.cn/gh-proxy/https://github.com/k2-fsa/sherpa-onnx/releases/download/kws-models/{kws_model_name}.tar.bz2"
+                ],
+                "extract_to": models_dir
+            })
+
+        # ASR Task
+        asr_target = os.path.join(models_dir, f"{asr_model_name}.tar.bz2")
+        if not os.path.exists(os.path.join(models_dir, asr_model_name, "tokens.txt")):
+            tasks.append({
+                "name": "ASR Model (语音识别)",
+                "filename": asr_target,
+                "urls": [
+                    f"https://mirror.ghproxy.com/https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/{asr_model_name}.tar.bz2",
+                    f"https://ghproxy.net/https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/{asr_model_name}.tar.bz2",
+                    f"https://moeyy.cn/gh-proxy/https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/{asr_model_name}.tar.bz2"
+                ],
+                "extract_to": models_dir
+            })
             
-            # Input fields style for Dark Mode
-            input_style = """
-                QLineEdit {
-                    color: white;
-                    background-color: #333333;
-                    border: 1px solid #454545;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #383838; }
-                QLineEdit:focus { border: 1px solid #4cc2ff; background-color: #333333; }
-            """
+        if not tasks:
+            InfoBar.info("提示", "默认模型已存在，无需下载。", parent=self)
+            return
+
+        # Setup Progress Dialog
+        self.progress_dialog = QProgressDialog("准备下载...", "取消", 0, 100, self)
+        self.progress_dialog.setWindowTitle("下载语音模型")
+        self.progress_dialog.setWindowModality(Qt.WindowModal)
+        self.progress_dialog.setMinimumDuration(0)
+        self.progress_dialog.setValue(0)
+        self.progress_dialog.resize(400, 100)
+        
+        # Start Downloader
+        self.downloader = ModelDownloader(tasks)
+        self.downloader.progress_updated.connect(self.update_download_progress)
+        self.downloader.download_finished.connect(self.on_download_finished)
+        self.progress_dialog.canceled.connect(self.downloader.cancel)
+        
+        self.downloader.start()
+        self.progress_dialog.show()
+
+    def update_download_progress(self, task_name, percent, speed):
+        if self.progress_dialog.wasCanceled():
+            return
+        self.progress_dialog.setLabelText(f"{task_name}\n速度: {speed}")
+        self.progress_dialog.setValue(percent)
+
+    def on_download_finished(self, success, message):
+        self.progress_dialog.close()
+        if success:
+            InfoBar.success("下载完成", "模型下载并解压成功！", parent=self)
+            
+            # Auto-fill paths
+            cwd = os.getcwd()
+            kws_model = "sherpa-onnx-kws-zipformer-gigaspeech-3.3M-2024-01-01"
+            asr_model = "sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20"
+            
+            kws_path = os.path.join(cwd, "models", "voice", kws_model)
+            asr_path = os.path.join(cwd, "models", "voice", asr_model)
+            
+            self.kws_input.setText(kws_path)
+            self.asr_input.setText(asr_path)
+            
+            # Save automatically
+            self.save_settings()
         else:
-            self.setStyleSheet("background-color: #f9f9f9; color: black;")
-            self.settings_widget.setStyleSheet("background-color: transparent;")
-            
-            # Input fields style for Light Mode
-            input_style = """
-                QLineEdit {
-                    color: black;
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #fdfdfd; }
-                QLineEdit:focus { border: 1px solid #0078d4; background-color: white; }
-            """
-            
-        self.wake_word_input.setStyleSheet(input_style)
-        self.kws_input.setStyleSheet(input_style)
-        self.asr_input.setStyleSheet(input_style)
+            if "cancelled" in str(message).lower():
+                InfoBar.warning("已取消", "下载已取消", parent=self)
+            else:
+                InfoBar.error("下载失败", str(message), parent=self)

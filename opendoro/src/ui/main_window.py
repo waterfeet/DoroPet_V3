@@ -17,6 +17,9 @@ from .settings_ui import SettingsInterface
 from .prompt_ui import PromptInterface
 from .log_ui import LogInterface
 from .voice_config_ui import VoiceConfigInterface
+from .plugin_ui import PluginInterface
+from .skills_ui import SkillsInterface
+from .update_ui import UpdateInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
@@ -39,7 +42,10 @@ class MainWindow(FluentWindow):
         self.config_interface = ConfigInterface(self.db, self)
         self.voice_config_interface = VoiceConfigInterface(self.db, self)
         self.prompt_interface = PromptInterface(self.db, self)
+        self.plugin_interface = PluginInterface(self)
+        self.skills_interface = SkillsInterface(self)
         self.log_interface = LogInterface(self)
+        self.update_interface = UpdateInterface(self)
         self.settings_interface = SettingsInterface(self)
         
         # 4. 初始化导航栏
@@ -50,8 +56,10 @@ class MainWindow(FluentWindow):
         
         # 初始化加载主题
         if isDarkTheme():
+            setTheme(Theme.DARK)
             self.load_stylesheet(resource_path("themes/dark.qss"))
         else:
+            setTheme(Theme.LIGHT)
             self.load_stylesheet(resource_path("themes/light.qss"))
 
         # 6. 初始化窗口属性
@@ -63,6 +71,8 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.config_interface, FIF.ROBOT, "模型配置")
         self.addSubInterface(self.voice_config_interface, FIF.MICROPHONE, "语音设置")
         self.addSubInterface(self.prompt_interface, FIF.PEOPLE, "角色扮演")
+        self.addSubInterface(self.plugin_interface, FIF.BOOK_SHELF, "插件管理")
+        self.addSubInterface(self.skills_interface, FIF.PALETTE, "技能管理")
         self.addSubInterface(self.log_interface, FIF.COMMAND_PROMPT, "运行日志")
         
         # Connect signals
@@ -71,10 +81,14 @@ class MainWindow(FluentWindow):
         self.navigationInterface.setCurrentItem(self.chat_interface.objectName())
         
         # 添加设置到底部
+        self.addSubInterface(self.update_interface, FIF.UPDATE, "软件更新", NavigationItemPosition.BOTTOM)
         self.addSubInterface(self.settings_interface, FIF.SETTING, "通用设置", NavigationItemPosition.BOTTOM)
 
     def init_window(self):
-        # 设置窗口居中
+        icon_path = resource_path("data/icons/logo-small.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+        
         desktop = QApplication.desktop().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w//2 - self.width()//2, h//2 - self.height()//2)
@@ -146,13 +160,13 @@ class MainWindow(FluentWindow):
             self.settings_interface.update_theme()
         if hasattr(self, 'voice_config_interface'):
             self.voice_config_interface.update_theme()
+        if hasattr(self, 'update_interface'):
+            pass
 
     def load_stylesheet(self, path):
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 qss = f.read()
-                # 叠加到现有样式 或者 替换
-                # 这里我们替换全局样式
                 QApplication.instance().setStyleSheet(qss)
         else:
             logger.warning(f"Stylesheet not found: {path}")
@@ -162,6 +176,9 @@ class MainWindow(FluentWindow):
         # Propagate to SettingsInterface
         if hasattr(self, 'settings_interface'):
             self.settings_interface.set_live2d_widget(widget)
+        # Propagate to ChatInterface
+        if hasattr(self, 'chat_interface'):
+            self.chat_interface.set_live2d_widget(widget)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

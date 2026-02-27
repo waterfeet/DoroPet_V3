@@ -1,9 +1,14 @@
 PyQt5
 PyQt-Fluent-Widgets
 openai
+httpx
+Pillow
 sherpa-onnx
 sounddevice
 numpy
 requests
 psutil
 sentencepiece
+markdown
+pygments
+beautifulsoup4

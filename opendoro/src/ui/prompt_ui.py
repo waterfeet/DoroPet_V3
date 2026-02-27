@@ -22,6 +22,7 @@ class PromptInterface(QWidget):
 
         # --- Left Panel: Persona List ---
         self.left_panel = QWidget()
+        self.left_panel.setObjectName("promptLeftPanel")
         self.left_panel.setFixedWidth(250)
         
         left_layout = QVBoxLayout(self.left_panel)
@@ -32,6 +33,7 @@ class PromptInterface(QWidget):
         left_layout.addWidget(left_title)
 
         self.persona_list = ListWidget(self.left_panel)
+        self.persona_list.setObjectName("personaList")
         self.persona_list.itemClicked.connect(self.on_persona_selected)
         left_layout.addWidget(self.persona_list)
 
@@ -44,9 +46,10 @@ class PromptInterface(QWidget):
         # --- Right Panel: Edit Details ---
         right_panel = ScrollArea(self)
         right_panel.setWidgetResizable(True)
-        right_panel.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        # right_panel.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
         
         self.edit_widget = QWidget()
+        self.edit_widget.setObjectName("promptEditWidget")
         right_layout = QVBoxLayout(self.edit_widget)
         right_layout.setContentsMargins(36, 36, 36, 36)
         right_layout.setSpacing(20)
@@ -58,18 +61,21 @@ class PromptInterface(QWidget):
         # Name Input
         right_layout.addWidget(BodyLabel("角色名称", self.edit_widget))
         self.name_input = LineEdit(self.edit_widget)
+        self.name_input.setObjectName("promptNameInput")
         self.name_input.setPlaceholderText("例如：傲娇猫娘")
         right_layout.addWidget(self.name_input)
 
         # Description Input
         right_layout.addWidget(BodyLabel("简短描述", self.edit_widget))
         self.desc_input = LineEdit(self.edit_widget)
+        self.desc_input.setObjectName("promptDescInput")
         self.desc_input.setPlaceholderText("例如：一只性格傲娇的可爱猫娘...")
         right_layout.addWidget(self.desc_input)
 
         # System Prompt Input
         right_layout.addWidget(BodyLabel("系统提示词 (System Prompt)", self.edit_widget))
         self.prompt_edit = PlainTextEdit(self.edit_widget)
+        self.prompt_edit.setObjectName("promptContentEdit")
         self.prompt_edit.setPlaceholderText("在这里定义角色的详细性格、说话方式等...")
         self.prompt_edit.setMinimumHeight(300)
         right_layout.addWidget(self.prompt_edit)
@@ -80,6 +86,7 @@ class PromptInterface(QWidget):
         self.save_btn.clicked.connect(self.save_persona)
         
         self.delete_btn = PushButton(FluentIcon.DELETE, "删除角色", self.edit_widget)
+        self.delete_btn.setObjectName("promptDeleteBtn")
         self.delete_btn.clicked.connect(self.delete_persona)
         
         btn_layout.addWidget(self.save_btn)
@@ -92,7 +99,7 @@ class PromptInterface(QWidget):
         right_panel.setWidget(self.edit_widget)
         main_layout.addWidget(right_panel)
         
-        self.update_theme()
+        # self.update_theme()
 
     def load_personas(self):
         self.persona_list.clear()
@@ -167,148 +174,6 @@ class PromptInterface(QWidget):
             self.create_new_persona()
 
     def update_theme(self):
-        if isDarkTheme():
-            # Main Window Background
-            self.setStyleSheet("background-color: #272727; color: white;")
-
-            self.left_panel.setStyleSheet("background-color: rgba(255, 255, 255, 0.03); border-right: 1px solid #333333;")
-            
-            # Persona List
-            self.persona_list.setStyleSheet("""
-                QListWidget {
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                }
-                QListWidget::item {
-                    height: 36px;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    color: #ffffff;
-                    margin: 2px 4px;
-                }
-                QListWidget::item:hover {
-                    background-color: rgba(255, 255, 255, 0.04);
-                }
-                QListWidget::item:selected {
-                    background-color: rgba(255, 255, 255, 0.08);
-                    color: #ffffff;
-                }
-                QListWidget::item:selected:hover {
-                    background-color: rgba(255, 255, 255, 0.12);
-                }
-            """)
-
-            # Input Fields
-            input_style = """
-                QLineEdit {
-                    color: white;
-                    background-color: #333333;
-                    border: 1px solid #454545;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #383838; }
-                QLineEdit:focus { border: 1px solid #4cc2ff; background-color: #2b2b2b; }
-            """
-            self.name_input.setStyleSheet(input_style)
-            self.desc_input.setStyleSheet(input_style)
-            
-            # Text Edit
-            self.prompt_edit.setStyleSheet("""
-                QPlainTextEdit {
-                    background-color: #333333;
-                    border: 1px solid #454545;
-                    border-radius: 4px;
-                    color: #ffffff;
-                }
-                QPlainTextEdit:focus {
-                    border: 1px solid #4cc2ff;
-                    background-color: #2b2b2b;
-                }
-            """)
-
-            color = "#ff8080"
-            border = "#444444"
-            hover_bg = "rgba(255, 128, 128, 0.1)"
-            hover_border = "#ff8080"
-        else:
-            # Main Window Background
-            self.setStyleSheet("background-color: #f9f9f9; color: black;")
-
-            self.left_panel.setStyleSheet("background-color: rgba(255, 255, 255, 0.5); border-right: 1px solid #E0E0E0;")
-            
-            # Persona List (Light)
-            self.persona_list.setStyleSheet("""
-                QListWidget {
-                    background-color: transparent;
-                    border: none;
-                    outline: none;
-                }
-                QListWidget::item {
-                    height: 36px;
-                    padding: 4px 8px;
-                    border-radius: 4px;
-                    color: black;
-                    margin: 2px 4px;
-                }
-                QListWidget::item:hover {
-                    background-color: rgba(0, 0, 0, 0.04);
-                }
-                QListWidget::item:selected {
-                    background-color: rgba(0, 0, 0, 0.08);
-                    color: black;
-                }
-                QListWidget::item:selected:hover {
-                    background-color: rgba(0, 0, 0, 0.12);
-                }
-            """)
-
-            # Input Fields (Light)
-            input_style = """
-                QLineEdit {
-                    color: black;
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 4px;
-                    padding: 5px;
-                }
-                QLineEdit:hover { background-color: #fdfdfd; }
-                QLineEdit:focus { border: 1px solid #0078d4; background-color: white; }
-            """
-            self.name_input.setStyleSheet(input_style)
-            self.desc_input.setStyleSheet(input_style)
-
-            # Text Edit (Light)
-            self.prompt_edit.setStyleSheet("""
-                QPlainTextEdit {
-                    background-color: white;
-                    border: 1px solid #e5e5e5;
-                    border-radius: 4px;
-                    color: black;
-                }
-                QPlainTextEdit:focus {
-                    border: 1px solid #0078d4;
-                    background-color: white;
-                }
-            """)
-
-            color = "#d32f2f"
-            border = "#e0e0e0"
-            hover_bg = "rgba(211, 47, 47, 0.05)"
-            hover_border = "#d32f2f"
-
-        self.delete_btn.setStyleSheet(f"""
-            QPushButton {{
-                color: {color};
-                border: 1px solid {border};
-                border-radius: 5px;
-                padding: 5px 12px 5px 36px;
-                background-color: transparent;
-                text-align: left;
-            }}
-            QPushButton:hover {{
-                background-color: {hover_bg};
-                border: 1px solid {hover_border};
-            }}
-        """)
+        pass
+        # Theme handling is now done via global QSS
+        # All inline styles have been migrated to light.qss and dark.qss

@@ -1,0 +1,12 @@
+[2026-02-27 17:41:39] [DoroPet] [INFO] Logger initialized. Saving logs to: e:\myDemo\DoroPet\DoroPet_v3_1_0\log\log_2026-02-27_17-41-39.txt
+[2026-02-27 17:41:39] [DoroPet] [INFO] Application started.
+[2026-02-27 17:41:39] [DoroPet] [INFO] Loaded stylesheet: e:\myDemo\DoroPet\DoroPet_v3_1_0\themes/light.qss
+[2026-02-27 17:41:39] [DoroPet] [INFO] Initializing Live2DWidget...
+[2026-02-27 17:41:40] [DoroPet] [INFO] Splash screen closed
+[2026-02-27 17:41:43] [DoroPet] [INFO] Initializing MainWindow...
+[2026-02-27 17:41:43] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_v3_1_0\src\skills
+[2026-02-27 17:41:44] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_v3_1_0\src\skills
+[2026-02-27 17:41:44] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_v3_1_0\src\skills
+[2026-02-27 17:41:44] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_v3_1_0\src\skills
+[2026-02-27 17:41:44] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_v3_1_0\src\skills
+[2026-02-27 17:41:44] [DoroPet] [INFO] Skills reloaded
