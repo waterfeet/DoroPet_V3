@@ -1,37 +1,167 @@
-# opendoro
+# DoroPet - Windows桌面宠物助手
 
-#### 介绍
-Your own AI assistant for Windows, Make Doro Great Again!
+## 项目介绍
 
-#### 软件架构
-软件架构说明
+DoroPet是一个基于Python+Live2D+LLM+Agent Skill的Windows桌面宠物项目，以虚拟形象Doro为主体，为用户提供智能交互体验。
+
+![DoroPet Logo](opendoro/data/icons/logo.png)
+
+### 核心特性
+
+- **生动的Live2D虚拟形象**：基于Live2D技术，Doro拥有丰富的表情和动作
+- **智能对话能力**：集成LLM（大语言模型），支持自然语言交互
+- **语音交互**：支持语音识别和合成，实现语音对话
+- **Agent Skill系统**：可扩展的技能系统，支持自定义和安装各种技能
+- **个性化定制**：可自定义Doro的经历、性格和行为
+- **系统监控**：实时监控系统状态，提供贴心提醒
+- **任务管理**：帮助用户管理日常任务和提醒
+
+## 技术架构
+
+### 技术栈
+
+- **前端**：PyQt5 + PyQt-Fluent-Widgets
+- **核心**：Python 3.12.10
+- **AI能力**：OpenAI API
+- **动画**：Live2D Python绑定
+- **语音**：sherpa-onnx + sounddevice
+- **数据存储**：SQLite数据库
+
+### 项目结构
+
+```
+opendoro/
+├── data/            # 数据文件
+│   ├── icons/       # 应用图标
+│   ├── *.db         # 数据库文件
+├── live2dpy/        # Live2D相关代码
+│   └── Live2D-Python/  # Live2D Python绑定
+├── install_env.bat  # 环境安装脚本
+├── requirements.txt # 依赖项列表
+└── start_app_background.bat # 启动脚本
+```
+
+## 安装教程
+
+### 系统要求
+
+- Windows 10/11 64位系统
+- 至少4GB内存
+- 网络连接（首次安装和使用AI功能时需要）
+
+### 安装步骤
+
+1. **克隆或下载项目**
+   - 从GitHub/Gitee克隆项目到本地
+   - 或直接下载ZIP包并解压
+
+2. **运行安装脚本**
+   - 双击运行 `opendoro/install_env.bat`
+   - 脚本会自动：
+     - 下载并安装Python 3.12.10
+     - 配置pip环境
+     - 安装所有依赖项
+     - 安装Live2D组件
+
+3. **启动应用**
+   - 安装完成后会自动启动DoroPet
+   - 以后可通过 `start_app_background.bat` 启动
+
+## 使用说明
+
+### 基本操作
+
+- **鼠标交互**：
+  - 左键点击并拖动：移动Doro位置
+  - 右键点击：打开菜单
+  - 双击：与Doro对话
+
+- **语音交互**：
+  - 点击Doro或使用快捷键激活语音
+  - 直接说出你的问题或指令
+
+### 功能介绍
+
+1. **智能对话**：
+   - 询问天气、新闻、知识等
+   - 聊天、讲故事、玩游戏
+   - 提供生活建议和帮助
+
+2. **系统监控**：
+   - 显示CPU、内存使用情况
+   - 提醒休息和健康用眼
+   - 监控网络状态
+
+3. **任务管理**：
+   - 创建和管理待办事项
+   - 设置定时提醒
+   - 记录重要事件
+
+4. **Agent Skill系统**：
+   - 安装和管理各种技能
+   - 自定义技能行为
+   - 通过技能扩展Doro的能力
 
 
-#### 安装教程
+## 配置说明
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+### API配置
 
-#### 使用说明
+若要使用LLM功能，需要在设置中配置OpenAI API密钥：
 
-1.  xxxx
-2.  xxxx
-3.  xxxx
+1. 打开设置面板
+2. 进入"AI设置"选项
+3. 输入你的OpenAI API密钥
+4. 保存配置
 
-#### 参与贡献
+### 语音设置
 
-1.  Fork 本仓库
-2.  新建 Feat_xxx 分支
-3.  提交代码
-4.  新建 Pull Request
+首次使用语音功能时，需要下载语音模型：
+
+1. 打开设置面板
+2. 进入"语音设置"选项
+3. 点击"下载模型"按钮
+4. 等待下载完成
+
+### Skill设置
+
+管理和配置Doro的技能：
+
+1. 打开设置面板
+2. 进入"技能管理"选项
+3. 浏览可用技能并点击"安装"按钮
+4. 配置已安装技能的参数
+5. 启用或禁用特定技能
+
+## 常见问题
+
+### 安装失败
+- 检查网络连接是否正常
+- 确保系统权限足够
+- 尝试以管理员身份运行安装脚本
+
+### 语音识别不工作
+- 检查麦克风是否正常
+- 确保已下载语音模型
+- 调整麦克风音量和灵敏度
+
+### AI对话无响应
+- 检查API密钥是否正确
+- 确保网络连接正常
+- 尝试重启应用
+
+## 参与贡献
+
+1. **Fork 本仓库**
+2. **新建 Feat_xxx 分支**
+3. **提交代码**
+4. **新建 Pull Request**
+
+## 许可证
+
+本项目采用 MIT 许可证，详见 [LICENSE](LICENSE) 文件。
 
 
-#### 特技
+---
 
-1.  使用 Readme\_XXX.md 来支持不同的语言，例如 Readme\_en.md, Readme\_zh.md
-2.  Gitee 官方博客 [blog.gitee.com](https://blog.gitee.com)
-3.  你可以 [https://gitee.com/explore](https://gitee.com/explore) 这个地址来了解 Gitee 上的优秀开源项目
-4.  [GVP](https://gitee.com/gvp) 全称是 Gitee 最有价值开源项目，是综合评定出的优秀开源项目
-5.  Gitee 官方提供的使用手册 [https://gitee.com/help](https://gitee.com/help)
-6.  Gitee 封面人物是一档用来展示 Gitee 会员风采的栏目 [https://gitee.com/gitee-stars/](https://gitee.com/gitee-stars/)
+**DoroPet - Doro智能桌面伙伴，让摸鱼更有趣！**
