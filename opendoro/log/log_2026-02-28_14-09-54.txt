@@ -1,5 +1,0 @@
-[2026-02-28 14:09:54] [DoroPet] [INFO] Logger initialized. Saving logs to: E:\myDemo\DoroPet\DoroPet_V3\opendoro\log\log_2026-02-28_14-09-54.txt
-[2026-02-28 14:09:55] [DoroPet] [INFO] Application started.
-[2026-02-28 14:09:55] [DoroPet] [INFO] Loaded stylesheet: E:\myDemo\DoroPet\DoroPet_V3\opendoro\themes/light.qss
-[2026-02-28 14:09:55] [DoroPet] [INFO] Initializing Live2DWidget...
-[2026-02-28 14:09:55] [DoroPet] [INFO] Splash screen closed
