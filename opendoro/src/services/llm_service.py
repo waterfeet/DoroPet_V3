@@ -16,6 +16,7 @@ class LLMWorker(QThread):
     thinking_chunk = pyqtSignal(str)
     error = pyqtSignal(str)
     expression_changed = pyqtSignal(str)
+    pet_attribute_changed = pyqtSignal(str, str)  # attribute, action
     tool_status_changed = pyqtSignal(str)
     tool_execution_update = pyqtSignal(str, str, str, str, str)
     stopped = pyqtSignal()
@@ -73,6 +74,8 @@ class LLMWorker(QThread):
             tool_name = tool["function"]["name"]
             if tool_name == "set_expression" and "expression" not in self.enabled_plugins:
                 continue
+            if tool_name == "modify_pet_attribute" and "expression" not in self.enabled_plugins:
+                continue
             if tool_name == "search" and "search" not in self.enabled_plugins:
                 continue
             if tool_name == "generate_image" and "image" not in self.enabled_plugins:
@@ -123,6 +126,14 @@ class LLMWorker(QThread):
                 max_tokens = settings.value("llm_max_tokens", 8192, type=int)
                 
                 api_params = self._build_api_params(max_tokens, turn_count)
+                
+                messages_for_log = api_params.get("messages", [])
+                logger.info(f"[LLMWorker] Sending {len(messages_for_log)} messages to API, model={self.model}")
+                for i, msg in enumerate(messages_for_log):
+                    content = msg.get("content", "")
+                    preview = str(content)[:200] + "..." if len(str(content)) > 200 else str(content)
+                    logger.debug(f"[LLMWorker] Message[{i}] role={msg.get('role')}: {preview}")
+                
                 response = client.chat.completions.create(**api_params)
                 self._response_iterator = response
                 self.state_manager.set_generation_state(GenerationState.STREAMING)
@@ -253,6 +264,10 @@ class LLMWorker(QThread):
                             if func_name == "set_expression":
                                 if "expression_name" in func_args:
                                     self.expression_changed.emit(func_args["expression_name"])
+                            
+                            if func_name == "modify_pet_attribute":
+                                if "attribute" in func_args and "action" in func_args:
+                                    self.pet_attribute_changed.emit(func_args["attribute"], func_args["action"])
 
                             if func_name == "generate_image":
                                 img_base_url = ""

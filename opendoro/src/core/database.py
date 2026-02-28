@@ -460,32 +460,43 @@ class PersonaDatabase(BaseDatabase):
                             name TEXT,
                             description TEXT,
                             system_prompt TEXT,
-                            avatar TEXT
+                            avatar TEXT,
+                            enable_doro_tools INTEGER DEFAULT 0
                           )''')
+        cursor.execute("PRAGMA table_info(personas)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'enable_doro_tools' not in columns:
+            cursor.execute("ALTER TABLE personas ADD COLUMN enable_doro_tools INTEGER DEFAULT 0")
         self.conn.commit()
 
-    def add_persona(self, name, description, system_prompt, avatar=""):
+    def add_persona(self, name, description, system_prompt, avatar="", enable_doro_tools=False):
         cursor = self.conn.cursor()
-        cursor.execute("INSERT INTO personas (name, description, system_prompt, avatar) VALUES (?, ?, ?, ?)",
-                       (name, description, system_prompt, avatar))
+        cursor.execute("INSERT INTO personas (name, description, system_prompt, avatar, enable_doro_tools) VALUES (?, ?, ?, ?, ?)",
+                       (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_personas(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar FROM personas ORDER BY id ASC")
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools FROM personas ORDER BY id ASC")
         return cursor.fetchall()
 
     def get_persona(self, persona_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar FROM personas WHERE id=?", (persona_id,))
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools FROM personas WHERE id=?", (persona_id,))
         return cursor.fetchone()
 
-    def update_persona(self, persona_id, name, description, system_prompt, avatar=None):
+    def update_persona(self, persona_id, name, description, system_prompt, avatar=None, enable_doro_tools=None):
         cursor = self.conn.cursor()
-        if avatar is not None:
+        if avatar is not None and enable_doro_tools is not None:
+            cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=?, enable_doro_tools=? WHERE id=?",
+                           (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0, persona_id))
+        elif avatar is not None:
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=? WHERE id=?",
                            (name, description, system_prompt, avatar, persona_id))
+        elif enable_doro_tools is not None:
+            cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, enable_doro_tools=? WHERE id=?",
+                           (name, description, system_prompt, 1 if enable_doro_tools else 0, persona_id))
         else:
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=? WHERE id=?",
                            (name, description, system_prompt, persona_id))

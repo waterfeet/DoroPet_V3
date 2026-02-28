@@ -20,6 +20,7 @@ from .voice_config_ui import VoiceConfigInterface
 from .plugin_ui import PluginInterface
 from .skills_ui import SkillsInterface
 from .update_ui import UpdateInterface
+from .pet_status_interface import PetStatusInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
@@ -48,6 +49,12 @@ class MainWindow(FluentWindow):
         self.update_interface = UpdateInterface(self)
         self.settings_interface = SettingsInterface(self)
         
+        # 创建属性管理器（在 db 初始化之后）
+        self.attr_manager = self.live2d_widget.attr_manager if hasattr(self, 'live2d_widget') else None
+        
+        # 创建属性管理界面
+        self.pet_status_interface = PetStatusInterface(self.attr_manager, self)
+        
         # 4. 初始化导航栏
         self.init_navigation()
         
@@ -67,6 +74,7 @@ class MainWindow(FluentWindow):
 
     def init_navigation(self):
         # 添加子界面到导航栏
+        self.addSubInterface(self.pet_status_interface, FIF.HOME, "桌宠状态")
         self.addSubInterface(self.chat_interface, FIF.CHAT, "AI 聊天")
         self.addSubInterface(self.config_interface, FIF.ROBOT, "模型配置")
         self.addSubInterface(self.voice_config_interface, FIF.MICROPHONE, "语音设置")
@@ -78,7 +86,7 @@ class MainWindow(FluentWindow):
         # Connect signals
         self.voice_config_interface.settingsChanged.connect(self.chat_interface.update_voice_ui_visibility)
 
-        self.navigationInterface.setCurrentItem(self.chat_interface.objectName())
+        self.navigationInterface.setCurrentItem(self.pet_status_interface.objectName())
         
         # 添加设置到底部
         self.addSubInterface(self.update_interface, FIF.UPDATE, "软件更新", NavigationItemPosition.BOTTOM)
@@ -179,6 +187,9 @@ class MainWindow(FluentWindow):
         # Propagate to ChatInterface
         if hasattr(self, 'chat_interface'):
             self.chat_interface.set_live2d_widget(widget)
+        # Propagate to PetStatusInterface
+        if hasattr(self, 'pet_status_interface') and hasattr(widget, 'attr_manager'):
+            self.pet_status_interface.set_attr_manager(widget.attr_manager)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

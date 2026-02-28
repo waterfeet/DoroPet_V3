@@ -3,8 +3,8 @@ import logging
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout
 from PyQt5.QtCore import Qt, pyqtSignal, QObject
 from qfluentwidgets import TextEdit, PrimaryPushButton, FluentIcon
-from qfluentwidgets import StrongBodyLabel
-from src.core.logger import logger
+from qfluentwidgets import StrongBodyLabel, ComboBox, BodyLabel
+from src.core.logger import logger, set_log_level, get_log_level_name
 
 class QtLogHandler(logging.Handler):
     """
@@ -74,13 +74,24 @@ class LogInterface(QWidget):
         header_layout = QHBoxLayout()
         self.title_label = StrongBodyLabel("运行日志", self)
         self.title_label.setObjectName("logTitleLabel")
-        # self.title_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        
+        # Log level selector
+        self.level_label = BodyLabel("日志级别:", self)
+        self.level_combo = ComboBox(self)
+        self.level_combo.addItems(["DEBUG", "INFO", "WARNING", "ERROR"])
+        current_level = get_log_level_name()
+        index = self.level_combo.findText(current_level)
+        if index >= 0:
+            self.level_combo.setCurrentIndex(index)
+        self.level_combo.currentTextChanged.connect(self.on_level_changed)
         
         self.clear_btn = PrimaryPushButton(FluentIcon.DELETE, "清空日志", self)
         self.clear_btn.clicked.connect(self.clear_logs)
         
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()
+        header_layout.addWidget(self.level_label)
+        header_layout.addWidget(self.level_combo)
         header_layout.addWidget(self.clear_btn)
         
         self.layout.addLayout(header_layout)
@@ -127,6 +138,16 @@ class LogInterface(QWidget):
 
     def clear_logs(self):
         self.log_view.clear()
+
+    def on_level_changed(self, level_name):
+        level_map = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR
+        }
+        if level_name in level_map:
+            set_log_level(level_map[level_name])
 
     def closeEvent(self, event):
         # Restore streams when destroyed (optional, but good practice if window closes)

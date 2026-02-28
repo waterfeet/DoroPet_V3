@@ -11,6 +11,9 @@ from PyQt5.QtWidgets import QOpenGLWidget, QLabel, QMenu, QAction, QApplication,
 from src.ui.main_window import MainWindow
 from src.resource_utils import resource_path
 from qfluentwidgets import isDarkTheme
+from src.core.pet_attributes_manager import PetAttributesManager
+from src.core.pet_constants import ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS
+from src.ui.pet_status_overlay import PetStatusOverlay
 
 class SpeechBubble(QLabel):
     """
@@ -160,48 +163,19 @@ class Live2DWidget(QOpenGLWidget):
         # 锁定状态
         self.is_locked = False
 
-        # ==================== 饱食度系统 ====================
-        self.hunger = 80.0        # 饱食度 (0-100, 100=饱)
-        self.max_hunger = 100
-        self.hunger_decay_rate = 1.5  # 每分钟减少的饱食度
-        self.hunger_timer = QTimer(self)
-        self.hunger_timer.timeout.connect(self.update_hunger)
-        self.hunger_timer.start(60000)  # 每分钟检查一次饱食度
+        # ==================== 属性管理系统 ====================
+        self.attr_manager = PetAttributesManager()
         
-        # 饱食度进度条
-        self.hunger_container = QWidget(self)
-        self.hunger_container.setFixedWidth(100)
-        self.hunger_container.setFixedHeight(24)
-        self.hunger_container.setStyleSheet("background: transparent;")
+        # 属性浮窗
+        self.status_overlay = PetStatusOverlay(self.attr_manager, None)
+        self.status_overlay.hide()
         
-        self.hunger_label = QLabel("饱食度", self.hunger_container)
-        self.hunger_label.setStyleSheet("color: #333; font-size: 11px; font-weight: bold;")
-        self.hunger_label.setFixedHeight(12)
-        self.hunger_label.setAlignment(Qt.AlignCenter)
+        # 连接属性信号
+        self.attr_manager.status_changed.connect(self._on_status_changed)
+        self.attr_manager.interaction_triggered.connect(self._on_interaction_triggered)
         
-        self.hunger_bar = QProgressBar(self.hunger_container)
-        self.hunger_bar.setRange(0, 100)
-        self.hunger_bar.setValue(int(self.hunger))
-        self.hunger_bar.setFixedWidth(80)
-        self.hunger_bar.setFixedHeight(8)
-        self.hunger_bar.setTextVisible(False)
-        self.hunger_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #888;
-                border-radius: 4px;
-                background-color: #eee;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                border-radius: 3px;
-            }
-        """)
-        self.hunger_label.setFixedWidth(80)
-        self.hunger_label.move(10, 0)
-        self.hunger_bar.move(10, 14)
-        
-        # 初始隐藏饱食度UI，由鼠标悬停控制显示
-        self.hunger_container.hide()
+        # 启动属性衰减定时器
+        self.attr_manager.start_decay_timer(60000)
         # ====================================================
 
         # Load and apply settings
@@ -236,125 +210,9 @@ class Live2DWidget(QOpenGLWidget):
         
         # 初始化系统监控
         self.init_system_monitor()
-        
-        # 显示饱食度进度条（初始隐藏，由鼠标控制显示）
-        self.update_hunger_bar_position()
 
     def paintGL(self) -> None:
         self.model.draw(self.width(), self.height())
-
-    # ==================== 饱食度系统 ====================
-    def update_hunger(self):
-        """自动衰减饱食度"""
-        if self.hunger > 0:
-            self.hunger = max(0, self.hunger - self.hunger_decay_rate)
-        
-        # 更新进度条
-        self.hunger_bar.setValue(int(self.hunger))
-        if self.hunger_container.isVisible():
-            self.hunger_container.hide()
-        
-        # 根据饱食度改变进度条颜色
-        if self.hunger <= 20:
-            self.hunger_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #888;
-                    border-radius: 5px;
-                    background-color: #eee;
-                }
-                QProgressBar::chunk {
-                    background-color: #f44336;
-                    border-radius: 4px;
-                }
-            """)
-        elif self.hunger <= 50:
-            self.hunger_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #888;
-                    border-radius: 5px;
-                    background-color: #eee;
-                }
-                QProgressBar::chunk {
-                    background-color: #ff9800;
-                    border-radius: 4px;
-                }
-            """)
-        else:
-            self.hunger_bar.setStyleSheet("""
-                QProgressBar {
-                    border: 1px solid #888;
-                    border-radius: 5px;
-                    background-color: #eee;
-                }
-                QProgressBar::chunk {
-                    background-color: #4CAF50;
-                    border-radius: 4px;
-                }
-            """)
-            
-        # 根据饱食度触发不同反应
-        if self.hunger <= 0:
-            self.talk("好饿啊...我要饿晕了...", 4000)
-            if "失去高光" in self.expression_ids:
-                self.model.set_expression("失去高光")
-        elif self.hunger <= 20:
-            self.talk("肚子好饿...有什么吃的吗?", 3000)
-            if "黑脸" in self.expression_ids:
-                self.model.set_expression("黑脸")
-        elif self.hunger <= 50 and random.random() < 0.3:
-            self.talk("有点饿了...", 2500)
-            if "感叹号" in self.expression_ids:
-                self.model.set_expression("感叹号")
-
-    def feed_pet(self, food_name: str = "欧润吉"):
-        """投喂宠物"""
-        self.hunger = min(self.max_hunger, self.hunger + 20)
-        
-        # 更新进度条
-        self.hunger_bar.setValue(int(self.hunger))
-        
-        # 恢复绿色
-        self.hunger_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #888;
-                border-radius: 5px;
-                background-color: #eee;
-            }
-            QProgressBar::chunk {
-                background-color: #4CAF50;
-                border-radius: 4px;
-            }
-        """)
-        
-        responses = [
-            f"谢谢'人'的{food_name}！好甜呀~",
-            f"啊呜~ {food_name}最好吃啦！",
-            f"还要更多{food_name}！",
-            f"{food_name}补充能量中... 滴！"
-        ]
-        self.talk(random.choice(responses), 3000)
-        
-        # 投喂时随机切换一个开心表情
-        happy_exps = ["星星眼", "吐舌", "默认"]
-        available_happy = [e for e in happy_exps if e in self.expression_ids]
-        if available_happy:
-            self.model.set_expression(random.choice(available_happy))
-        
-        # 播放一个动作
-        if self.motion_ids:
-            self.model.set_motion(random.choice(self.motion_ids))
-            
-    def get_hunger_status(self) -> str:
-        """获取饱食度状态文字"""
-        if self.hunger >= 80:
-            return "饱饱的~"
-        elif self.hunger >= 50:
-            return "有点饿"
-        elif self.hunger >= 20:
-            return "好饿啊..."
-        else:
-            return "要饿晕了..."
-    # ====================================================
 
     def set_locked(self, locked: bool, silent: bool = False):
         """设置锁定状态"""
@@ -446,19 +304,14 @@ class Live2DWidget(QOpenGLWidget):
         super().moveEvent(event)
         if hasattr(self, 'bubble'):
             self.update_bubble_position()
-        if hasattr(self, 'hunger_bar'):
-            self.update_hunger_bar_position()
-
-    def update_hunger_bar_position(self):
-        """更新饱食度进度条位置"""
-        bar_x = (self.width() - 100) // 2
-        bar_y = self.height() - 30
-        self.hunger_container.move(bar_x, bar_y)
+        if hasattr(self, 'status_overlay'):
+            self.status_overlay.follow_pet(
+                self.mapToGlobal(QPoint(0, 0)),
+                self.size()
+            )
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
-        if hasattr(self, 'hunger_bar'):
-            self.update_hunger_bar_position()
 
     def hideEvent(self, event):
         super().hideEvent(event)
@@ -469,6 +322,85 @@ class Live2DWidget(QOpenGLWidget):
         super().closeEvent(event)
         if hasattr(self, 'bubble'):
             self.bubble.close()
+
+        # ==================== 属性管理系统 ====================
+        if hasattr(self, 'attr_manager'):
+            self.attr_manager.stop_decay_timer()
+        # ====================================================
+
+    # ==================== 属性管理系统 ====================
+    def _on_status_changed(self, attr_name: str, new_status: str, old_status: str):
+        """属性状态变化时触发表情"""
+        if new_status == "critical":
+            if attr_name == ATTR_HUNGER:
+                self.talk("好饿啊...我要饿晕了...", 4000)
+                if "失去高光" in self.expression_ids:
+                    self.model.set_expression("失去高光")
+            elif attr_name == ATTR_MOOD:
+                self.talk("好难过啊...", 3000)
+                if "黑脸" in self.expression_ids:
+                    self.model.set_expression("黑脸")
+            elif attr_name == ATTR_CLEANLINESS:
+                self.talk("身上好脏啊...", 3000)
+            elif attr_name == "energy":
+                self.talk("好困啊...", 3000)
+                if "困" in self.expression_ids:
+                    self.model.set_expression("困")
+        elif new_status == "warning":
+            if attr_name == ATTR_HUNGER:
+                if random.random() < 0.3:
+                    self.talk("有点饿了...", 2500)
+                    if "感叹号" in self.expression_ids:
+                        self.model.set_expression("感叹号")
+            elif attr_name == ATTR_MOOD:
+                if random.random() < 0.2:
+                    self.talk("有点无聊...", 2500)
+
+    def _on_interaction_triggered(self, attr_name: str, interaction_type: str):
+        """互动反馈：触发对话和动作"""
+        responses = {
+            "feed": [
+                "谢谢投喂！好好吃~",
+                "啊呜~ 太美味了！",
+                "还要更多！",
+                "补充能量中...滴！"
+            ],
+            "play": [
+                "太好玩了！",
+                "再陪我玩会儿嘛~",
+                "开心！",
+                "哈哈好痒！"
+            ],
+            "clean": [
+                "洗香香啦~",
+                "好干净！",
+                "舒服~",
+                "闪闪发光！"
+            ],
+            "rest": [
+                "休息中...",
+                "充能中...",
+                "zzz...",
+                "精神多了！"
+            ]
+        }
+        
+        if interaction_type in responses:
+            self.talk(random.choice(responses[interaction_type]), 3000)
+            
+            if interaction_type in ["play", "feed"]:
+                happy_exps = ["星星眼", "吐舌", "默认"]
+                available_happy = [e for e in happy_exps if e in self.expression_ids]
+                if available_happy:
+                    self.model.set_expression(random.choice(available_happy))
+            
+            if self.motion_ids:
+                self.model.set_motion(random.choice(self.motion_ids))
+    
+    def feed_pet(self, food_name: str = "欧润吉"):
+        """投喂宠物（兼容旧接口）"""
+        self.attr_manager.perform_interaction("feed")
+    # ====================================================
 
     # --- 【新增】自定义鼠标逻辑方法 ---
     def init_custom_cursor(self, image_path):
@@ -811,28 +743,31 @@ class Live2DWidget(QOpenGLWidget):
         self.move(target_x, target_y)
 
     def enterEvent(self, event):
-        """鼠标移入：显示饱食度，如果是吸附状态则弹出来"""
-        if hasattr(self, "hunger_container"):
-            self.hunger_container.show()
+        """鼠标移入：显示状态浮窗，如果是吸附状态则弹出来"""
+        if hasattr(self, "status_overlay"):
+            self.status_overlay.show()
+            self.status_overlay.show_with_auto_hide()
         
         if hasattr(self, "is_docked") and self.is_docked == "right":
-            # 恢复完全显示
-            screen = QApplication.primaryScreen()
+            screen = QApplication.screenAt(QCursor.pos())
+            if not screen:
+                screen = QApplication.primaryScreen()
             screen_geo = screen.availableGeometry()
             target_x = screen_geo.x() + screen_geo.width() - self.width()
             self.animate_move(target_x, self.y())
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        """鼠标移出：隐藏饱食度，如果是吸附状态则缩回去"""
-        if hasattr(self, "hunger_container"):
-            self.hunger_container.hide()
+        """鼠标移出：隐藏状态浮窗，如果是吸附状态则缩回去"""
+        if hasattr(self, "status_overlay"):
+            self.status_overlay.show_with_auto_hide()
         
         if hasattr(self, "is_docked") and self.is_docked == "right":
-            # 缩回去，只露头
-            screen = QApplication.primaryScreen()
+            screen = QApplication.screenAt(QCursor.pos())
+            if not screen:
+                screen = QApplication.primaryScreen()
             screen_geo = screen.availableGeometry()
-            peek_width = self.width() // 3 # 保持一致
+            peek_width = self.width() // 3
             target_x = screen_geo.x() + screen_geo.width() - peek_width
             self.animate_move(target_x, self.y())
         super().leaveEvent(event)

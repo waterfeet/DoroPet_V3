@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QListWidgetItem, 
 from PyQt5.QtCore import Qt
 from qfluentwidgets import (ScrollArea, PlainTextEdit, PrimaryPushButton, PushButton,
                             TitleLabel, BodyLabel, FluentIcon, LineEdit, ListWidget, MessageBox,
-                            StrongBodyLabel, isDarkTheme)
+                            StrongBodyLabel, isDarkTheme, CheckBox)
 from src.core.database import ChatDatabase
 
 class PromptInterface(QWidget):
@@ -79,6 +79,11 @@ class PromptInterface(QWidget):
         self.prompt_edit.setPlaceholderText("在这里定义角色的详细性格、说话方式等...")
         self.prompt_edit.setMinimumHeight(300)
         right_layout.addWidget(self.prompt_edit)
+        
+        # Doro Tools Option
+        self.doro_tools_checkbox = CheckBox("启用 Doro 表情和属性工具", self.edit_widget)
+        self.doro_tools_checkbox.setToolTip("启用后，AI 可以调用 set_expression 和 modify_pet_attribute 工具")
+        right_layout.addWidget(self.doro_tools_checkbox)
 
         # Action Buttons
         btn_layout = QHBoxLayout()
@@ -104,15 +109,15 @@ class PromptInterface(QWidget):
     def load_personas(self):
         self.persona_list.clear()
         personas = self.db.get_personas()
-        for p_id, name, desc, prompt, avatar in personas:
+        for p in personas:
+            p_id, name, desc, prompt, avatar, enable_doro_tools = p
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, p_id)
             item.setData(Qt.UserRole + 1, desc)
             item.setData(Qt.UserRole + 2, prompt)
+            item.setData(Qt.UserRole + 3, bool(enable_doro_tools))
             self.persona_list.addItem(item)
         
-        # If no personas, add a default one if DB is empty? 
-        # Or just clear inputs
         if not personas:
             self.clear_inputs()
             self.current_persona_id = None
@@ -122,6 +127,7 @@ class PromptInterface(QWidget):
         self.name_input.setText(item.text())
         self.desc_input.setText(item.data(Qt.UserRole + 1))
         self.prompt_edit.setPlainText(item.data(Qt.UserRole + 2))
+        self.doro_tools_checkbox.setChecked(item.data(Qt.UserRole + 3) or False)
 
     def create_new_persona(self):
         # Create a default new persona in DB immediately or just clear inputs?
@@ -137,21 +143,23 @@ class PromptInterface(QWidget):
         self.name_input.clear()
         self.desc_input.clear()
         self.prompt_edit.clear()
+        self.doro_tools_checkbox.setChecked(False)
 
     def save_persona(self):
         name = self.name_input.text().strip()
         desc = self.desc_input.text().strip()
         prompt = self.prompt_edit.toPlainText().strip()
+        enable_doro_tools = self.doro_tools_checkbox.isChecked()
         
         if not name:
             MessageBox("错误", "角色名称不能为空", self).exec_()
             return
 
         if self.current_persona_id:
-            self.db.update_persona(self.current_persona_id, name, desc, prompt)
+            self.db.update_persona(self.current_persona_id, name, desc, prompt, enable_doro_tools=enable_doro_tools)
             MessageBox("成功", "角色已更新", self).exec_()
         else:
-            new_id = self.db.add_persona(name, desc, prompt)
+            new_id = self.db.add_persona(name, desc, prompt, enable_doro_tools=enable_doro_tools)
             self.current_persona_id = new_id
             MessageBox("成功", "新角色已创建", self).exec_()
         

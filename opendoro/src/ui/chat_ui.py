@@ -32,6 +32,7 @@ from src.core.state_manager import StateManager, GenerationState, ConnectionStat
 from src.resource_utils import resource_path
 from src.core.logger import logger
 from src.ui.screenshot_tool import ScreenCaptureTool
+from src.core.pet_constants import ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY, ATTR_NAMES
 
 # ---------------------------------------------------------
 # Part 3: UI Components
@@ -1792,16 +1793,19 @@ class ChatInterface(QWidget):
         self.persona_combo.blockSignals(True)
         self.persona_combo.clear()
         self.persona_prompts = []
+        self.persona_doro_tools = []
         
         # Default
         self.persona_combo.addItem("默认助手")
         self.persona_prompts.append("You are a helpful assistant.")
+        self.persona_doro_tools.append(False)
         
         personas = self.db.get_personas()
         for p in personas:
-            # p: id, name, desc, system_prompt, avatar
+            # p: id, name, desc, system_prompt, avatar, enable_doro_tools
             self.persona_combo.addItem(p[1])
             self.persona_prompts.append(p[3])
+            self.persona_doro_tools.append(bool(p[5]) if len(p) > 5 else False)
             
         self.persona_combo.blockSignals(False)
 
@@ -1818,6 +1822,49 @@ class ChatInterface(QWidget):
             curr_item = self.session_list.currentItem()
             if curr_item:
                 curr_item.setData(Qt.UserRole + 1, new_prompt)
+
+    def _get_current_persona_name(self) -> str:
+        """获取当前选择的人格名称"""
+        if hasattr(self, 'persona_combo') and self.persona_combo.currentIndex() >= 0:
+            return self.persona_combo.currentText()
+        return ""
+    
+    def _is_doro_tools_enabled(self) -> bool:
+        """检查当前人格是否启用了 Doro 工具"""
+        if hasattr(self, 'persona_combo') and self.persona_combo.currentIndex() >= 0:
+            index = self.persona_combo.currentIndex()
+            if hasattr(self, 'persona_doro_tools') and index < len(self.persona_doro_tools):
+                return self.persona_doro_tools[index]
+        return False
+
+    def _get_pet_status_context(self) -> str:
+        """获取桌宠属性状态上下文（仅启用Doro工具的人格生效）"""
+        if not hasattr(self, 'live2d_widget') or not self.live2d_widget:
+            return ""
+        
+        if not hasattr(self.live2d_widget, 'attr_manager'):
+            return ""
+        
+        if not self._is_doro_tools_enabled():
+            return ""
+        
+        attr_manager = self.live2d_widget.attr_manager
+        contexts = []
+        
+        for attr_name in [ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY]:
+            status = attr_manager.get_status(attr_name)
+            value = attr_manager.get_attribute(attr_name)
+            chinese_name = ATTR_NAMES.get(attr_name, attr_name)
+            
+            if status in ["critical", "warning"]:
+                if status == "critical":
+                    contexts.append(f"{chinese_name}过低({value:.0f}%)，处于危急状态")
+                elif status == "warning":
+                    contexts.append(f"{chinese_name}偏低({value:.0f}%)")
+        
+        if contexts:
+            return "\n【桌宠状态】" + "；".join(contexts) + "。请根据此状态调整你的回复风格。"
+        return ""
 
     def on_model_changed(self, index):
         if index < 0: return
@@ -1880,17 +1927,21 @@ class ChatInterface(QWidget):
         menu.addAction(action_file)
         
         skill_mgr = SkillManager()
-        enabled_skills = [(name, skill) for name, skill in skill_mgr.skills.items() 
-                          if self.skill_states.get(name, True)]
-        if enabled_skills:
+        settings = QSettings("DoroPet", "Settings")
+        
+        for skill_name in self.skill_states:
+            self.skill_states[skill_name] = settings.value(f"skill_{skill_name}_enabled", True, type=bool)
+        
+        if skill_mgr.skills:
             menu.addSeparator()
             skills_label = QAction("── 技能 (Skills) ──", self)
             skills_label.setEnabled(False)
             menu.addAction(skills_label)
             
-            for skill_name, skill in sorted(enabled_skills):
+            for skill_name, skill in sorted(skill_mgr.skills.items()):
+                is_enabled = self.skill_states.get(skill_name, True)
                 action = QAction(f"{skill_name}", self, checkable=True)
-                action.setChecked(True)
+                action.setChecked(is_enabled)
                 action.setToolTip(skill.description[:50] + "..." if len(skill.description) > 50 else skill.description)
                 action.triggered.connect(lambda checked, name=skill_name: self.toggle_skill(name, checked))
                 menu.addAction(action)
@@ -2685,6 +2736,12 @@ class ChatInterface(QWidget):
             return
 
         history = [{"role": "system", "content": self.current_system_prompt}]
+        
+        # Inject pet status context for Doro character
+        pet_context = self._get_pet_status_context()
+        if pet_context:
+            history[0]['content'] += pet_context
+        
         db_msgs = self.db.get_messages(self.current_session_id)
         
         # Handle branching: truncate history after parent_id
@@ -2720,17 +2777,11 @@ class ChatInterface(QWidget):
         
         # Check for available expressions to enable expression tool in system prompt
         available_expressions = []
-        if self.live2d_widget and hasattr(self.live2d_widget, 'expression_ids'):
-            # Only enable for Doro character
-            is_doro = False
-            if hasattr(self.live2d_widget, 'path') and "Doro" in self.live2d_widget.path:
-                is_doro = True
-            
-            if is_doro:
-                try:
-                    available_expressions = list(self.live2d_widget.expression_ids)
-                except:
-                    available_expressions = []
+        if self.live2d_widget and hasattr(self.live2d_widget, 'expression_ids') and self._is_doro_tools_enabled():
+            try:
+                available_expressions = list(self.live2d_widget.expression_ids)
+            except:
+                available_expressions = []
             
         if available_expressions:
              if "expression" not in enabled_tools:
@@ -2771,11 +2822,17 @@ class ChatInterface(QWidget):
                 tool_instruction += f"   - 根据回复的心情自动调整Live2D模型表情。\n"
                 tool_instruction += f"   - 可用表情：{', '.join(available_expressions)}。\n"
                 tool_instruction += f"   - **必须**调用工具来修改表情，严禁仅在回复中用文字描述（如'(xx表情已应用)'）。\n"
+                tool_instruction += f"\n"
+                tool_instruction += f"5. 宠物属性控制工具（modify_pet_attribute）：\n"
+                tool_instruction += f"   - 当用户投喂、玩耍、清洁或让Doro休息时，调用此工具修改Doro的属性。\n"
+                tool_instruction += f"   - 属性说明：hunger(饱食度)、mood(心情值)、cleanliness(清洁度)、energy(能量值)。\n"
+                tool_instruction += f"   - 操作说明：feed(投喂增加饱食度)、play(玩耍增加心情)、clean(清洁增加清洁度)、rest(休息增加能量)。\n"
+                tool_instruction += f"   - 示例：用户说'给你一个橘子'时，调用 modify_pet_attribute(attribute='hunger', action='feed')。\n"
 
             skill_mgr = SkillManager()
             enabled_skill_names = [k.replace("skill:", "") for k in enabled_tools if k.startswith("skill:")]
             if enabled_skill_names:
-                tool_instruction += f"5. 专业技能工具：\n"
+                tool_instruction += f"6. 专业技能工具：\n"
                 for skill_name in enabled_skill_names:
                     if skill_name in skill_mgr.skills:
                         skill_desc = skill_mgr.skills[skill_name].description
@@ -3129,19 +3186,14 @@ class ChatInterface(QWidget):
         settings = QSettings("DoroPet", "Settings")
         enable_expression = settings.value("enable_expression_response", True, type=bool)
         
-        if enable_expression and self.live2d_widget and hasattr(self.live2d_widget, 'expression_ids'):
-            # Only enable for Doro character
-            is_doro = False
-            if hasattr(self.live2d_widget, 'path') and "Doro" in self.live2d_widget.path:
-                is_doro = True
-            
-            if is_doro:
-                # Convert to standard Python list to ensure JSON serializability
-                try:
-                    available_expressions = list(self.live2d_widget.expression_ids)
-                except Exception as e:
-                    logger.error(f"Error converting expression_ids to list: {e}")
-                    available_expressions = []
+        is_doro_tools_enabled = self._is_doro_tools_enabled()
+        
+        if enable_expression and self.live2d_widget and hasattr(self.live2d_widget, 'expression_ids') and is_doro_tools_enabled:
+            try:
+                available_expressions = list(self.live2d_widget.expression_ids)
+            except Exception as e:
+                logger.error(f"Error converting expression_ids to list: {e}")
+                available_expressions = []
             
         enabled_plugins = self.get_enabled_plugins()
         if available_expressions:
@@ -3157,8 +3209,9 @@ class ChatInterface(QWidget):
         self.worker.tool_execution_update.connect(self.on_tool_execution_update)
         self.worker.stopped.connect(self.on_generation_stopped)
         
-        if self.live2d_widget:
+        if self.live2d_widget and is_doro_tools_enabled:
              self.worker.expression_changed.connect(self.on_expression_change_request)
+             self.worker.pet_attribute_changed.connect(self.on_pet_attribute_change_request)
         
         self.streaming_bubble = None
         self.streaming_content = ""
@@ -3245,6 +3298,30 @@ class ChatInterface(QWidget):
             self.live2d_widget.model.set_expression(target_exp)
         except Exception as e:
             logger.error(f"Failed to set expression: {e}")
+
+    def on_pet_attribute_change_request(self, attribute, action):
+        """Handle pet attribute change request from LLM"""
+        logger.info(f"Received pet attribute change request: {attribute} -> {action}")
+        
+        if not self.live2d_widget or not hasattr(self.live2d_widget, 'attr_manager'):
+            logger.warning("PetAttributesManager not available")
+            return
+        
+        attr_manager = self.live2d_widget.attr_manager
+        
+        action_to_attr = {
+            "feed": "hunger",
+            "play": "mood",
+            "clean": "cleanliness",
+            "rest": "energy"
+        }
+        
+        expected_attr = action_to_attr.get(action)
+        if expected_attr and attribute == expected_attr:
+            attr_manager.perform_interaction(action)
+            logger.info(f"Pet attribute interaction performed: {action}")
+        else:
+            logger.warning(f"Mismatched attribute/action: {attribute} vs {action} (expected {expected_attr})")
 
     def on_thinking_chunk(self, chunk):
         if not self.tool_execution_widget:

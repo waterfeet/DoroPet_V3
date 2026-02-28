@@ -51,3 +51,39 @@ def setup_logger():
     logger.info(f"Logger initialized. Saving logs to: {log_file}")
     
     return logger
+
+_LEVEL_NAMES = {
+    logging.DEBUG: "DEBUG",
+    logging.INFO: "INFO",
+    logging.WARNING: "WARNING",
+    logging.ERROR: "ERROR",
+    logging.CRITICAL: "CRITICAL"
+}
+
+def set_log_level(level):
+    """
+    Dynamically set the logger level.
+    :param level: logging level (e.g., logging.DEBUG, logging.INFO, logging.WARNING, logging.ERROR)
+    """
+    global logger
+    logger.setLevel(level)
+    for handler in logger.handlers:
+        handler.setLevel(level)
+    level_name = _LEVEL_NAMES.get(level, str(level))
+    logger.info(f"Log level changed to: {level_name}")
+
+def get_log_level():
+    """
+    Get the current logger level.
+    :return: current logging level
+    """
+    global logger
+    return logger.level
+
+def get_log_level_name():
+    """
+    Get the current logger level name.
+    :return: current logging level name (e.g., 'DEBUG', 'INFO')
+    """
+    global logger
+    return _LEVEL_NAMES.get(logger.level, str(logger.level))

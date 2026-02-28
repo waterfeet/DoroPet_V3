@@ -98,6 +98,29 @@ TOOLS_SCHEMA = [
     {
         "type": "function",
         "function": {
+            "name": "modify_pet_attribute",
+            "description": "Modify the pet's attributes (hunger/mood/cleanliness/energy). Use this when the user feeds, plays with, cleans, or lets the pet rest. Only use during conversations with Doro.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "attribute": {
+                        "type": "string",
+                        "enum": ["hunger", "mood", "cleanliness", "energy"],
+                        "description": "The attribute to modify: hunger (饱食度), mood (心情值), cleanliness (清洁度), energy (能量值)."
+                    },
+                    "action": {
+                        "type": "string",
+                        "enum": ["feed", "play", "clean", "rest"],
+                        "description": "The interaction action: feed (投喂), play (玩耍), clean (清洁), rest (休息)."
+                    }
+                },
+                "required": ["attribute", "action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "run_python_script",
             "description": "Run a Python script from the local filesystem and return the output.",
             "parameters": {
@@ -1023,6 +1046,33 @@ def set_expression(expression_name="", **kwargs):
     }, ensure_ascii=False)
 
 
+def modify_pet_attribute(attribute="", action="", **kwargs):
+    """
+    Dummy function for modifying pet attribute.
+    The actual implementation is handled via signal in LLMWorker.
+    """
+    attr_names = {
+        "hunger": "饱食度",
+        "mood": "心情值", 
+        "cleanliness": "清洁度",
+        "energy": "能量值"
+    }
+    action_names = {
+        "feed": "投喂",
+        "play": "玩耍",
+        "clean": "清洁",
+        "rest": "休息"
+    }
+    
+    attr_name = attr_names.get(attribute, attribute)
+    action_name = action_names.get(action, action)
+    
+    return json.dumps({
+        "status": "success",
+        "message": f"已对{attr_name}执行{action_name}操作"
+    }, ensure_ascii=False)
+
+
 _skill_manager_instance = None
 
 def _get_skill_manager():
@@ -1111,6 +1161,7 @@ AVAILABLE_TOOLS = {
     "list_files": list_files,
     "search_files": search_files,
     "set_expression": set_expression,
+    "modify_pet_attribute": modify_pet_attribute,
     "install_agent_skill": install_agent_skill,
     "list_agent_skills": list_agent_skills,
     "get_skill_content": get_skill_content,
