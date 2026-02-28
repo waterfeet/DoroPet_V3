@@ -3,13 +3,23 @@ import os
 import sys
 from datetime import datetime
 
+def get_user_data_dir():
+    """
+    Get user data directory for DoroPet.
+    On Windows, this is %LOCALAPPDATA%\\DoroPet
+    """
+    local_app_data = os.environ.get('LOCALAPPDATA')
+    if local_app_data:
+        return os.path.join(local_app_data, 'DoroPet')
+    return os.getcwd()
+
 # Global logger instance
 logger = logging.getLogger("DoroPet")
 
 def setup_logger():
     """
     Setup the global logger configuration.
-    - Creates 'log' directory if not exists.
+    - Creates 'log' directory in user data folder if not exists.
     - Sets up file handler with timestamped filename.
     - Sets up stream handler for console output.
     """
@@ -21,8 +31,8 @@ def setup_logger():
 
     logger.setLevel(logging.INFO)
     
-    # 1. Create log directory
-    log_dir = os.path.join(os.getcwd(), "log")
+    # 1. Create log directory in user data folder
+    log_dir = os.path.join(get_user_data_dir(), "log")
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
         

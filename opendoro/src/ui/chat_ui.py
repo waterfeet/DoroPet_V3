@@ -1802,7 +1802,6 @@ class ChatInterface(QWidget):
         
         personas = self.db.get_personas()
         for p in personas:
-            # p: id, name, desc, system_prompt, avatar, enable_doro_tools
             self.persona_combo.addItem(p[1])
             self.persona_prompts.append(p[3])
             self.persona_doro_tools.append(bool(p[5]) if len(p) > 5 else False)

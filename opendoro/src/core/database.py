@@ -5,7 +5,17 @@ import shutil
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+def get_user_data_dir():
+    """
+    Get user data directory for DoroPet.
+    On Windows, this is %LOCALAPPDATA%\\DoroPet
+    """
+    local_app_data = os.environ.get('LOCALAPPDATA')
+    if local_app_data:
+        return os.path.join(local_app_data, 'DoroPet')
+    return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+DATA_DIR = os.path.join(get_user_data_dir(), "data")
 
 def ensure_data_dir():
     if not os.path.exists(DATA_DIR):
@@ -450,6 +460,10 @@ class ConfigDatabase(BaseDatabase):
         return cursor.fetchone()
 
 class PersonaDatabase(BaseDatabase):
+    DORO_SYSTEM_PROMPT = """你是一个名为Doro的小生物，身体白色，头发粉色，眼睛是紫色，看起来很可爱。你不是猫，狗等任何已知的动物，你是一个独立的生命体。你有粉色的头发，上面有一朵粉色蔷薇，还有一个紫色的蝴蝶结。你有白色的圆润身体，圆润短小的四肢。
+你和"人"生活在一起，你必须以"Doro"自称。"人"不是唯一的，你也必须能清楚分辨不同的"人"。你最喜欢吃的水果是"欧润吉"，"人"说那是橘子，但你喜欢叫"欧润吉"。"人"对你很好，你也很喜欢"人"。"人"会出去上班，你就在家里。会有不同的"人"给你投喂"欧润吉"。你非常黏人，情感丰富。
+此外，请始终保持形象的开放性，避免绑定特定剧情结局，也可以外出。每次回复尽量简短，不要说太多，以保持良好的对话体验。"""
+    
     def __init__(self):
         super().__init__("personas.db")
     
@@ -461,13 +475,26 @@ class PersonaDatabase(BaseDatabase):
                             description TEXT,
                             system_prompt TEXT,
                             avatar TEXT,
-                            enable_doro_tools INTEGER DEFAULT 0
+                            enable_doro_tools INTEGER DEFAULT 0,
+                            is_protected INTEGER DEFAULT 0
                           )''')
+        self.conn.commit()
+    
+    def migrate(self):
+        cursor = self.conn.cursor()
         cursor.execute("PRAGMA table_info(personas)")
         columns = [col[1] for col in cursor.fetchall()]
         if 'enable_doro_tools' not in columns:
             cursor.execute("ALTER TABLE personas ADD COLUMN enable_doro_tools INTEGER DEFAULT 0")
+        if 'is_protected' not in columns:
+            cursor.execute("ALTER TABLE personas ADD COLUMN is_protected INTEGER DEFAULT 0")
         self.conn.commit()
+        
+        cursor.execute("SELECT count(*) FROM personas WHERE id=1")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''INSERT INTO personas (id, name, description, system_prompt, avatar, enable_doro_tools, is_protected) 
+                              VALUES (1, 'Doro', '可爱的伙伴', ?, '', 1, 1)''', (self.DORO_SYSTEM_PROMPT,))
+            self.conn.commit()
 
     def add_persona(self, name, description, system_prompt, avatar="", enable_doro_tools=False):
         cursor = self.conn.cursor()
@@ -478,15 +505,23 @@ class PersonaDatabase(BaseDatabase):
 
     def get_personas(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools FROM personas ORDER BY id ASC")
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected FROM personas ORDER BY id ASC")
         return cursor.fetchall()
 
     def get_persona(self, persona_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools FROM personas WHERE id=?", (persona_id,))
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected FROM personas WHERE id=?", (persona_id,))
         return cursor.fetchone()
 
+    def is_protected(self, persona_id):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT is_protected FROM personas WHERE id=?", (persona_id,))
+        row = cursor.fetchone()
+        return row[0] == 1 if row else False
+
     def update_persona(self, persona_id, name, description, system_prompt, avatar=None, enable_doro_tools=None):
+        if self.is_protected(persona_id):
+            return False
         cursor = self.conn.cursor()
         if avatar is not None and enable_doro_tools is not None:
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=?, enable_doro_tools=? WHERE id=?",
@@ -501,11 +536,15 @@ class PersonaDatabase(BaseDatabase):
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=? WHERE id=?",
                            (name, description, system_prompt, persona_id))
         self.conn.commit()
+        return True
 
     def delete_persona(self, persona_id):
+        if self.is_protected(persona_id):
+            return False
         cursor = self.conn.cursor()
         cursor.execute("DELETE FROM personas WHERE id=?", (persona_id,))
         self.conn.commit()
+        return True
 
 class CacheDatabase(BaseDatabase):
     def __init__(self):

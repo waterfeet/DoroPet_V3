@@ -5,6 +5,16 @@ import json
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 
+def get_user_data_dir():
+    """
+    Get user data directory for DoroPet.
+    On Windows, this is %LOCALAPPDATA%\\DoroPet
+    """
+    local_app_data = os.environ.get('LOCALAPPDATA')
+    if local_app_data:
+        return os.path.join(local_app_data, 'DoroPet')
+    return os.getcwd()
+
 class TTSWorker(QThread):
     finished = pyqtSignal(str) # path
     error = pyqtSignal(str)
@@ -73,7 +83,7 @@ class TTSManager(QObject):
         self.player = QMediaPlayer()
         self.player.stateChanged.connect(self.on_state_changed)
         self.current_msg_id = None
-        self.cache_dir = os.path.join(os.getcwd(), "cache", "tts")
+        self.cache_dir = os.path.join(get_user_data_dir(), "cache", "tts")
         os.makedirs(self.cache_dir, exist_ok=True)
         self.worker = None # Keep reference
         

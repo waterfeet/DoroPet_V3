@@ -110,12 +110,13 @@ class PromptInterface(QWidget):
         self.persona_list.clear()
         personas = self.db.get_personas()
         for p in personas:
-            p_id, name, desc, prompt, avatar, enable_doro_tools = p
+            p_id, name, desc, prompt, avatar, enable_doro_tools, is_protected = p
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, p_id)
             item.setData(Qt.UserRole + 1, desc)
             item.setData(Qt.UserRole + 2, prompt)
             item.setData(Qt.UserRole + 3, bool(enable_doro_tools))
+            item.setData(Qt.UserRole + 4, bool(is_protected))
             self.persona_list.addItem(item)
         
         if not personas:
@@ -128,15 +129,32 @@ class PromptInterface(QWidget):
         self.desc_input.setText(item.data(Qt.UserRole + 1))
         self.prompt_edit.setPlainText(item.data(Qt.UserRole + 2))
         self.doro_tools_checkbox.setChecked(item.data(Qt.UserRole + 3) or False)
+        
+        is_protected = item.data(Qt.UserRole + 4) or False
+        self.set_edit_mode(not is_protected)
+
+    def set_edit_mode(self, editable):
+        self.name_input.setReadOnly(not editable)
+        self.desc_input.setReadOnly(not editable)
+        self.prompt_edit.setReadOnly(not editable)
+        self.doro_tools_checkbox.setEnabled(editable)
+        self.save_btn.setEnabled(editable)
+        self.delete_btn.setEnabled(editable)
+        
+        if not editable:
+            self.name_input.setPlaceholderText("此角色受保护，不可编辑")
+            self.desc_input.setPlaceholderText("此角色受保护，不可编辑")
+            self.prompt_edit.setPlaceholderText("此角色受保护，不可编辑")
+        else:
+            self.name_input.setPlaceholderText("例如：傲娇猫娘")
+            self.desc_input.setPlaceholderText("例如：一只性格傲娇的可爱猫娘...")
+            self.prompt_edit.setPlaceholderText("在这里定义角色的详细性格、说话方式等...")
 
     def create_new_persona(self):
-        # Create a default new persona in DB immediately or just clear inputs?
-        # Better to just clear inputs and set current_id to None, act as "New"
-        # But to show in list, we usually add it first.
-        # Let's just clear inputs for a "New" state.
         self.persona_list.clearSelection()
         self.clear_inputs()
         self.current_persona_id = None
+        self.set_edit_mode(True)
         self.name_input.setFocus()
 
     def clear_inputs(self):
@@ -144,6 +162,7 @@ class PromptInterface(QWidget):
         self.desc_input.clear()
         self.prompt_edit.clear()
         self.doro_tools_checkbox.setChecked(False)
+        self.set_edit_mode(True)
 
     def save_persona(self):
         name = self.name_input.text().strip()
@@ -171,15 +190,22 @@ class PromptInterface(QWidget):
                 self.persona_list.setCurrentItem(item)
                 break
 
-    def delete_persona(self, checked=False): # checked is ignored
+    def delete_persona(self, checked=False):
         if not self.current_persona_id:
+            return
+        
+        item = self.persona_list.currentItem()
+        if item and item.data(Qt.UserRole + 4):
+            MessageBox("无法删除", "此角色受保护，无法删除。", self).exec_()
             return
             
         w = MessageBox("确认删除", "确定要删除这个角色吗？此操作无法撤销。", self)
         if w.exec_():
-            self.db.delete_persona(self.current_persona_id)
-            self.load_personas()
-            self.create_new_persona()
+            if self.db.delete_persona(self.current_persona_id):
+                self.load_personas()
+                self.create_new_persona()
+            else:
+                MessageBox("删除失败", "无法删除此角色。", self).exec_()
 
     def update_theme(self):
         pass

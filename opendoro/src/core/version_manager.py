@@ -299,6 +299,7 @@ class UpdateDownloadWorker(QThread):
 class UpdateInstaller:
     def __init__(self):
         self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.project_root = os.path.dirname(self.app_dir)
         self.temp_dir = tempfile.gettempdir()
     
     def prepare_installation(self, zip_path: str, version: str) -> str:
@@ -364,7 +365,7 @@ exit /b 0
             main_script = os.path.join(self.app_dir, "main.py")
             restart_cmd = f'cd /d "{self.app_dir}" & "{python_exe}" "{main_script}"'
             
-            script_path = self.create_updater_script(source_dir, self.app_dir, restart_cmd)
+            script_path = self.create_updater_script(source_dir, self.project_root, restart_cmd)
             
             subprocess.Popen(
                 ['cmd', '/c', script_path],
