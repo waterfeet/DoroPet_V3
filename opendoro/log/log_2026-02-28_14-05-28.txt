@@ -1,0 +1,27 @@
+[2026-02-28 14:05:28] [DoroPet] [INFO] Logger initialized. Saving logs to: e:\myDemo\DoroPet\DoroPet_V3\opendoro\log\log_2026-02-28_14-05-28.txt
+[2026-02-28 14:05:29] [DoroPet] [INFO] Application started.
+[2026-02-28 14:05:29] [DoroPet] [INFO] Loaded stylesheet: e:\myDemo\DoroPet\DoroPet_V3\opendoro\themes/light.qss
+[2026-02-28 14:05:29] [DoroPet] [INFO] Initializing Live2DWidget...
+[2026-02-28 14:05:29] [DoroPet] [INFO] Splash screen closed
+[2026-02-28 14:05:32] [DoroPet] [INFO] Initializing MainWindow...
+[2026-02-28 14:05:32] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:32] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:32] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:32] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:32] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:32] [DoroPet] [INFO] Skills reloaded
+[2026-02-28 14:05:49] [DoroPet] [INFO] User sent: doro变得脏兮兮
+[2026-02-28 14:05:49] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:05:49] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:49] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-4.7-flash, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:05:49] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:05:50] [DoroPet] [INFO] [LLMWorker] Sending 4 messages to API, model=glm-4.7-flash
+[2026-02-28 14:06:05] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:06:05] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 54): 哇呀！泥巴好黏啊！需要清洁啦！🚿
+
+让我来把Doro擦得干干净净的！把那些脏兮兮的泥巴都洗掉～浴室好香哦！✨...
+[2026-02-28 14:06:05] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:06:05] [DoroPet] [INFO] [LLMWorker] Finished. Total length: 54
+[2026-02-28 14:06:05] [DoroPet] [INFO] [LLMWorker] Response content: 哇呀！泥巴好黏啊！需要清洁啦！🚿
+
+让我来把Doro擦得干干净净的！把那些脏兮兮的泥巴都洗掉～浴室好香哦！✨

@@ -1,7 +1,7 @@
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QStackedWidget, QTextEdit, QProgressBar, QFileDialog
+    QStackedWidget, QTextEdit, QProgressBar, QFileDialog, QMessageBox
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -9,7 +9,7 @@ from qfluentwidgets import (
     ScrollArea, TitleLabel, StrongBodyLabel, BodyLabel, CaptionLabel,
     PushButton, PrimaryPushButton, ProgressRing, CardWidget,
     FluentIcon as FIF, InfoBar, InfoBarPosition, SwitchButton,
-    SubtitleLabel, isDarkTheme
+    SubtitleLabel, isDarkTheme, MessageBox
 )
 from src.core.version_manager import (
     VersionManager, VersionInfo, ReleaseType, get_version_type_display,
@@ -70,6 +70,7 @@ class UpdateWidget(CardWidget):
         super().__init__(parent)
         self.version_manager = VersionManager(self)
         self.selected_version: VersionInfo = None
+        self._is_loading = False
         self.setup_ui()
         self.connect_signals()
         self.load_versions()
@@ -82,7 +83,7 @@ class UpdateWidget(CardWidget):
         header_layout = QHBoxLayout()
         
         title_layout = QVBoxLayout()
-        title = TitleLabel("注意-本页面实际功能尚未开发，页面仅用于展示", self)
+        title = TitleLabel("软件更新", self)
         title_layout.addWidget(title)
         
         current_version_text = f"当前版本: v{self.version_manager.current_version}"
@@ -130,6 +131,9 @@ class UpdateWidget(CardWidget):
         self.download_label = BodyLabel("正在下载...", self)
         download_header.addWidget(self.download_label, 1)
         
+        self.download_speed = CaptionLabel("", self)
+        download_header.addWidget(self.download_speed)
+        
         self.download_percent = CaptionLabel("0%", self)
         download_header.addWidget(self.download_percent)
         download_layout.addLayout(download_header)
@@ -151,6 +155,23 @@ class UpdateWidget(CardWidget):
         
         self.download_widget.hide()
         main_layout.addWidget(self.download_widget)
+        
+        self.install_widget = QWidget(self)
+        self.install_widget.setObjectName("installProgressWidget")
+        install_layout = QVBoxLayout(self.install_widget)
+        install_layout.setContentsMargins(12, 12, 12, 12)
+        install_layout.setSpacing(8)
+        
+        install_header = QHBoxLayout()
+        self.install_label = BodyLabel("正在准备安装...", self)
+        install_header.addWidget(self.install_label, 1)
+        install_layout.addLayout(install_header)
+        
+        install_info = CaptionLabel("下载完成后将自动关闭程序并安装更新", self)
+        install_layout.addWidget(install_info)
+        
+        self.install_widget.hide()
+        main_layout.addWidget(self.install_widget)
         
         content_layout = QHBoxLayout()
         content_layout.setSpacing(16)
@@ -208,14 +229,39 @@ class UpdateWidget(CardWidget):
         main_layout.addLayout(content_layout)
     
     def connect_signals(self):
+        self.version_manager.versions_loaded.connect(self.on_versions_loaded)
+        self.version_manager.load_error.connect(self.on_load_error)
         self.version_manager.download_progress.connect(self.on_download_progress)
         self.version_manager.download_completed.connect(self.on_download_completed)
         self.version_manager.download_error.connect(self.on_download_error)
     
     def load_versions(self):
-        versions = self.version_manager.get_all_versions()
+        self._is_loading = True
+        self.version_list.clear()
+        self.changelog_text.clear()
+        self.download_version_btn.setEnabled(False)
+        
+        self.status_card.show()
+        self.status_icon.show()
+        self.status_label.setText("正在获取版本信息...")
+        self.update_btn.hide()
+        
+        self.version_manager.fetch_remote_versions()
+    
+    def on_versions_loaded(self, versions):
+        self._is_loading = False
         self.refresh_version_list(versions)
         self.check_for_updates()
+    
+    def on_load_error(self, error_msg):
+        self._is_loading = False
+        self.status_icon.hide()
+        self.status_label.setText(f"获取版本信息失败: {error_msg}")
+        self.status_card.show()
+        
+        versions = self.version_manager.get_all_versions()
+        if versions:
+            self.refresh_version_list(versions)
     
     def refresh_version_list(self, versions):
         self.version_list.clear()
@@ -245,8 +291,11 @@ class UpdateWidget(CardWidget):
         self.status_label.setText("正在检查更新...")
         self.update_btn.hide()
         
+        if self._is_loading:
+            return
+        
         from PyQt5.QtCore import QTimer
-        QTimer.singleShot(500, self._do_check_update)
+        QTimer.singleShot(100, self._do_check_update)
     
     def _do_check_update(self):
         include_beta = self.show_beta_switch.isChecked()
@@ -292,28 +341,52 @@ class UpdateWidget(CardWidget):
             self.start_download(self.selected_version)
     
     def start_download(self, version: VersionInfo):
+        if not version.download_url:
+            InfoBar.warning(
+                title="无法下载",
+                content="该版本没有可用的下载链接",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self
+            )
+            return
+        
+        reply = QMessageBox.question(
+            self,
+            "确认更新",
+            f"即将下载并安装 v{version.version}\n\n"
+            "下载完成后程序将自动关闭并进行更新。\n"
+            "是否继续？",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.Yes
+        )
+        
+        if reply != QMessageBox.Yes:
+            return
+        
         self.download_widget.show()
         self.status_card.hide()
+        self.install_widget.hide()
         self.download_label.setText(f"正在下载 v{version.version}...")
         self.download_progress.setValue(0)
         self.download_percent.setText("0%")
+        self.download_speed.setText("")
         
-        default_path = os.path.join(os.path.expanduser("~"), "Downloads")
-        save_dir = QFileDialog.getExistingDirectory(self, "选择保存目录", default_path)
-        
-        if not save_dir:
-            self.download_widget.hide()
-            self.status_card.show()
-            return
-        
-        self.version_manager.download_update(version, save_dir)
+        default_path = os.path.join(os.path.expanduser("~"), "Downloads", "DoroPet_Updates")
+        self.version_manager.download_update(version, default_path, auto_install=True)
     
-    def on_download_progress(self, percent, total_bytes):
+    def on_download_progress(self, percent, total_bytes, speed_str=""):
         self.download_progress.setValue(percent)
         self.download_percent.setText(f"{percent}%")
+        if speed_str:
+            self.download_speed.setText(speed_str)
     
     def on_download_completed(self, file_path):
         self.download_widget.hide()
+        self.install_widget.show()
+        self.install_label.setText("下载完成，正在准备安装...")
         
         InfoBar.success(
             title="下载完成",
@@ -321,7 +394,7 @@ class UpdateWidget(CardWidget):
             orient=Qt.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
-            duration=5000,
+            duration=3000,
             parent=self
         )
         
@@ -329,6 +402,7 @@ class UpdateWidget(CardWidget):
     
     def on_download_error(self, error_msg):
         self.download_widget.hide()
+        self.install_widget.hide()
         self.status_card.show()
         
         InfoBar.error(
@@ -345,6 +419,7 @@ class UpdateWidget(CardWidget):
         self.version_manager.cancel_download()
         self.download_widget.hide()
         self.status_card.show()
+        self.install_widget.hide()
         
         InfoBar.warning(
             title="已取消",
@@ -385,26 +460,17 @@ class AboutWidget(CardWidget):
         link_layout = QHBoxLayout()
         link_layout.setSpacing(16)
         
-        github_btn = PushButton(FIF.GITHUB, "GitHub", self)
-        github_btn.clicked.connect(self.open_github)
-        link_layout.addWidget(github_btn)
-        
-        gitee_btn = PushButton(FIF.GITHUB, "Gitee", self)
+        gitee_btn = PushButton(FIF.GITHUB, "Gitee 仓库", self)
         gitee_btn.clicked.connect(self.open_gitee)
         link_layout.addWidget(gitee_btn)
         
         link_layout.addStretch()
         layout.addLayout(link_layout)
     
-    def open_github(self):
-        from PyQt5.QtGui import QDesktopServices
-        from PyQt5.QtCore import QUrl
-        QDesktopServices.openUrl(QUrl("https://github.com"))
-    
     def open_gitee(self):
         from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtCore import QUrl
-        QDesktopServices.openUrl(QUrl("https://gitee.com/waterfeet/opendoro"))
+        QDesktopServices.openUrl(QUrl("https://gitee.com/waterfeet/DoroPet_V3"))
 
 class UpdateInterface(ScrollArea):
     def __init__(self, parent=None):

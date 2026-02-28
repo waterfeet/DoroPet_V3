@@ -1,14 +1,25 @@
+import hashlib
 import json
 import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional, Callable
 from enum import Enum
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
+import requests
 from src.core.logger import logger
 
 __version__ = "3.1.0"
 __app_name__ = "DoroPet"
+
+GITEE_API_BASE = "https://gitee.com/api/v5"
+GITEE_REPO_OWNER = "waterfeet"
+GITEE_REPO_NAME = "DoroPet_V3"
 
 class ReleaseType(Enum):
     STABLE = "stable"
@@ -25,6 +36,7 @@ class VersionInfo:
     file_size: int = 0
     file_hash: str = ""
     min_version: str = ""
+    asset_name: str = ""
     
     def __post_init__(self):
         if isinstance(self.release_type, str):
@@ -32,7 +44,8 @@ class VersionInfo:
     
     @property
     def version_tuple(self) -> tuple:
-        return tuple(map(int, self.version.split('.')))
+        parts = self.version.lstrip('v').split('.')
+        return tuple(map(int, parts))
     
     @property
     def file_size_mb(self) -> float:
@@ -49,12 +62,10 @@ class VersionInfo:
         return f"{self.file_size} B"
 
 def compare_versions(v1: str, v2: str) -> int:
-    """
-    比较两个版本号
-    返回: 1 如果 v1 > v2, -1 如果 v1 < v2, 0 如果相等
-    """
-    t1 = tuple(map(int, v1.split('.')))
-    t2 = tuple(map(int, v2.split('.')))
+    p1 = v1.lstrip('v').split('.')
+    p2 = v2.lstrip('v').split('.')
+    t1 = tuple(map(int, p1))
+    t2 = tuple(map(int, p2))
     
     for a, b in zip(t1, t2):
         if a > b:
@@ -68,9 +79,309 @@ def compare_versions(v1: str, v2: str) -> int:
         return -1
     return 0
 
+def parse_release_type_from_tag(tag: str) -> ReleaseType:
+    tag_lower = tag.lower()
+    if 'alpha' in tag_lower:
+        return ReleaseType.ALPHA
+    elif 'beta' in tag_lower:
+        return ReleaseType.BETA
+    return ReleaseType.STABLE
+
+class GiteeApiWorker(QThread):
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+    
+    def __init__(self, owner: str, repo: str, parent=None):
+        super().__init__(parent)
+        self.owner = owner
+        self.repo = repo
+    
+    def run(self):
+        try:
+            url = f"{GITEE_API_BASE}/repos/{self.owner}/{self.repo}/releases"
+            headers = {'User-Agent': 'DoroPet-Update-Checker/1.0'}
+            response = requests.get(url, timeout=15, headers=headers)
+            response.raise_for_status()
+            
+            releases = response.json()
+            versions = []
+            
+            for release in releases:
+                if release.get('draft'):
+                    continue
+                
+                zip_asset = None
+                for asset in release.get('assets', []):
+                    if asset.get('name', '').endswith('.zip'):
+                        zip_asset = asset
+                        break
+                
+                if not zip_asset:
+                    continue
+                
+                tag_name = release.get('tag_name', '').lstrip('v')
+                if not tag_name:
+                    continue
+                
+                release_date = release.get('created_at', '')
+                if release_date:
+                    try:
+                        dt = datetime.strptime(release_date, '%Y-%m-%dT%H:%M:%S%z')
+                        release_date = dt.strftime('%Y-%m-%d')
+                    except:
+                        pass
+                
+                version_info = VersionInfo(
+                    version=tag_name,
+                    release_type=parse_release_type_from_tag(release.get('tag_name', '')),
+                    release_date=release_date,
+                    changelog=release.get('body', '无更新说明'),
+                    download_url=zip_asset.get('browser_download_url', ''),
+                    file_size=zip_asset.get('size', 0),
+                    asset_name=zip_asset.get('name', '')
+                )
+                versions.append(version_info)
+            
+            versions.sort(key=lambda v: v.version_tuple, reverse=True)
+            self.finished.emit(versions)
+            
+        except requests.exceptions.Timeout:
+            self.error.emit("请求超时，请检查网络连接")
+        except requests.exceptions.ConnectionError:
+            self.error.emit("网络连接失败，请检查网络设置")
+        except requests.exceptions.HTTPError as e:
+            self.error.emit(f"服务器错误: {e.response.status_code}")
+        except Exception as e:
+            self.error.emit(f"获取版本信息失败: {str(e)}")
+
+class GiteeSpecificVersionWorker(QThread):
+    finished = pyqtSignal(object)
+    error = pyqtSignal(str)
+    
+    def __init__(self, owner: str, repo: str, tag: str, parent=None):
+        super().__init__(parent)
+        self.owner = owner
+        self.repo = repo
+        self.tag = tag
+    
+    def run(self):
+        try:
+            url = f"{GITEE_API_BASE}/repos/{self.owner}/{self.repo}/releases/tags/{self.tag}"
+            headers = {'User-Agent': 'DoroPet-Update-Checker/1.0'}
+            response = requests.get(url, timeout=15, headers=headers)
+            response.raise_for_status()
+            
+            release = response.json()
+            
+            if release.get('draft'):
+                self.error.emit("该版本为草稿版本")
+                return
+            
+            zip_asset = None
+            for asset in release.get('assets', []):
+                if asset.get('name', '').endswith('.zip'):
+                    zip_asset = asset
+                    break
+            
+            if not zip_asset:
+                self.error.emit("未找到 ZIP 格式的下载包")
+                return
+            
+            tag_name = release.get('tag_name', '').lstrip('v')
+            release_date = release.get('created_at', '')
+            if release_date:
+                try:
+                    dt = datetime.strptime(release_date, '%Y-%m-%dT%H:%M:%S%z')
+                    release_date = dt.strftime('%Y-%m-%d')
+                except:
+                    pass
+            
+            version_info = VersionInfo(
+                version=tag_name,
+                release_type=parse_release_type_from_tag(release.get('tag_name', '')),
+                release_date=release_date,
+                changelog=release.get('body', '无更新说明'),
+                download_url=zip_asset.get('browser_download_url', ''),
+                file_size=zip_asset.get('size', 0),
+                asset_name=zip_asset.get('name', '')
+            )
+            
+            self.finished.emit(version_info)
+            
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                self.error.emit(f"未找到版本: {self.tag}")
+            else:
+                self.error.emit(f"服务器错误: {e.response.status_code}")
+        except requests.exceptions.Timeout:
+            self.error.emit("请求超时，请检查网络连接")
+        except requests.exceptions.ConnectionError:
+            self.error.emit("网络连接失败，请检查网络设置")
+        except Exception as e:
+            self.error.emit(f"获取版本信息失败: {str(e)}")
+
+class UpdateDownloadWorker(QThread):
+    progress = pyqtSignal(int, int, str)
+    completed = pyqtSignal(str)
+    error = pyqtSignal(str)
+    
+    def __init__(self, version: VersionInfo, save_dir: str, parent=None):
+        super().__init__(parent)
+        self.version = version
+        self.save_dir = save_dir
+        self._is_cancelled = False
+    
+    def run(self):
+        try:
+            os.makedirs(self.save_dir, exist_ok=True)
+            
+            filename = self.version.asset_name or f"DoroPet_v{self.version.version}.zip"
+            file_path = os.path.join(self.save_dir, filename)
+            
+            url = self.version.download_url
+            headers = {'User-Agent': 'DoroPet-Update-Downloader/1.0'}
+            
+            self.progress.emit(0, self.version.file_size, "正在连接...")
+            
+            response = requests.get(url, stream=True, timeout=30, headers=headers)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', self.version.file_size))
+            downloaded = 0
+            block_size = 8192
+            
+            import time
+            start_time = time.time()
+            last_progress_time = start_time
+            
+            with open(file_path, 'wb') as f:
+                for data in response.iter_content(block_size):
+                    if self._is_cancelled:
+                        f.close()
+                        os.remove(file_path)
+                        self.error.emit("下载已取消")
+                        return
+                    
+                    f.write(data)
+                    downloaded += len(data)
+                    
+                    current_time = time.time()
+                    if current_time - last_progress_time >= 0.1:
+                        if total_size > 0:
+                            percent = int(downloaded / total_size * 100)
+                        else:
+                            percent = 0
+                        
+                        elapsed = current_time - start_time
+                        if elapsed > 0:
+                            speed = downloaded / elapsed / (1024 * 1024)
+                            speed_str = f"{speed:.2f} MB/s"
+                        else:
+                            speed_str = "计算中..."
+                        
+                        self.progress.emit(percent, total_size, speed_str)
+                        last_progress_time = current_time
+            
+            self.progress.emit(100, total_size, "下载完成")
+            logger.info(f"Download completed: {file_path}")
+            self.completed.emit(file_path)
+            
+        except requests.exceptions.Timeout:
+            self.error.emit("下载超时，请重试")
+        except requests.exceptions.ConnectionError:
+            self.error.emit("网络连接中断")
+        except Exception as e:
+            self.error.emit(f"下载失败: {str(e)}")
+    
+    def cancel(self):
+        self._is_cancelled = True
+
+class UpdateInstaller:
+    def __init__(self):
+        self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.temp_dir = tempfile.gettempdir()
+    
+    def prepare_installation(self, zip_path: str, version: str) -> str:
+        extract_dir = os.path.join(self.temp_dir, f"DoroPet_Update_{version}")
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+        os.makedirs(extract_dir)
+        
+        with zipfile.ZipFile(zip_path, 'r') as zf:
+            zf.extractall(extract_dir)
+        
+        items = os.listdir(extract_dir)
+        if len(items) == 1 and os.path.isdir(os.path.join(extract_dir, items[0])):
+            source_dir = os.path.join(extract_dir, items[0])
+        else:
+            source_dir = extract_dir
+        
+        return source_dir
+    
+    def create_updater_script(self, source_dir: str, target_dir: str, restart_cmd: str) -> str:
+        script_content = f'''@echo off
+chcp 65001 >nul
+echo ========================================
+echo   DoroPet 自动更新程序
+echo ========================================
+echo.
+
+set "SOURCE={source_dir}"
+set "TARGET={target_dir}"
+
+echo 正在等待程序退出...
+timeout /t 2 /nobreak >nul
+
+echo 正在复制文件...
+xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I
+
+if %errorlevel% neq 0 (
+    echo.
+    echo 更新失败！请手动下载更新包。
+    pause
+    exit /b 1
+)
+
+echo.
+echo 更新完成！
+echo 正在启动程序...
+
+{restart_cmd}
+
+exit /b 0
+'''
+        script_path = os.path.join(self.temp_dir, "DoroPet_Updater.bat")
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(script_content)
+        
+        return script_path
+    
+    def execute_update(self, zip_path: str, version: str) -> bool:
+        try:
+            source_dir = self.prepare_installation(zip_path, version)
+            
+            python_exe = sys.executable
+            main_script = os.path.join(self.app_dir, "main.py")
+            restart_cmd = f'cd /d "{self.app_dir}" & "{python_exe}" "{main_script}"'
+            
+            script_path = self.create_updater_script(source_dir, self.app_dir, restart_cmd)
+            
+            subprocess.Popen(
+                ['cmd', '/c', script_path],
+                creationflags=subprocess.CREATE_NEW_CONSOLE
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to prepare update: {e}")
+            return False
+
 class VersionManager(QObject):
     check_completed = pyqtSignal(object)
-    download_progress = pyqtSignal(int, int)
+    versions_loaded = pyqtSignal(list)
+    load_error = pyqtSignal(str)
+    download_progress = pyqtSignal(int, int, str)
     download_completed = pyqtSignal(str)
     download_error = pyqtSignal(str)
     
@@ -78,14 +389,49 @@ class VersionManager(QObject):
         super().__init__(parent)
         self.current_version = __version__
         self._versions: List[VersionInfo] = []
-        self._download_thread: Optional[QThread] = None
+        self._api_worker: Optional[GiteeApiWorker] = None
+        self._download_worker: Optional[UpdateDownloadWorker] = None
+        self._installer = UpdateInstaller()
     
     def get_current_version(self) -> str:
         return self.current_version
     
+    def fetch_remote_versions(self):
+        if self._api_worker and self._api_worker.isRunning():
+            self._api_worker.quit()
+        
+        self._api_worker = GiteeApiWorker(GITEE_REPO_OWNER, GITEE_REPO_NAME, self)
+        self._api_worker.finished.connect(self._on_versions_loaded)
+        self._api_worker.error.connect(self._on_load_error)
+        self._api_worker.start()
+    
+    def fetch_specific_version(self, tag: str, callback: Callable[[Optional[VersionInfo]], None]):
+        worker = GiteeSpecificVersionWorker(GITEE_REPO_OWNER, GITEE_REPO_NAME, tag, self)
+        
+        def on_finished(version_info):
+            callback(version_info)
+        
+        def on_error(msg):
+            logger.error(f"Failed to fetch version {tag}: {msg}")
+            callback(None)
+        
+        worker.finished.connect(on_finished)
+        worker.error.connect(on_error)
+        worker.start()
+    
+    def _on_versions_loaded(self, versions: List[VersionInfo]):
+        self._versions = versions
+        self.versions_loaded.emit(versions)
+    
+    def _on_load_error(self, error_msg: str):
+        self.load_error.emit(error_msg)
+        if not self._versions:
+            self._versions = self._get_fallback_versions()
+            self.versions_loaded.emit(self._versions)
+    
     def get_all_versions(self) -> List[VersionInfo]:
         if not self._versions:
-            self._versions = self._get_mock_versions()
+            self._versions = self._get_fallback_versions()
         return self._versions
     
     def get_latest_version(self, include_beta: bool = False) -> Optional[VersionInfo]:
@@ -114,97 +460,46 @@ class VersionManager(QObject):
                     result.append(v)
         return sorted(result, key=lambda v: v.version_tuple, reverse=True)
     
-    def _get_mock_versions(self) -> List[VersionInfo]:
+    def download_update(self, version: VersionInfo, save_dir: str, auto_install: bool = True):
+        if self._download_worker and self._download_worker.isRunning():
+            self._download_worker.cancel()
+            self._download_worker.wait()
+        
+        self._current_download_version = version
+        self._auto_install = auto_install
+        
+        self._download_worker = UpdateDownloadWorker(version, save_dir, self)
+        self._download_worker.progress.connect(self.download_progress.emit)
+        self._download_worker.completed.connect(self._on_download_completed)
+        self._download_worker.error.connect(self.download_error.emit)
+        self._download_worker.start()
+    
+    def _on_download_completed(self, file_path: str):
+        self.download_completed.emit(file_path)
+        
+        if self._auto_install:
+            self.install_update(file_path, self._current_download_version)
+    
+    def install_update(self, zip_path: str, version: VersionInfo) -> bool:
+        return self._installer.execute_update(zip_path, version.version)
+    
+    def cancel_download(self):
+        if self._download_worker and self._download_worker.isRunning():
+            self._download_worker.cancel()
+            logger.info("Download cancelled")
+    
+    def _get_fallback_versions(self) -> List[VersionInfo]:
         return [
-            VersionInfo(
-                version="3.2.0",
-                release_type=ReleaseType.STABLE,
-                release_date="2026-03-15",
-                changelog="## 新功能\n- 新增软件更新模块\n- 优化Live2D性能\n- 添加更多表情支持\n\n## 修复\n- 修复内存泄漏问题\n- 修复语音识别偶发崩溃",
-                download_url="https://github.com/example/DoroPet/releases/v3.2.0",
-                file_size=150 * 1024 * 1024,
-                file_hash="abc123def456"
-            ),
-            VersionInfo(
-                version="3.1.5",
-                release_type=ReleaseType.BETA,
-                release_date="2026-03-10",
-                changelog="## 测试版更新\n- 实验性功能：多模型切换\n- 新UI界面预览\n\n注意：此版本可能不稳定",
-                download_url="https://github.com/example/DoroPet/releases/v3.1.5-beta",
-                file_size=148 * 1024 * 1024,
-                file_hash="def456ghi789"
-            ),
             VersionInfo(
                 version="3.1.0",
                 release_type=ReleaseType.STABLE,
-                release_date="2026-02-20",
-                changelog="## 新功能\n- 全新界面设计\n- 支持技能系统\n- 添加插件管理\n\n## 改进\n- 优化启动速度\n- 改进对话体验",
-                download_url="https://github.com/example/DoroPet/releases/v3.1.0",
-                file_size=145 * 1024 * 1024,
-                file_hash="ghi789jkl012"
-            ),
-            VersionInfo(
-                version="3.0.0",
-                release_type=ReleaseType.STABLE,
-                release_date="2026-01-15",
-                changelog="## 重大更新\n- 架构重构\n- 新增Live2D支持\n- AI对话系统升级",
-                download_url="https://github.com/example/DoroPet/releases/v3.0.0",
-                file_size=140 * 1024 * 1024,
-                file_hash="jkl012mno345"
-            ),
-            VersionInfo(
-                version="2.5.0",
-                release_type=ReleaseType.STABLE,
-                release_date="2025-12-01",
-                changelog="## 功能更新\n- 基础桌宠功能\n- 简单对话支持",
-                download_url="https://github.com/example/DoroPet/releases/v2.5.0",
-                file_size=80 * 1024 * 1024,
-                file_hash="mno345pqr678"
+                release_date=datetime.now().strftime('%Y-%m-%d'),
+                changelog="当前版本\n\n无法连接到更新服务器，请检查网络连接。",
+                download_url="",
+                file_size=0,
+                asset_name=""
             ),
         ]
-    
-    def fetch_remote_versions(self, callback: Callable[[List[VersionInfo]], None]):
-        def _fetch():
-            try:
-                versions = self._get_mock_versions()
-                self._versions = versions
-                callback(versions)
-            except Exception as e:
-                logger.error(f"Failed to fetch versions: {e}")
-                callback([])
-        
-        import threading
-        thread = threading.Thread(target=_fetch, daemon=True)
-        thread.start()
-    
-    def download_update(self, version: VersionInfo, save_path: str):
-        def _download():
-            try:
-                import time
-                total_size = version.file_size
-                for progress in range(0, 101, 10):
-                    time.sleep(0.1)
-                    self.download_progress.emit(progress, total_size)
-                
-                mock_file = os.path.join(save_path, f"DoroPet_v{version.version}_setup.exe")
-                with open(mock_file, 'w') as f:
-                    f.write(f"Mock installer for version {version.version}")
-                
-                self.download_completed.emit(mock_file)
-                logger.info(f"Download completed: {mock_file}")
-            except Exception as e:
-                self.download_error.emit(str(e))
-                logger.error(f"Download error: {e}")
-        
-        self._download_thread = QThread()
-        self._download_thread.run = _download
-        self._download_thread.start()
-    
-    def cancel_download(self):
-        if self._download_thread and self._download_thread.isRunning():
-            self._download_thread.terminate()
-            self._download_thread = None
-            logger.info("Download cancelled")
 
 def format_changelog(changelog: str) -> str:
     return changelog

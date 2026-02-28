@@ -1,0 +1,111 @@
+[2026-02-28 14:37:01] [DoroPet] [INFO] Logger initialized. Saving logs to: e:\myDemo\DoroPet\DoroPet_V3\opendoro\log\log_2026-02-28_14-37-01.txt
+[2026-02-28 14:37:02] [DoroPet] [INFO] Application started.
+[2026-02-28 14:37:02] [DoroPet] [INFO] Loaded stylesheet: e:\myDemo\DoroPet\DoroPet_V3\opendoro\themes/light.qss
+[2026-02-28 14:37:02] [DoroPet] [INFO] Initializing Live2DWidget...
+[2026-02-28 14:37:02] [DoroPet] [INFO] Splash screen closed
+[2026-02-28 14:37:05] [DoroPet] [INFO] Initializing MainWindow...
+[2026-02-28 14:37:05] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:06] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:06] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:06] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:06] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:06] [DoroPet] [INFO] Skills reloaded
+[2026-02-28 14:37:21] [DoroPet] [INFO] User sent: doro咱们出去跑步吧
+[2026-02-28 14:37:21] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:37:21] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:21] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-5, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:37:21] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:22] [DoroPet] [INFO] [LLMWorker] Sending 6 messages to API, model=glm-5
+[2026-02-28 14:37:37] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:37:37] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 0): ...
+[2026-02-28 14:37:37] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 2
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing modify_pet_attribute with args: {"interaction":"play_exhausting"}
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已执行剧烈玩耍互动"}
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool status changed: 正在调用工具: modify_pet_attribute...
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"星星眼"}
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为星星眼表情"}
+[2026-02-28 14:37:37] [DoroPet] [INFO] [LLMWorker] Sending 9 messages to API, model=glm-5
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=running
+[2026-02-28 14:37:37] [DoroPet] [INFO] Received pet attribute change request: interaction=play_exhausting, intensity=moderate
+[2026-02-28 14:37:37] [DoroPet] [INFO] Pet attribute interaction performed: play_exhausting (intensity: moderate)
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=success
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:37:37] [DoroPet] [INFO] Received expression change request: 星星眼
+[2026-02-28 14:37:37] [DoroPet] [INFO] Setting expression to: 星星眼
+[2026-02-28 14:37:37] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:37:44] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 70): 耶！跑步跑步！🏃
+
+Doro的小短腿哒哒哒跑起来，粉色头发飘呀飘～虽然跑不快但是超级努力！"人"要等等Doro哦，不许跑太远～呼哧呼哧......
+[2026-02-28 14:37:44] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:37:44] [DoroPet] [INFO] [LLMWorker] Finished. Total length: 70
+[2026-02-28 14:37:44] [DoroPet] [INFO] [LLMWorker] Response content: 耶！跑步跑步！🏃
+
+Doro的小短腿哒哒哒跑起来，粉色头发飘呀飘～虽然跑不快但是超级努力！"人"要等等Doro哦，不许跑太远～呼哧呼哧...
+[2026-02-28 14:38:30] [DoroPet] [INFO] User sent: 啊呀呀，doro跑得好快，真厉害
+[2026-02-28 14:38:30] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:38:30] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:38:30] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-5, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:38:30] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:38:30] [DoroPet] [INFO] [LLMWorker] Sending 8 messages to API, model=glm-5
+[2026-02-28 14:38:39] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 0): ...
+[2026-02-28 14:38:39] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 2
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing modify_pet_attribute with args: {"interaction":"play_fun","intensity":"moderate"}
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已执行愉快玩耍互动"}
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"星星眼"}
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为星星眼表情"}
+[2026-02-28 14:38:39] [DoroPet] [INFO] [LLMWorker] Sending 11 messages to API, model=glm-5
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool status changed: 正在调用工具: modify_pet_attribute...
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=running
+[2026-02-28 14:38:39] [DoroPet] [INFO] Received pet attribute change request: interaction=play_fun, intensity=moderate
+[2026-02-28 14:38:39] [DoroPet] [INFO] Pet attribute interaction performed: play_fun (intensity: moderate)
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=success
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:38:39] [DoroPet] [INFO] Received expression change request: 星星眼
+[2026-02-28 14:38:39] [DoroPet] [INFO] Setting expression to: 星星眼
+[2026-02-28 14:38:39] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:38:47] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 67): 嘿嘿嘿～被夸啦！✨
+
+Doro得意得尾巴都要翘起来啦（虽然并没有尾巴）！小短腿也能跑很快哦！"人"追不上Doro了吧～呼呼～好开心！💗...
+[2026-02-28 14:38:47] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:38:47] [DoroPet] [INFO] [LLMWorker] Finished. Total length: 67
+[2026-02-28 14:38:47] [DoroPet] [INFO] [LLMWorker] Response content: 嘿嘿嘿～被夸啦！✨
+
+Doro得意得尾巴都要翘起来啦（虽然并没有尾巴）！小短腿也能跑很快哦！"人"追不上Doro了吧～呼呼～好开心！💗
+[2026-02-28 14:39:42] [DoroPet] [INFO] User sent: 我们休息一会吧
+[2026-02-28 14:39:42] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:39:42] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:39:42] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-5, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:39:42] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:39:43] [DoroPet] [INFO] [LLMWorker] Sending 10 messages to API, model=glm-5
+[2026-02-28 14:39:56] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 72): 呼～好累哦...
+
+Doro一屁股坐在地上，粉色的头发都汗湿啦！靠在"人"身边喘气气，圆圆的身体一起一伏的～好舒服呀，要"人"摸摸头才肯起来～💤...
+[2026-02-28 14:39:56] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 2
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing modify_pet_attribute with args: {"interaction":"rest_nap"}
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool status changed: 正在调用工具: modify_pet_attribute...
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已执行小憩休息互动"}
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"默认"}
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为默认表情"}
+[2026-02-28 14:39:56] [DoroPet] [INFO] [LLMWorker] Sending 13 messages to API, model=glm-5
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=running
+[2026-02-28 14:39:56] [DoroPet] [INFO] Received pet attribute change request: interaction=rest_nap, intensity=moderate
+[2026-02-28 14:39:56] [DoroPet] [INFO] Pet attribute interaction performed: rest_nap (intensity: moderate)
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=success
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:39:56] [DoroPet] [INFO] Received expression change request: 默认
+[2026-02-28 14:39:56] [DoroPet] [INFO] Setting expression to: 默认
+[2026-02-28 14:39:56] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:40:11] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 71): 呼～好累呀...💦
+
+Doro小屁股坐在地上，粉色头发都汗湿啦！靠在"人"身边喘气气，圆滚滚的身体一起一伏的～好舒服，要"人"摸摸头才有力气～...
+[2026-02-28 14:40:11] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:40:11] [DoroPet] [INFO] [LLMWorker] Finished. Total length: 71
+[2026-02-28 14:40:11] [DoroPet] [INFO] [LLMWorker] Response content: 呼～好累呀...💦
+
+Doro小屁股坐在地上，粉色头发都汗湿啦！靠在"人"身边喘气气，圆滚滚的身体一起一伏的～好舒服，要"人"摸摸头才有力气～

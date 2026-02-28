@@ -1,0 +1,143 @@
+[2026-02-28 14:26:46] [DoroPet] [INFO] Logger initialized. Saving logs to: e:\myDemo\DoroPet\DoroPet_V3\opendoro\log\log_2026-02-28_14-26-46.txt
+[2026-02-28 14:26:47] [DoroPet] [INFO] Application started.
+[2026-02-28 14:26:47] [DoroPet] [INFO] Loaded stylesheet: e:\myDemo\DoroPet\DoroPet_V3\opendoro\themes/light.qss
+[2026-02-28 14:26:47] [DoroPet] [INFO] Initializing Live2DWidget...
+[2026-02-28 14:26:47] [DoroPet] [INFO] Splash screen closed
+[2026-02-28 14:26:51] [DoroPet] [INFO] Initializing MainWindow...
+[2026-02-28 14:26:51] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:52] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:52] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:52] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:52] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:52] [DoroPet] [INFO] Skills reloaded
+[2026-02-28 14:26:58] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:26:58] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:58] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-4.7-flash, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:26:58] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:26:59] [DoroPet] [INFO] [LLMWorker] Sending 4 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:02] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:27:02] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 0): ...
+[2026-02-28 14:27:02] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 2
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"思考"}
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为思考表情"}
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing modify_pet_attribute with args: {"interaction":"clean_wash"}
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已执行洗澡清洁互动"}
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:27:02] [DoroPet] [INFO] [LLMWorker] Sending 7 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:27:02] [DoroPet] [INFO] Received expression change request: 思考
+[2026-02-28 14:27:02] [DoroPet] [INFO] Setting expression to: 思考
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool status changed: 正在调用工具: modify_pet_attribute...
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=running
+[2026-02-28 14:27:02] [DoroPet] [INFO] Received pet attribute change request: interaction=clean_wash, intensity=moderate
+[2026-02-28 14:27:02] [DoroPet] [INFO] Pet attribute interaction performed: clean_wash (intensity: moderate)
+[2026-02-28 14:27:02] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=success
+[2026-02-28 14:27:04] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 70): 哗啦啦～洗澡澡时间到！✨
+
+用香香的泡泡给Doro洗得干干净净，摸起来软绵绵的，像刚出炉的棉花糖～现在又香又滑，还要"人"亲亲我的圆脑袋哦！...
+[2026-02-28 14:27:04] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:27:04] [DoroPet] [INFO] [LLMWorker] Finished. Total length: 70
+[2026-02-28 14:27:04] [DoroPet] [INFO] [LLMWorker] Response content: 哗啦啦～洗澡澡时间到！✨
+
+用香香的泡泡给Doro洗得干干净净，摸起来软绵绵的，像刚出炉的棉花糖～现在又香又滑，还要"人"亲亲我的圆脑袋哦！
+[2026-02-28 14:27:37] [DoroPet] [INFO] User sent: doro咱们出去跑步吧
+[2026-02-28 14:27:37] [DoroPet] [INFO] Starting LLM generation...
+[2026-02-28 14:27:37] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:27:37] [DoroPet] [INFO] [LLMWorker] Initialized with model=glm-4.7-flash, is_thinking_model=0 (type: int), skip_tools_and_max_tokens=False
+[2026-02-28 14:27:37] [DoroPet] [INFO] Loading skills from e:\myDemo\DoroPet\DoroPet_V3\opendoro\src\skills
+[2026-02-28 14:27:38] [DoroPet] [INFO] [LLMWorker] Sending 6 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:44] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 90): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的小蹄子哒哒哒地响～后面跟着"人"一起跑，风呼呼地吹过耳朵～最后Doro还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！...
+[2026-02-28 14:27:44] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 2
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing modify_pet_attribute with args: {"interaction":"play_exhausting","intensity":"moderate"}
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已执行剧烈玩耍互动"}
+[2026-02-28 14:27:44] [DoroPet] [INFO] [LLMWorker] Sending 9 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:27:44] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:27:44] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:27:44] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool status changed: 正在调用工具: modify_pet_attribute...
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=running
+[2026-02-28 14:27:44] [DoroPet] [INFO] Received pet attribute change request: interaction=play_exhausting, intensity=moderate
+[2026-02-28 14:27:44] [DoroPet] [INFO] Pet attribute interaction performed: play_exhausting (intensity: moderate)
+[2026-02-28 14:27:44] [DoroPet] [INFO] Tool execution update: modify_pet_attribute, type=tool, status=success
+[2026-02-28 14:27:47] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 74): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的蹄子哒哒哒地响～风呼呼地吹过耳朵～最后还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！...
+[2026-02-28 14:27:47] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:27:47] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 1
+[2026-02-28 14:27:47] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:27:47] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:27:47] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:27:47] [DoroPet] [INFO] [LLMWorker] Sending 11 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:47] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:27:47] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:27:47] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:27:47] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:27:47] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:27:50] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 74): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的蹄子哒哒哒地响～风呼呼地吹过耳朵～最后还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！...
+[2026-02-28 14:27:50] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:27:50] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 1
+[2026-02-28 14:27:50] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:27:50] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:27:50] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:27:50] [DoroPet] [INFO] [LLMWorker] Sending 13 messages to API, model=glm-4.7-flash
+[2026-02-28 14:27:50] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:27:50] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:27:50] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:27:50] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:27:50] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:28:20] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 74): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的蹄子哒哒哒地响～风呼呼地吹过耳朵～最后还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！...
+[2026-02-28 14:28:20] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:28:20] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 1
+[2026-02-28 14:28:20] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:28:20] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:28:20] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:28:20] [DoroPet] [INFO] [LLMWorker] Sending 15 messages to API, model=glm-4.7-flash
+[2026-02-28 14:28:20] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:28:20] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:28:20] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:28:20] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:28:20] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:28:31] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 74): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的蹄子哒哒哒地响～风呼呼地吹过耳朵～最后还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！...
+[2026-02-28 14:28:31] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:28:31] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 1
+[2026-02-28 14:28:31] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:28:31] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:28:31] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:28:31] [DoroPet] [INFO] [LLMWorker] Sending 17 messages to API, model=glm-4.7-flash
+[2026-02-28 14:28:31] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:28:31] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:28:31] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:28:31] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:28:31] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:28:34] [DoroPet] [INFO] [StreamProcessor] Parsing XML tool calls from content (length 92): 呼呼呼～跑起来啦！🏃‍♀️💨
+
+Doro在前面蹦蹦跳跳，粉色的蹄子哒哒哒地响～风呼呼地吹过耳朵～最后还会累得躺在大树底下喘气，然后打滚求抱抱！哈哈！现在一起吹风、看树叶，晒晒太阳吧～😊...
+[2026-02-28 14:28:34] [DoroPet] [INFO] [StreamProcessor] Total XML tool calls parsed: 0
+[2026-02-28 14:28:34] [DoroPet] [INFO] [LLMWorker] Tool calls detected: 1
+[2026-02-28 14:28:34] [DoroPet] [INFO] [LLMWorker] [TOOL] Executing set_expression with args: {"expression_name":"happy"}
+[2026-02-28 14:28:34] [DoroPet] [INFO] [LLMWorker] Tool result: {"status": "success", "message": "已修改为happy表情"}
+[2026-02-28 14:28:34] [DoroPet] [INFO] Tool status changed: 正在调用工具: set_expression...
+[2026-02-28 14:28:34] [DoroPet] [INFO] [LLMWorker] Sending 19 messages to API, model=glm-4.7-flash
+[2026-02-28 14:28:34] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=running
+[2026-02-28 14:28:34] [DoroPet] [INFO] Received expression change request: happy
+[2026-02-28 14:28:34] [DoroPet] [WARNING] Expression 'happy' not found in <pylive2d.StringVector object at 0x0000020D1C4220C0>
+[2026-02-28 14:28:34] [DoroPet] [INFO] Setting expression to: happy
+[2026-02-28 14:28:34] [DoroPet] [INFO] Tool execution update: set_expression, type=tool, status=success
+[2026-02-28 14:28:35] [DoroPet] [INFO] [ChatUI] Stop requested by user
+[2026-02-28 14:28:37] [DoroPet] [INFO] [LLMWorker] Stopped during streaming
