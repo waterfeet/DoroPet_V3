@@ -1880,21 +1880,17 @@ class ChatInterface(QWidget):
         menu.addAction(action_file)
         
         skill_mgr = SkillManager()
-        settings = QSettings("DoroPet", "Settings")
-        
-        for skill_name in self.skill_states:
-            self.skill_states[skill_name] = settings.value(f"skill_{skill_name}_enabled", True, type=bool)
-        
-        if skill_mgr.skills:
+        enabled_skills = [(name, skill) for name, skill in skill_mgr.skills.items() 
+                          if self.skill_states.get(name, True)]
+        if enabled_skills:
             menu.addSeparator()
             skills_label = QAction("── 技能 (Skills) ──", self)
             skills_label.setEnabled(False)
             menu.addAction(skills_label)
             
-            for skill_name, skill in sorted(skill_mgr.skills.items()):
-                is_enabled = self.skill_states.get(skill_name, True)
+            for skill_name, skill in sorted(enabled_skills):
                 action = QAction(f"{skill_name}", self, checkable=True)
-                action.setChecked(is_enabled)
+                action.setChecked(True)
                 action.setToolTip(skill.description[:50] + "..." if len(skill.description) > 50 else skill.description)
                 action.triggered.connect(lambda checked, name=skill_name: self.toggle_skill(name, checked))
                 menu.addAction(action)
