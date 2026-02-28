@@ -2824,10 +2824,16 @@ class ChatInterface(QWidget):
                 tool_instruction += f"   - **必须**调用工具来修改表情，严禁仅在回复中用文字描述（如'(xx表情已应用)'）。\n"
                 tool_instruction += f"\n"
                 tool_instruction += f"5. 宠物属性控制工具（modify_pet_attribute）：\n"
-                tool_instruction += f"   - 当用户投喂、玩耍、清洁或让Doro休息时，调用此工具修改Doro的属性。\n"
-                tool_instruction += f"   - 属性说明：hunger(饱食度)、mood(心情值)、cleanliness(清洁度)、energy(能量值)。\n"
-                tool_instruction += f"   - 操作说明：feed(投喂增加饱食度)、play(玩耍增加心情)、clean(清洁增加清洁度)、rest(休息增加能量)。\n"
-                tool_instruction += f"   - 示例：用户说'给你一个橘子'时，调用 modify_pet_attribute(attribute='hunger', action='feed')。\n"
+                tool_instruction += f"   - 当用户与Doro互动时，调用此工具修改Doro的属性。\n"
+                tool_instruction += f"   - 推荐使用语义化参数 interaction，可精确控制互动效果：\n"
+                tool_instruction += f"     * 投喂类：feed_snack(零食), feed_meal(正餐), feed_feast(大餐), feed_bad(变质食物)\n"
+                tool_instruction += f"     * 玩耍类：play_gentle(轻度), play_fun(愉快), play_exhausting(剧烈)\n"
+                tool_instruction += f"     * 清洁类：clean_wipe(擦拭), clean_wash(洗澡)\n"
+                tool_instruction += f"     * 休息类：rest_nap(小憩), rest_sleep(沉睡)\n"
+                tool_instruction += f"     * 互动类：pet_affection(抚摸), scold(责备), comfort(安慰)\n"
+                tool_instruction += f"   - 可选参数 intensity 控制强度：light(0.5x), moderate(1.0x), heavy(1.5x)\n"
+                tool_instruction += f"   - 新格式示例：modify_pet_attribute(interaction='play_fun', intensity='moderate')\n"
+                tool_instruction += f"   - 兼容旧格式：modify_pet_attribute(attribute='mood', action='play')，会自动映射到对应效果\n"
 
             skill_mgr = SkillManager()
             enabled_skill_names = [k.replace("skill:", "") for k in enabled_tools if k.startswith("skill:")]
@@ -3299,9 +3305,13 @@ class ChatInterface(QWidget):
         except Exception as e:
             logger.error(f"Failed to set expression: {e}")
 
-    def on_pet_attribute_change_request(self, attribute, action):
-        """Handle pet attribute change request from LLM"""
-        logger.info(f"Received pet attribute change request: {attribute} -> {action}")
+    def on_pet_attribute_change_request(self, interaction, intensity="moderate"):
+        """Handle pet attribute change request from LLM
+        
+        New format: interaction="play_fun", intensity="moderate"
+        Legacy format: action="play", intensity="moderate" (action is passed as 'interaction' for backward compat)
+        """
+        logger.info(f"Received pet attribute change request: interaction={interaction}, intensity={intensity}")
         
         if not self.live2d_widget or not hasattr(self.live2d_widget, 'attr_manager'):
             logger.warning("PetAttributesManager not available")
@@ -3309,19 +3319,26 @@ class ChatInterface(QWidget):
         
         attr_manager = self.live2d_widget.attr_manager
         
-        action_to_attr = {
-            "feed": "hunger",
-            "play": "mood",
-            "clean": "cleanliness",
-            "rest": "energy"
-        }
+        new_interactions = [
+            "feed_snack", "feed_meal", "feed_feast", "feed_bad",
+            "play_gentle", "play_fun", "play_exhausting",
+            "clean_wipe", "clean_wash",
+            "rest_nap", "rest_sleep",
+            "pet_affection", "scold", "comfort"
+        ]
         
-        expected_attr = action_to_attr.get(action)
-        if expected_attr and attribute == expected_attr:
-            attr_manager.perform_interaction(action)
-            logger.info(f"Pet attribute interaction performed: {action}")
-        else:
-            logger.warning(f"Mismatched attribute/action: {attribute} vs {action} (expected {expected_attr})")
+        if interaction in new_interactions:
+            attr_manager.perform_interaction(interaction, intensity)
+            logger.info(f"Pet attribute interaction performed: {interaction} (intensity: {intensity})")
+            return
+        
+        legacy_actions = ["feed", "play", "clean", "rest"]
+        if interaction in legacy_actions:
+            attr_manager.perform_interaction(interaction, intensity)
+            logger.info(f"Pet attribute interaction performed (legacy): {interaction}")
+            return
+        
+        logger.warning(f"Unknown interaction type: {interaction}")
 
     def on_thinking_chunk(self, chunk):
         if not self.tool_execution_widget:

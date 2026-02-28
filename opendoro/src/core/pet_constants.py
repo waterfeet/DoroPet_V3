@@ -44,12 +44,75 @@ DECAY_RATES = {
     ATTR_ENERGY: 1.0,
 }
 
-# 恢复值
+# 恢复值（兼容旧版）
 RECOVERY_VALUES = {
     "feed": 20,      # 投喂 - 饱食度
     "play": 25,      # 玩耍 - 心情值
     "clean": 30,     # 清洁 - 清洁度
     "rest": 40,      # 休息 - 能量值
+}
+
+# 强度倍率
+INTENSITY_MULTIPLIERS = {
+    "light": 0.5,
+    "moderate": 1.0,
+    "heavy": 1.5,
+}
+
+# 互动效果矩阵（属性变化值）
+INTERACTION_EFFECTS = {
+    "feed_snack": {"hunger": 10, "mood": 5, "cleanliness": 0, "energy": 0},
+    "feed_meal": {"hunger": 20, "mood": 5, "cleanliness": 0, "energy": 0},
+    "feed_feast": {"hunger": 35, "mood": 15, "cleanliness": 0, "energy": -5},
+    "feed_bad": {"hunger": -20, "mood": -25, "cleanliness": 0, "energy": -10},
+    "play_gentle": {"hunger": 0, "mood": 15, "cleanliness": -5, "energy": -5},
+    "play_fun": {"hunger": 0, "mood": 25, "cleanliness": -10, "energy": -15},
+    "play_exhausting": {"hunger": 0, "mood": 30, "cleanliness": -15, "energy": -30},
+    "clean_wipe": {"hunger": 0, "mood": 5, "cleanliness": 15, "energy": 0},
+    "clean_wash": {"hunger": 0, "mood": 10, "cleanliness": 35, "energy": -5},
+    "rest_nap": {"hunger": -5, "mood": 5, "cleanliness": 0, "energy": 20},
+    "rest_sleep": {"hunger": -15, "mood": 10, "cleanliness": 0, "energy": 45},
+    "pet_affection": {"hunger": 0, "mood": 10, "cleanliness": 0, "energy": 0},
+    "scold": {"hunger": 0, "mood": -25, "cleanliness": 0, "energy": 0},
+    "comfort": {"hunger": 0, "mood": 20, "cleanliness": 0, "energy": 5},
+}
+
+# 互动中文名
+INTERACTION_NAMES = {
+    "feed_snack": "投喂零食",
+    "feed_meal": "投喂正餐",
+    "feed_feast": "投喂大餐",
+    "feed_bad": "投喂变质食物",
+    "play_gentle": "轻度玩耍",
+    "play_fun": "愉快玩耍",
+    "play_exhausting": "剧烈玩耍",
+    "clean_wipe": "擦拭清洁",
+    "clean_wash": "洗澡清洁",
+    "rest_nap": "小憩休息",
+    "rest_sleep": "沉睡休息",
+    "pet_affection": "抚摸互动",
+    "scold": "责备",
+    "comfort": "安慰",
+}
+
+# 旧版操作到新版互动的映射（兼容）
+LEGACY_ACTION_MAPPING = {
+    ("feed", None): ("feed_meal", "moderate"),
+    ("feed", "light"): ("feed_snack", "light"),
+    ("feed", "moderate"): ("feed_meal", "moderate"),
+    ("feed", "heavy"): ("feed_feast", "heavy"),
+    ("play", None): ("play_fun", "moderate"),
+    ("play", "light"): ("play_gentle", "light"),
+    ("play", "moderate"): ("play_fun", "moderate"),
+    ("play", "heavy"): ("play_exhausting", "heavy"),
+    ("clean", None): ("clean_wash", "moderate"),
+    ("clean", "light"): ("clean_wipe", "light"),
+    ("clean", "moderate"): ("clean_wash", "moderate"),
+    ("clean", "heavy"): ("clean_wash", "heavy"),
+    ("rest", None): ("rest_sleep", "moderate"),
+    ("rest", "light"): ("rest_nap", "light"),
+    ("rest", "moderate"): ("rest_sleep", "moderate"),
+    ("rest", "heavy"): ("rest_sleep", "heavy"),
 }
 
 # 状态阈值

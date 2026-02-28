@@ -1,5 +1,5 @@
 import time
-from typing import Dict
+from typing import Dict, Optional
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QSettings
 
 from src.core.pet_attribute import PetAttribute
@@ -7,7 +7,9 @@ from src.core.pet_constants import (
     ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY,
     ATTR_NAMES, DEFAULT_VALUES, MAX_VALUES, MIN_VALUES,
     DECAY_RATES, RECOVERY_VALUES, LINKAGE_DECAY_MULTIPLIERS,
-    LINKAGE_THRESHOLDS, SETTINGS_KEY_PREFIX, SETTINGS_LAST_SAVE_TIME
+    LINKAGE_THRESHOLDS, SETTINGS_KEY_PREFIX, SETTINGS_LAST_SAVE_TIME,
+    INTERACTION_EFFECTS, INTENSITY_MULTIPLIERS, LEGACY_ACTION_MAPPING,
+    INTERACTION_NAMES
 )
 
 
@@ -125,7 +127,11 @@ class PetAttributesManager(QObject):
     def get_all_statuses(self) -> Dict[str, str]:
         return {name: attr.get_status() for name, attr in self.attributes.items()}
 
-    def perform_interaction(self, interaction_type: str):
+    def perform_interaction(self, interaction_type: str, intensity: str = "moderate"):
+        if interaction_type in INTERACTION_EFFECTS:
+            self._apply_interaction_effects(interaction_type, intensity)
+            return
+        
         if interaction_type == "feed":
             self.update_attribute(ATTR_HUNGER, RECOVERY_VALUES["feed"])
             self.interaction_triggered.emit(ATTR_HUNGER, "feed")
@@ -138,6 +144,51 @@ class PetAttributesManager(QObject):
         elif interaction_type == "rest":
             self.update_attribute(ATTR_ENERGY, RECOVERY_VALUES["rest"])
             self.interaction_triggered.emit(ATTR_ENERGY, "rest")
+
+    def _apply_interaction_effects(self, interaction: str, intensity: str = "moderate"):
+        if interaction not in INTERACTION_EFFECTS:
+            return
+        
+        effects = INTERACTION_EFFECTS[interaction]
+        multiplier = INTENSITY_MULTIPLIERS.get(intensity, 1.0)
+        
+        attr_map = {
+            "hunger": ATTR_HUNGER,
+            "mood": ATTR_MOOD,
+            "cleanliness": ATTR_CLEANLINESS,
+            "energy": ATTR_ENERGY
+        }
+        
+        for attr_key, delta in effects.items():
+            if attr_key in attr_map:
+                adjusted_delta = delta * multiplier
+                self.update_attribute(attr_map[attr_key], adjusted_delta)
+        
+        interaction_name = INTERACTION_NAMES.get(interaction, interaction)
+        self.interaction_triggered.emit(interaction, intensity)
+
+    def perform_interaction_v2(self, interaction: str, intensity: str = "moderate", 
+                               attribute: Optional[str] = None, action: Optional[str] = None):
+        """
+        Enhanced interaction method supporting both new and legacy formats.
+        
+        New format: interaction="play_fun", intensity="moderate"
+        Legacy format: attribute="mood", action="play"
+        """
+        if interaction:
+            self._apply_interaction_effects(interaction, intensity)
+            return
+        
+        if attribute and action:
+            legacy_key = (action, intensity if intensity in INTENSITY_MULTIPLIERS else None)
+            if legacy_key in LEGACY_ACTION_MAPPING:
+                mapped_interaction, mapped_intensity = LEGACY_ACTION_MAPPING[legacy_key]
+                self._apply_interaction_effects(mapped_interaction, mapped_intensity)
+            else:
+                default_interaction, default_intensity = LEGACY_ACTION_MAPPING.get(
+                    (action, None), ("play_fun", "moderate")
+                )
+                self._apply_interaction_effects(default_interaction, default_intensity)
 
     def _save_state(self):
         for attr_name, attr in self.attributes.items():

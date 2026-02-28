@@ -266,8 +266,15 @@ class LLMWorker(QThread):
                                     self.expression_changed.emit(func_args["expression_name"])
                             
                             if func_name == "modify_pet_attribute":
-                                if "attribute" in func_args and "action" in func_args:
-                                    self.pet_attribute_changed.emit(func_args["attribute"], func_args["action"])
+                                interaction = func_args.get("interaction", "")
+                                intensity = func_args.get("intensity", "moderate")
+                                attribute = func_args.get("attribute", "")
+                                action = func_args.get("action", "")
+                                
+                                if interaction:
+                                    self.pet_attribute_changed.emit(interaction, intensity)
+                                elif attribute and action:
+                                    self.pet_attribute_changed.emit(action, intensity)
 
                             if func_name == "generate_image":
                                 img_base_url = ""

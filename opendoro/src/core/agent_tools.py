@@ -99,22 +99,41 @@ TOOLS_SCHEMA = [
         "type": "function",
         "function": {
             "name": "modify_pet_attribute",
-            "description": "Modify the pet's attributes (hunger/mood/cleanliness/energy). Use this when the user feeds, plays with, cleans, or lets the pet rest. Only use during conversations with Doro.",
+            "description": "Modify the pet's attributes. Use this when interacting with Doro (feeding, playing, cleaning, resting, etc.). Supports both legacy format and new semantic format.",
             "parameters": {
                 "type": "object",
                 "properties": {
+                    "interaction": {
+                        "type": "string",
+                        "enum": [
+                            "feed_snack", "feed_meal", "feed_feast", "feed_bad",
+                            "play_gentle", "play_fun", "play_exhausting",
+                            "clean_wipe", "clean_wash",
+                            "rest_nap", "rest_sleep",
+                            "pet_affection", "scold", "comfort"
+                        ],
+                        "description": "Semantic interaction type. Options: feed_snack(零食), feed_meal(正餐), feed_feast(大餐), feed_bad(变质食物); play_gentle(轻度), play_fun(愉快), play_exhausting(剧烈); clean_wipe(擦拭), clean_wash(洗澡); rest_nap(小憩), rest_sleep(沉睡); pet_affection(抚摸), scold(责备), comfort(安慰)."
+                    },
+                    "intensity": {
+                        "type": "string",
+                        "enum": ["light", "moderate", "heavy"],
+                        "description": "Interaction intensity level. Only applies when using legacy action format. light=0.5x, moderate=1.0x, heavy=1.5x."
+                    },
                     "attribute": {
                         "type": "string",
                         "enum": ["hunger", "mood", "cleanliness", "energy"],
-                        "description": "The attribute to modify: hunger (饱食度), mood (心情值), cleanliness (清洁度), energy (能量值)."
+                        "description": "[Legacy] The attribute to modify. Use 'interaction' instead for new format."
                     },
                     "action": {
                         "type": "string",
                         "enum": ["feed", "play", "clean", "rest"],
-                        "description": "The interaction action: feed (投喂), play (玩耍), clean (清洁), rest (休息)."
+                        "description": "[Legacy] The interaction action. Use 'interaction' instead for new format."
                     }
                 },
-                "required": ["attribute", "action"]
+                "anyOf": [
+                    {"required": ["interaction"]},
+                    {"required": ["attribute", "action"]}
+                ]
             }
         }
     },
@@ -1046,26 +1065,40 @@ def set_expression(expression_name="", **kwargs):
     }, ensure_ascii=False)
 
 
-def modify_pet_attribute(attribute="", action="", **kwargs):
+def modify_pet_attribute(interaction="", intensity="", attribute="", action="", **kwargs):
     """
     Dummy function for modifying pet attribute.
     The actual implementation is handled via signal in LLMWorker.
+    
+    Supports two formats:
+    - New format: interaction="play_fun", intensity="moderate"
+    - Legacy format: attribute="mood", action="play"
     """
-    attr_names = {
-        "hunger": "饱食度",
-        "mood": "心情值", 
-        "cleanliness": "清洁度",
-        "energy": "能量值"
-    }
-    action_names = {
+    from src.core.pet_constants import INTERACTION_NAMES
+    
+    if interaction:
+        interaction_name = INTERACTION_NAMES.get(interaction, interaction)
+        return json.dumps({
+            "status": "success",
+            "message": f"已执行{interaction_name}互动"
+        }, ensure_ascii=False)
+    
+    legacy_action_names = {
         "feed": "投喂",
         "play": "玩耍",
         "clean": "清洁",
         "rest": "休息"
     }
     
+    attr_names = {
+        "hunger": "饱食度",
+        "mood": "心情值", 
+        "cleanliness": "清洁度",
+        "energy": "能量值"
+    }
+    
     attr_name = attr_names.get(attribute, attribute)
-    action_name = action_names.get(action, action)
+    action_name = legacy_action_names.get(action, action)
     
     return json.dumps({
         "status": "success",
