@@ -3489,8 +3489,8 @@ class ChatInterface(QWidget):
             
         history = [{"role": "user", "content": prompt}]
         
-        # Use a separate worker
-        self.title_worker = LLMWorker(api_key, base_url, history, model, self.db)
+        # Use a separate worker (disable tools to avoid multi-turn loop)
+        self.title_worker = LLMWorker(api_key, base_url, history, model, self.db, enabled_plugins=[])
         self.title_worker.finished.connect(self.on_title_generated)
         # We don't connect chunk_received, we don't need streaming for title
         self.title_worker.start()

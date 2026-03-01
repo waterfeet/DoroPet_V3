@@ -366,6 +366,8 @@ class LLMWorker(QThread):
             logger.error(f"[LLMWorker] Critical Error: {e}")
             self.error.emit(str(e))
         finally:
+            if not self._is_stopped:
+                self.state_manager.set_generation_state(GenerationState.COMPLETED)
             if http_client:
                 try:
                     http_client.close()
