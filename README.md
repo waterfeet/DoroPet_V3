@@ -86,6 +86,8 @@ opendoro/
    - 询问天气、新闻、知识等
    - 聊天、讲故事、玩游戏
    - 提供生活建议和帮助
+   
+   ![AI对话界面](opendoro/data/resourse/ai会话.png)
 
 2. **系统监控**：
    - 显示CPU、内存使用情况
@@ -101,6 +103,12 @@ opendoro/
    - 安装和管理各种技能
    - 自定义技能行为
    - 通过技能扩展Doro的能力
+
+5. **Doro状态**：
+   - 实时显示Doro的状态和情绪
+   - 提供直观的状态反馈
+   
+   ![Doro状态](opendoro/data/resourse/doro状态.png)
 
 
 ## 配置说明
