@@ -38,6 +38,8 @@ def setup_tray_icon(app, widget):
     def toggle_pet():
         if widget.isVisible():
             widget.hide()
+            if hasattr(widget, 'status_overlay') and widget.status_overlay.isVisible():
+                widget.status_overlay._fade_out()
         else:
             widget.show()
             widget.activateWindow()

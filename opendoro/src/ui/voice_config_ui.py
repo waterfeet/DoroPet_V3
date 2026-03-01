@@ -47,6 +47,7 @@ class VoiceConfigInterface(QWidget):
         self.enable_switch = SwitchButton(self.enable_card)
         self.enable_switch.setOnText("开启")
         self.enable_switch.setOffText("关闭")
+        self.enable_switch.checkedChanged.connect(self._on_enable_switch_changed)
         enable_layout.addWidget(self.enable_switch)
         
         main_layout.addWidget(self.enable_card)
@@ -120,11 +121,21 @@ class VoiceConfigInterface(QWidget):
     def load_settings(self):
         settings = self.db.get_voice_settings()
         if settings:
-            # is_enabled, wake_word, kws_path, asr_path
+            self.enable_switch.blockSignals(True)
             self.enable_switch.setChecked(bool(settings[0]))
+            self.enable_switch.blockSignals(False)
             self.wake_word_input.setText(settings[1])
             self.kws_input.setText(settings[2])
             self.asr_input.setText(settings[3])
+
+    def _on_enable_switch_changed(self, checked):
+        is_enabled = 1 if checked else 0
+        wake_word = self.wake_word_input.text().strip()
+        kws_path = self.kws_input.text().strip()
+        asr_path = self.asr_input.text().strip()
+        
+        self.db.update_voice_settings(is_enabled, wake_word, kws_path, asr_path)
+        self.settingsChanged.emit()
 
     def save_settings(self):
         is_enabled = 1 if self.enable_switch.isChecked() else 0

@@ -1469,6 +1469,7 @@ class ChatInterface(QWidget):
         
         self.db = db if db else ChatDatabase()
         self.current_session_id = None
+        self.worker_session_id = None
         self.current_system_prompt = ""
         self.streaming_bubble = None
         self.thinking_bubble = None
@@ -1527,15 +1528,13 @@ class ChatInterface(QWidget):
         self.live2d_widget = widget
 
     def update_voice_ui_visibility(self):
-        # Check if voice is enabled in settings
         settings = self.db.get_voice_settings()
         if settings:
             is_enabled = bool(settings[0])
             self.btn_voice.setVisible(is_enabled)
             
-            # If disabled, ensure assistant is stopped
             if not is_enabled and self.voice_assistant.isRunning():
-                self.toggle_voice_assistant() # This stops it
+                self.toggle_voice_assistant()
         else:
             self.btn_voice.setVisible(False)
 
@@ -1774,6 +1773,11 @@ class ChatInterface(QWidget):
 
     def on_session_selected(self, item):
         if not item: return
+        
+        if self._is_generating:
+            MessageBox("提示", "正在生成消息，请等待完成或停止后再切换会话。", self).exec_()
+            return
+        
         self.current_session_id = item.data(Qt.UserRole)
         self.current_system_prompt = item.data(Qt.UserRole + 1)
         self.load_chat_history()
@@ -2125,6 +2129,9 @@ class ChatInterface(QWidget):
         if action == export_action:
             self.export_chat_history(sess_id, item.text())
         elif action == delete_action:
+            if self._is_generating and sess_id == self.worker_session_id:
+                MessageBox("提示", "该会话正在生成消息，请等待完成或停止后再删除。", self).exec_()
+                return
             self.db.delete_session(sess_id)
             self.load_sessions_list()
             if self.session_list.count() == 0:
@@ -2143,7 +2150,14 @@ class ChatInterface(QWidget):
                     pass
                 else:
                     widget.deleteLater()
-        self.chat_layout.addStretch() 
+        self.chat_layout.addStretch()
+        
+        self.streaming_bubble = None
+        self.thinking_bubble = None
+        self.status_bubble = None
+        self.streaming_content = ""
+        self.streaming_buffer = ""
+        self.tool_execution_widget = None 
 
     def load_chat_history(self, keep_widgets=None):
         self.clear_chat_area(keep_widgets)
@@ -2698,6 +2712,8 @@ class ChatInterface(QWidget):
         self.btn_send.setIcon(FluentIcon.CANCEL)
         self.btn_send.setText("停止")
         
+        self.worker_session_id = self.current_session_id
+        
         # Get model config from combo
         model_data = self.model_combo.currentData()
         
@@ -2893,8 +2909,10 @@ class ChatInterface(QWidget):
         """Handle direct image generation without LLM worker"""
         logger.info(f"Starting direct image generation with model: {model}")
         
+        self.worker_session_id = self.current_session_id
+        
         # Get latest user message for prompt
-        db_msgs = self.db.get_messages(self.current_session_id)
+        db_msgs = self.db.get_messages(self.worker_session_id)
         if not db_msgs:
             self._is_generating = False
             self.btn_send.setIcon(FluentIcon.SEND)
@@ -2938,6 +2956,9 @@ class ChatInterface(QWidget):
         self.btn_send.setIcon(FluentIcon.SEND)
         self.btn_send.setText("发送")
         
+        session_id = self.worker_session_id
+        is_same_session = (session_id == self.current_session_id)
+        
         try:
             res = json.loads(result_json_str)
             if res.get("status") == "success":
@@ -2953,9 +2974,10 @@ class ChatInterface(QWidget):
                 if hasattr(self, 'image_worker') and hasattr(self.image_worker, 'model'):
                     used_model = self.image_worker.model
                 
-                msg_id = self.db.add_message(self.current_session_id, "assistant", content, images, model=used_model)
-                self.add_message_to_ui("assistant", content, msg_id, images, model=used_model)
-                self.scroll_to_bottom()
+                msg_id = self.db.add_message(session_id, "assistant", content, images, model=used_model)
+                if is_same_session:
+                    self.add_message_to_ui("assistant", content, msg_id, images, model=used_model)
+                    self.scroll_to_bottom()
             else:
                 error_msg = res.get("message", "Unknown error")
                 self.on_image_generation_error(error_msg)
@@ -3507,13 +3529,16 @@ class ChatInterface(QWidget):
         # Avoid <think> tags if they leaked into final output (though worker handles them usually)
         title = re.sub(r'<think>.*?</think>', '', title, flags=re.DOTALL).strip()
 
+        session_id = self.worker_session_id
+        if not session_id: return
+
         # Update DB
-        self.db.update_session_title(self.current_session_id, title)
+        self.db.update_session_title(session_id, title)
         
         # Update UI List
         for i in range(self.session_list.count()):
             item = self.session_list.item(i)
-            if item.data(Qt.UserRole) == self.current_session_id:
+            if item.data(Qt.UserRole) == session_id:
                 display_title = title
                 if len(title) > 12:
                     display_title = title[:11] + "…"
@@ -3546,28 +3571,34 @@ class ChatInterface(QWidget):
         # Reset current turn state
         self.tool_execution_widget = None
         
+        session_id = self.worker_session_id
+        is_same_session = (session_id == self.current_session_id)
+        
         if self.streaming_bubble:
-            msg_id = self.db.add_message(self.current_session_id, "assistant", content, generated_images, parent_id=parent_id, model=used_model, reasoning=reasoning, tool_calls=tool_calls)
+            msg_id = self.db.add_message(session_id, "assistant", content, generated_images, parent_id=parent_id, model=used_model, reasoning=reasoning, tool_calls=tool_calls)
             
             self.streaming_bubble.msg_id = msg_id
             
-            # Re-load will handle everything
-            self.load_chat_history()
+            if is_same_session:
+                self.load_chat_history()
             
             self.streaming_bubble = None
             self.streaming_content = ""
         else:
-            msg_id = self.db.add_message(self.current_session_id, "assistant", content, generated_images, parent_id=parent_id, model=used_model, reasoning=reasoning, tool_calls=tool_calls)
-            self.load_chat_history()
+            msg_id = self.db.add_message(session_id, "assistant", content, generated_images, parent_id=parent_id, model=used_model, reasoning=reasoning, tool_calls=tool_calls)
+            if is_same_session:
+                self.load_chat_history()
         
-        QApplication.processEvents()
-        self.scroll_to_bottom()
+        if is_same_session:
+            QApplication.processEvents()
+            self.scroll_to_bottom()
         
         self._is_generating = False
         self.btn_send.setIcon(FluentIcon.SEND)
         self.btn_send.setText("发送")
         
-        self.check_and_generate_title()
+        if is_same_session:
+            self.check_and_generate_title()
 
     def handle_llm_error(self, err_msg):
         self.update_timer.stop()

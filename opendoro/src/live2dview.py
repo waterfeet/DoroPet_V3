@@ -181,6 +181,9 @@ class Live2DWidget(QOpenGLWidget):
         # Load and apply settings
         self.settings = QSettings("DoroPet", "Settings")
         
+        # Show pet status overlay setting (default hidden, show via context menu)
+        # show_pet_status setting controls whether it can be shown via menu
+        
         # Scale
         scale_val = self.settings.value("scale", 100, type=int)
         base_w, base_h = 550, 500
@@ -473,6 +476,10 @@ class Live2DWidget(QOpenGLWidget):
         action_reset = QAction("重置大小", self)
         action_reset.triggered.connect(lambda: self.resize(550, 500))
         menu.addAction(action_reset)
+        
+        action_show_status = QAction("隐藏属性栏" if self.status_overlay.isVisible() else "显示属性栏", self)
+        action_show_status.triggered.connect(self._toggle_status_overlay)
+        menu.addAction(action_show_status)
 
         action_open_ui = QAction("打开主界面", self)
         action_open_ui.triggered.connect(self.open_main_window)
@@ -492,6 +499,16 @@ class Live2DWidget(QOpenGLWidget):
         menu.addAction(action_quit)
 
         menu.exec_(global_pos)
+
+    def _toggle_status_overlay(self):
+        show_pet_status = self.settings.value("show_pet_status", True, type=bool)
+        if not show_pet_status:
+            return
+        
+        if self.status_overlay.isVisible():
+            self.status_overlay._fade_out()
+        else:
+            self.status_overlay._fade_in()
 
     def open_main_window(self):
         try:
@@ -743,11 +760,7 @@ class Live2DWidget(QOpenGLWidget):
         self.move(target_x, target_y)
 
     def enterEvent(self, event):
-        """鼠标移入：显示状态浮窗，如果是吸附状态则弹出来"""
-        if hasattr(self, "status_overlay"):
-            self.status_overlay.show()
-            self.status_overlay.show_with_auto_hide()
-        
+        """鼠标移入：如果是吸附状态则弹出来"""
         if hasattr(self, "is_docked") and self.is_docked == "right":
             screen = QApplication.screenAt(QCursor.pos())
             if not screen:
@@ -758,10 +771,7 @@ class Live2DWidget(QOpenGLWidget):
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        """鼠标移出：隐藏状态浮窗，如果是吸附状态则缩回去"""
-        if hasattr(self, "status_overlay"):
-            self.status_overlay.show_with_auto_hide()
-        
+        """鼠标移出：如果是吸附状态则缩回去"""
         if hasattr(self, "is_docked") and self.is_docked == "right":
             screen = QApplication.screenAt(QCursor.pos())
             if not screen:

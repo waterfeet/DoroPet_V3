@@ -63,6 +63,10 @@ class DisplaySettingsPage(QWidget):
         card = SettingCard("显示设置", self)
         self.sliders = {}
         
+        self.check_show_pet_status = CheckBox("显示宠物属性栏", self)
+        self.check_show_pet_status.setChecked(True)
+        card.addWidget(self.check_show_pet_status)
+        
         self.add_slider_option(card, "模型缩放", 20, 150, 100, "%")
         self.add_slider_option(card, "气泡显示时长", 1000, 10000, 3000, " ms")
         
@@ -223,6 +227,7 @@ class SettingsInterface(ScrollArea):
         self.general_page.check_hide_pet_on_startup.stateChanged.connect(self.on_hide_pet_on_startup_changed)
         self.general_page.check_mouse_interact.stateChanged.connect(self.on_mouse_interact_changed)
         
+        self.display_page.check_show_pet_status.stateChanged.connect(self.on_show_pet_status_changed)
         self.display_page.sliders["模型缩放"].valueChanged.connect(self.on_scale_changed)
         self.display_page.sliders["气泡显示时长"].valueChanged.connect(self.on_bubble_duration_changed)
         
@@ -268,6 +273,11 @@ class SettingsInterface(ScrollArea):
         if self.live2d_widget:
             self.live2d_widget.set_locked(is_locked, silent=True)
         self.settings.setValue("mouse_interact", checked)
+
+    def on_show_pet_status_changed(self, checked):
+        if self.live2d_widget and hasattr(self.live2d_widget, 'status_overlay'):
+            self.live2d_widget.status_overlay.set_visible_by_setting(checked)
+        self.settings.setValue("show_pet_status", checked)
 
     def on_inject_time_changed(self, checked):
         self.settings.setValue("inject_time", checked)
@@ -317,11 +327,13 @@ class SettingsInterface(ScrollArea):
         inject_time = self.settings.value("inject_time", False, type=bool)
         expression_response = self.settings.value("enable_expression_response", True, type=bool)
         llm_max_tokens = self.settings.value("llm_max_tokens", 8192, type=int)
+        show_pet_status = self.settings.value("show_pet_status", True, type=bool)
         
         self.general_page.check_autorun.setChecked(autorun)
         self.general_page.check_hide_pet_on_startup.setChecked(hide_pet_on_startup)
         self.general_page.check_mouse_interact.setChecked(mouse_interact)
         
+        self.display_page.check_show_pet_status.setChecked(show_pet_status)
         self.display_page.sliders["模型缩放"].setValue(scale)
         self.display_page.sliders["气泡显示时长"].setValue(bubble_duration)
         

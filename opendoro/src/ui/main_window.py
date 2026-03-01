@@ -157,7 +157,9 @@ class MainWindow(FluentWindow):
             setTheme(Theme.DARK)
             self.load_stylesheet(resource_path("themes/dark.qss"))
             
-        # Update interfaces that need manual style updates
+        is_dark = isDarkTheme()
+        if hasattr(self, 'pet_status_interface'):
+            self.pet_status_interface.update_theme(is_dark)
         if hasattr(self, 'config_interface'):
             self.config_interface.update_theme()
         if hasattr(self, 'prompt_interface'):
@@ -168,8 +170,6 @@ class MainWindow(FluentWindow):
             self.settings_interface.update_theme()
         if hasattr(self, 'voice_config_interface'):
             self.voice_config_interface.update_theme()
-        if hasattr(self, 'update_interface'):
-            pass
 
     def load_stylesheet(self, path):
         if os.path.exists(path):
