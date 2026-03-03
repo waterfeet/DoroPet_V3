@@ -11,6 +11,7 @@ from src.core.logger import setup_logger
 from src.splash_screen import SplashScreen
 from src.provider.manager import ProviderManager
 from src.core.database import DatabaseManager
+from src.core.startup_update_checker import StartupUpdateChecker
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtCore import QSettings
 from PyQt5.QtGui import *
@@ -104,6 +105,48 @@ def setup_tray_icon(app, widget):
     
     return tray_icon
 
+def setup_startup_update_checker(widget):
+    update_checker = StartupUpdateChecker(widget)
+    
+    def on_update_available(version_info):
+        logger.info(f"Update available: v{version_info.version}")
+        show_update_dialog(widget, version_info, update_checker)
+    
+    def on_check_failed(error_msg):
+        logger.warning(f"Startup update check failed: {error_msg}")
+    
+    update_checker.update_available.connect(on_update_available)
+    update_checker.check_failed.connect(on_check_failed)
+    
+    return update_checker
+
+def show_update_dialog(widget, version_info, update_checker):
+    from src.ui.update_ui import UpdateNotificationDialog
+    from src.core.version_manager import __version__
+    
+    main_window = None
+    if hasattr(widget, 'main_window') and widget.main_window:
+        main_window = widget.main_window
+    else:
+        main_window = widget.open_main_window()
+    
+    dialog = UpdateNotificationDialog(version_info, __version__, main_window)
+    
+    def on_update_now():
+        main_window.switchTo(main_window.update_interface)
+        
+        update_widget = main_window.update_interface.update_widget
+        if update_widget:
+            update_widget.selected_version = version_info
+            update_widget.start_download(version_info)
+    
+    def on_remind_later():
+        logger.info("User chose to be reminded later")
+    
+    dialog.update_now.connect(on_update_now)
+    dialog.remind_later.connect(on_remind_later)
+    dialog.show()
+
 def main():
     app = QApplication(sys.argv)
     # 显示启动画面（立即显示，让用户知道程序正在启动）
@@ -174,6 +217,8 @@ def main():
     splash.close_splash()
     logger.info("Splash screen closed")
     
+    update_checker = setup_startup_update_checker(w)
+    update_checker.start_check(delay_ms=3000)
 
     sys.exit(app.exec())
 

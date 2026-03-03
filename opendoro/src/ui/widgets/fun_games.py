@@ -10,6 +10,7 @@ class RockPaperScissorsGame(CardWidget):
     def __init__(self, fun_manager, parent=None):
         super().__init__(parent)
         self.fun_manager = fun_manager
+        self._result_type = "normal"
         self._init_ui()
 
     def _init_ui(self):
@@ -60,16 +61,45 @@ class RockPaperScissorsGame(CardWidget):
             self.result_label.setText(message)
             
             if result == 1:
-                self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #4caf50;")
+                self._result_type = "win"
             elif result == -1:
-                self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #f44336;")
+                self._result_type = "lose"
             else:
-                self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #ff9800;")
+                self._result_type = "draw"
+            self._apply_result_style()
             
             self.game_finished.emit(message, result)
 
+    def _apply_result_style(self):
+        colors = {
+            "win": "#4caf50",
+            "lose": "#f44336",
+            "draw": "#ff9800",
+            "normal": "#333",
+        }
+        color = colors.get(self._result_type, colors["normal"])
+        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+
+    def update_theme(self, is_dark: bool):
+        dark_colors = {
+            "win": "#66bb6a",
+            "lose": "#ef5350",
+            "draw": "#ffa726",
+            "normal": "#e0e0e0",
+        }
+        light_colors = {
+            "win": "#4caf50",
+            "lose": "#f44336",
+            "draw": "#ff9800",
+            "normal": "#333",
+        }
+        colors = dark_colors if is_dark else light_colors
+        color = colors.get(self._result_type, colors["normal"])
+        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+
     def reset(self):
         self.result_label.setText("")
+        self._result_type = "normal"
         self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
 
 
@@ -81,6 +111,7 @@ class GuessNumberGame(CardWidget):
         self.fun_manager = fun_manager
         self._target = 0
         self._attempts = 0
+        self._result_type = "normal"
         self._init_ui()
         self._start_new_game()
 
@@ -138,6 +169,7 @@ class GuessNumberGame(CardWidget):
             import random
             self._target = random.randint(1, 10)
         self._attempts = 0
+        self._result_type = "normal"
         self.result_label.setText("")
         self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
         self.attempts_label.setText("剩余机会：3")
@@ -159,16 +191,44 @@ class GuessNumberGame(CardWidget):
         
         if finished:
             if "对了" in message or "猜对" in message:
-                self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #4caf50;")
-                self.game_finished.emit(message, 1)
+                self._result_type = "win"
             else:
-                self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #f44336;")
-                self.game_finished.emit(message, -1)
+                self._result_type = "lose"
+            self._apply_result_style()
+            self.game_finished.emit(message, 1 if self._result_type == "win" else -1)
             self.guess_btn.setEnabled(False)
         else:
-            self.result_label.setStyleSheet("font-size: 14px; padding: 10px; color: #ff9800;")
+            self._result_type = "draw"
+            self._apply_result_style()
             if remaining <= 0:
                 self.guess_btn.setEnabled(False)
+
+    def _apply_result_style(self):
+        colors = {
+            "win": "#4caf50",
+            "lose": "#f44336",
+            "draw": "#ff9800",
+            "normal": "#333",
+        }
+        color = colors.get(self._result_type, colors["normal"])
+        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+
+    def update_theme(self, is_dark: bool):
+        dark_colors = {
+            "win": "#66bb6a",
+            "lose": "#ef5350",
+            "draw": "#ffa726",
+            "normal": "#e0e0e0",
+        }
+        light_colors = {
+            "win": "#4caf50",
+            "lose": "#f44336",
+            "draw": "#ff9800",
+            "normal": "#333",
+        }
+        colors = dark_colors if is_dark else light_colors
+        color = colors.get(self._result_type, colors["normal"])
+        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
 
 
 class TouchInteractionCard(CardWidget):
@@ -306,3 +366,7 @@ class FunInteractionPanel(CardWidget):
 
     def back_to_menu(self):
         self.game_stack.setCurrentIndex(0)
+
+    def update_theme(self, is_dark: bool):
+        self.rps_game.update_theme(is_dark)
+        self.guess_game.update_theme(is_dark)

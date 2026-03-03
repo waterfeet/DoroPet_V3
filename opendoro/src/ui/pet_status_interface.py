@@ -18,6 +18,7 @@ from src.ui.widgets.fun_games import FunInteractionPanel
 class PetStatusInterface(ScrollArea):
     interaction_requested = pyqtSignal(str)
     fun_message_requested = pyqtSignal(str)
+    start_chat_requested = pyqtSignal()
 
     def __init__(self, attr_manager=None, parent=None):
         super().__init__(parent)
@@ -27,9 +28,9 @@ class PetStatusInterface(ScrollArea):
         
         self.setObjectName("PetStatusInterface")
         self.setWidgetResizable(True)
-        self.setStyleSheet("QScrollArea { border: none; background: transparent; }")
         
         self._container = QWidget()
+        self._container.setObjectName("petStatusContainer")
         self.setWidget(self._container)
         
         self._init_ui()
@@ -126,15 +127,15 @@ class PetStatusInterface(ScrollArea):
         }
         
         icon_label = QLabel(attr_icons.get(attr_name, "📊"))
+        icon_label.setObjectName("petAttrIcon")
         icon_label.setStyleSheet("font-size: 20px; background: transparent;")
         
         name_label = QLabel(ATTR_NAMES[attr_name])
-        name_label.setStyleSheet("font-size: 14px; font-weight: bold; color: #333;")
+        name_label.setObjectName("petAttrNameLabel")
         
         value_label = QLabel()
         value_label.setObjectName(f"value_{attr_name}")
         value_label.setAlignment(Qt.AlignRight)
-        value_label.setStyleSheet("font-size: 14px; color: #666;")
         
         header_layout.addWidget(icon_label)
         header_layout.addWidget(name_label)
@@ -146,28 +147,11 @@ class PetStatusInterface(ScrollArea):
         progress_bar.setRange(0, 100)
         progress_bar.setFixedHeight(8)
         progress_bar.setTextVisible(False)
-        progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: none;
-                border-radius: 4px;
-                background-color: #f0f0f0;
-            }
-            QProgressBar::chunk {
-                border-radius: 4px;
-            }
-        """)
         
         status_label = QLabel()
         status_label.setObjectName(f"status_{attr_name}")
         status_label.setAlignment(Qt.AlignCenter)
         status_label.setFixedHeight(22)
-        status_label.setStyleSheet("""
-            QLabel {
-                font-size: 11px;
-                padding: 2px 10px;
-                border-radius: 11px;
-            }
-        """)
         
         card_layout.addLayout(header_layout)
         card_layout.addWidget(progress_bar)
@@ -195,9 +179,9 @@ class PetStatusInterface(ScrollArea):
             interaction_layout.addWidget(btn)
             self.buttons[action] = btn
         
-        random_btn = PushButton("🎲 随机互动", self)
+        random_btn = PushButton("💬 开始对话", self)
         random_btn.setFixedHeight(40)
-        random_btn.clicked.connect(self._random_interaction)
+        random_btn.clicked.connect(self._on_start_chat)
         interaction_layout.addWidget(random_btn)
         
         interaction_widget = QWidget()
@@ -262,30 +246,20 @@ class PetStatusInterface(ScrollArea):
         if status_label:
             if status == "critical":
                 status_text = "危急"
-                bg_color = "#ffebee"
-                text_color = "#f44336"
+                status_label.setObjectName("petStatusCritical")
             elif status == "warning":
                 status_text = "警告"
-                bg_color = "#fff3e0"
-                text_color = "#ff9800"
+                status_label.setObjectName("petStatusWarning")
             else:
                 status_text = "良好"
-                bg_color = "#e8f5e9"
-                text_color = "#4caf50"
+                status_label.setObjectName("petStatusGood")
             status_label.setText(status_text)
-            status_label.setStyleSheet(f"""
-                QLabel {{
-                    font-size: 11px;
-                    padding: 2px 10px;
-                    border-radius: 11px;
-                    background-color: {bg_color};
-                    color: {text_color};
-                }}
-            """)
+            status_label.setStyleSheet("")
         
         bar = card.findChild(QProgressBar, f"bar_{attr_name}")
         if bar:
             bar.setValue(int(value))
+            bar.setObjectName("petAttrProgressBar")
             if status == "critical":
                 color = STATUS_COLORS["critical"]
             elif status == "warning":
@@ -296,7 +270,6 @@ class PetStatusInterface(ScrollArea):
                 QProgressBar {{
                     border: none;
                     border-radius: 4px;
-                    background-color: #f0f0f0;
                 }}
                 QProgressBar::chunk {{
                     background-color: {color};
@@ -332,6 +305,9 @@ class PetStatusInterface(ScrollArea):
         chosen = random.choices(interactions, weights=weights)[0]
         self._on_interaction(chosen)
 
+    def _on_start_chat(self):
+        self.start_chat_requested.emit()
+
     def _on_fun_event(self, name: str, description: str):
         self.avatar_card.quote_label.setText(description)
         self.fun_message_requested.emit(description)
@@ -346,24 +322,12 @@ class PetStatusInterface(ScrollArea):
     def _show_event_notification(self, message: str, is_positive: bool = True):
         if is_positive:
             self.event_icon_label.setText("🎉")
-            self.event_notification.setStyleSheet("""
-                CardWidget {
-                    background-color: #e8f5e9;
-                    border: 1px solid #a5d6a7;
-                    border-radius: 8px;
-                }
-            """)
-            self.event_text_label.setStyleSheet("font-size: 14px; color: #2e7d32;")
+            self.event_notification.setObjectName("petEventCardPositive")
+            self.event_text_label.setObjectName("petEventText")
         else:
             self.event_icon_label.setText("😅")
-            self.event_notification.setStyleSheet("""
-                CardWidget {
-                    background-color: #fff3e0;
-                    border: 1px solid #ffcc80;
-                    border-radius: 8px;
-                }
-            """)
-            self.event_text_label.setStyleSheet("font-size: 14px; color: #e65100;")
+            self.event_notification.setObjectName("petEventCardNegative")
+            self.event_text_label.setObjectName("petEventTextNegative")
         
         self.event_text_label.setText(message)
         self.event_notification.show()
@@ -375,54 +339,26 @@ class PetStatusInterface(ScrollArea):
     def update_theme(self, is_dark: bool):
         self.greeting_banner.update_theme(is_dark)
         self.avatar_card.update_theme(is_dark)
+        self.fun_panel.update_theme(is_dark)
         
-        title_style = f"""
-            QLabel {{
-                font-size: 16px;
-                font-weight: bold;
-                color: {'#e0e0e0' if is_dark else '#333'};
-            }}
-        """
+        section_title_style = f"font-size: 16px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'};"
         for child in self.findChildren(QLabel):
-            if child.objectName() == "":
-                if child.text() == "属性状态":
-                    child.setStyleSheet(title_style)
+            if child.text() == "属性状态":
+                child.setStyleSheet(section_title_style)
         
         for attr_name, card in self.attribute_cards.items():
-            name_label = card.findChild(QLabel, f"name_{attr_name}")
-            for label in card.findChildren(QLabel):
-                if not label.objectName().startswith("value_") and not label.objectName().startswith("status_"):
-                    if label.text() == ATTR_NAMES[attr_name]:
-                        label.setStyleSheet(f"""
-                            QLabel {{
-                                font-size: 14px;
-                                font-weight: bold;
-                                color: {'#e0e0e0' if is_dark else '#333'};
-                                background: transparent;
-                            }}
-                        """)
+            name_label_style = f"font-size: 14px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'}; background: transparent;"
+            value_label_style = f"font-size: 14px; color: {'#aaa' if is_dark else '#666'};"
             
-            value_label = card.findChild(QLabel, f"value_{attr_name}")
-            if value_label:
-                value_label.setStyleSheet(f"""
-                    QLabel {{
-                        font-size: 14px;
-                        color: {'#aaa' if is_dark else '#666'};
-                    }}
-                """)
+            for label in card.findChildren(QLabel):
+                if label.text() == ATTR_NAMES[attr_name]:
+                    label.setStyleSheet(name_label_style)
+                if label.objectName() == f"value_{attr_name}":
+                    label.setStyleSheet(value_label_style)
             
             bar = card.findChild(QProgressBar, f"bar_{attr_name}")
             if bar:
-                bar.setStyleSheet(f"""
-                    QProgressBar {{
-                        border: none;
-                        border-radius: 4px;
-                        background-color: {'#2d2d2d' if is_dark else '#f0f0f0'};
-                    }}
-                    QProgressBar::chunk {{
-                        border-radius: 4px;
-                    }}
-                """)
+                bar_bg = '#2d2d2d' if is_dark else '#f0f0f0'
                 status = self.attr_manager.get_status(attr_name) if self.attr_manager else "good"
                 if status == "critical":
                     color = STATUS_COLORS["critical"]
@@ -430,4 +366,87 @@ class PetStatusInterface(ScrollArea):
                     color = STATUS_COLORS["warning"]
                 else:
                     color = STATUS_COLORS["good"]
-                bar.setStyleSheet(bar.styleSheet().replace("}", f"background-color: {color};}}", 1))
+                bar.setStyleSheet(f"""
+                    QProgressBar {{
+                        border: none;
+                        border-radius: 4px;
+                        background-color: {bar_bg};
+                    }}
+                    QProgressBar::chunk {{
+                        background-color: {color};
+                        border-radius: 4px;
+                    }}
+                """)
+            
+            status_label = card.findChild(QLabel, f"status_{attr_name}")
+            if status_label and self.attr_manager:
+                status = self.attr_manager.get_status(attr_name)
+                if status == "critical":
+                    status_text = "危急"
+                    bg_color = "#4a1c1c" if is_dark else "#ffebee"
+                    text_color = "#ef5350" if is_dark else "#f44336"
+                elif status == "warning":
+                    status_text = "警告"
+                    bg_color = "#4a3a1c" if is_dark else "#fff3e0"
+                    text_color = "#ffa726" if is_dark else "#ff9800"
+                else:
+                    status_text = "良好"
+                    bg_color = "#1c4a2c" if is_dark else "#e8f5e9"
+                    text_color = "#66bb6a" if is_dark else "#4caf50"
+                status_label.setText(status_text)
+                status_label.setStyleSheet(f"""
+                    font-size: 11px;
+                    padding: 2px 10px;
+                    border-radius: 11px;
+                    background-color: {bg_color};
+                    color: {text_color};
+                """)
+        
+        if self.event_notification.isVisible():
+            self._update_event_notification_theme(is_dark)
+
+    def _update_event_notification_theme(self, is_dark: bool):
+        if not self.event_notification.isVisible():
+            return
+        
+        obj_name = self.event_notification.objectName()
+        is_positive = "Positive" in obj_name
+        
+        if is_positive:
+            if is_dark:
+                self.event_notification.setStyleSheet("""
+                    CardWidget {
+                        background-color: #1a3a2a;
+                        border: 1px solid #2e5a3f;
+                        border-radius: 8px;
+                    }
+                """)
+                self.event_text_label.setStyleSheet("font-size: 14px; color: #81c784;")
+            else:
+                self.event_notification.setStyleSheet("""
+                    CardWidget {
+                        background-color: #e8f5e9;
+                        border: 1px solid #a5d6a7;
+                        border-radius: 8px;
+                    }
+                """)
+                self.event_text_label.setStyleSheet("font-size: 14px; color: #2e7d32;")
+        else:
+            if is_dark:
+                self.event_notification.setStyleSheet("""
+                    CardWidget {
+                        background-color: #3a2a1a;
+                        border: 1px solid #5a4a2e;
+                        border-radius: 8px;
+                    }
+                """)
+                self.event_text_label.setStyleSheet("font-size: 14px; color: #ffb74d;")
+            else:
+                self.event_notification.setStyleSheet("""
+                    CardWidget {
+                        background-color: #fff3e0;
+                        border: 1px solid #ffcc80;
+                        border-radius: 8px;
+                    }
+                """)
+                self.event_text_label.setStyleSheet("font-size: 14px; color: #e65100;")

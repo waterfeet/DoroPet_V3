@@ -85,6 +85,7 @@ class MainWindow(FluentWindow):
         
         # Connect signals
         self.voice_config_interface.settingsChanged.connect(self.chat_interface.update_voice_ui_visibility)
+        self.pet_status_interface.start_chat_requested.connect(self._switch_to_chat)
 
         self.navigationInterface.setCurrentItem(self.pet_status_interface.objectName())
         
@@ -146,6 +147,9 @@ class MainWindow(FluentWindow):
             # Remove Always on Top
             SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
             self.pin_btn.setToolTip("置顶窗口")
+
+    def _switch_to_chat(self):
+        self.switchTo(self.chat_interface)
 
     def toggle_theme(self):
         if isDarkTheme():

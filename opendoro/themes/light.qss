@@ -4,6 +4,11 @@ QWidget {
     outline: none;
 }
 
+QDialog {
+    background-color: #f9f9f9;
+    color: #000000;
+}
+
 QDialog QWidget {
     background-color: #f9f9f9;
     color: #000000;
@@ -659,4 +664,149 @@ QLabel#versionSizeLabel {
 QWidget#aboutInfoWidget {
     background-color: rgba(0, 0, 0, 0.03);
     border-radius: 8px;
+}
+
+/* Update Notification Dialog */
+QWidget#updateDialogContainer {
+    background-color: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+}
+
+QLabel#updateDialogIcon {
+    font-size: 24px;
+    background: transparent;
+}
+
+QLabel#updateDialogTitle {
+    color: #000000;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+QWidget#updateVersionInfoWidget {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+}
+
+QLabel#updateArrowLabel {
+    font-size: 18px;
+    color: #999999;
+    background: transparent;
+}
+
+QLabel#updateNewVersionLabel {
+    color: #0078d4;
+    font-weight: bold;
+}
+
+QLabel#updateReleaseTypeTag {
+    background-color: #0078d4;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+QLabel#updateChangelogHeader {
+    color: #333333;
+    font-weight: bold;
+}
+
+QTextEdit#updateChangelogPreview {
+    background-color: #fafafa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    color: #333333;
+}
+
+QLabel#updateInfoLabel {
+    color: #666666;
+}
+
+/* Pet Status Interface */
+QScrollArea#PetStatusInterface {
+    background-color: transparent;
+    border: none;
+}
+
+QWidget#petStatusContainer {
+    background-color: transparent;
+}
+
+QLabel#petAttrNameLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #333333;
+    background: transparent;
+}
+
+QLabel#petAttrValueLabel {
+    font-size: 14px;
+    color: #666666;
+}
+
+QLabel#petStatusGood {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 11px;
+    background-color: #e8f5e9;
+    color: #4caf50;
+}
+
+QLabel#petStatusWarning {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 11px;
+    background-color: #fff3e0;
+    color: #ff9800;
+}
+
+QLabel#petStatusCritical {
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 11px;
+    background-color: #ffebee;
+    color: #f44336;
+}
+
+QProgressBar#petAttrProgressBar {
+    border: none;
+    border-radius: 4px;
+    background-color: #f0f0f0;
+}
+
+QProgressBar#petAttrProgressBar::chunk {
+    border-radius: 4px;
+}
+
+QLabel#petSectionTitle {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333333;
+}
+
+QLabel#petEventIcon {
+    font-size: 20px;
+}
+
+QLabel#petEventText {
+    font-size: 14px;
+    color: #2e7d32;
+}
+
+CardWidget#petEventCardPositive {
+    background-color: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 8px;
+}
+
+CardWidget#petEventCardNegative {
+    background-color: #fff3e0;
+    border: 1px solid #ffcc80;
+    border-radius: 8px;
+}
+
+QLabel#petEventTextNegative {
+    font-size: 14px;
+    color: #e65100;
 }

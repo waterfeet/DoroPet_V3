@@ -1,6 +1,7 @@
 import os
-from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+import psutil
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
 from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QFont
 
 from qfluentwidgets import CardWidget
@@ -37,6 +38,7 @@ class PetAvatarCard(CardWidget):
         
         self._init_ui()
         self._connect_signals()
+        self._start_system_monitor()
 
     def _get_avatar_path(self) -> str:
         current_file = os.path.abspath(__file__)
@@ -121,8 +123,61 @@ class PetAvatarCard(CardWidget):
         """)
         self.status_label.setText("状态良好")
         
+        system_section = QWidget()
+        system_layout = QVBoxLayout(system_section)
+        system_layout.setContentsMargins(0, 8, 0, 0)
+        system_layout.setSpacing(6)
+        
+        cpu_row = QWidget()
+        cpu_layout = QHBoxLayout(cpu_row)
+        cpu_layout.setContentsMargins(0, 0, 0, 0)
+        cpu_layout.setSpacing(8)
+        
+        self.cpu_label = QLabel("CPU")
+        self.cpu_label.setStyleSheet("font-size: 12px; color: #888;")
+        self.cpu_label.setFixedWidth(35)
+        
+        self.cpu_bar = QProgressBar()
+        self.cpu_bar.setFixedHeight(8)
+        self.cpu_bar.setTextVisible(False)
+        self.cpu_bar.setRange(0, 100)
+        
+        self.cpu_value = QLabel("0%")
+        self.cpu_value.setStyleSheet("font-size: 11px; color: #888;")
+        self.cpu_value.setFixedWidth(40)
+        
+        cpu_layout.addWidget(self.cpu_label)
+        cpu_layout.addWidget(self.cpu_bar)
+        cpu_layout.addWidget(self.cpu_value)
+        
+        mem_row = QWidget()
+        mem_layout = QHBoxLayout(mem_row)
+        mem_layout.setContentsMargins(0, 0, 0, 0)
+        mem_layout.setSpacing(8)
+        
+        self.mem_label = QLabel("内存")
+        self.mem_label.setStyleSheet("font-size: 12px; color: #888;")
+        self.mem_label.setFixedWidth(35)
+        
+        self.mem_bar = QProgressBar()
+        self.mem_bar.setFixedHeight(8)
+        self.mem_bar.setTextVisible(False)
+        self.mem_bar.setRange(0, 100)
+        
+        self.mem_value = QLabel("0%")
+        self.mem_value.setStyleSheet("font-size: 11px; color: #888;")
+        self.mem_value.setFixedWidth(40)
+        
+        mem_layout.addWidget(self.mem_label)
+        mem_layout.addWidget(self.mem_bar)
+        mem_layout.addWidget(self.mem_value)
+        
+        system_layout.addWidget(cpu_row)
+        system_layout.addWidget(mem_row)
+        
         quote_layout.addWidget(self.quote_bubble)
         quote_layout.addWidget(self.status_label)
+        quote_layout.addWidget(system_section)
         quote_layout.addStretch()
         
         main_layout.addWidget(avatar_section)
@@ -155,6 +210,66 @@ class PetAvatarCard(CardWidget):
         if self.quotes_manager:
             self.quotes_manager.quote_changed.connect(self._on_quote_changed)
             self.quotes_manager.status_description_changed.connect(self._on_status_changed)
+
+    def _start_system_monitor(self):
+        self._system_timer = QTimer(self)
+        self._system_timer.timeout.connect(self._update_system_info)
+        self._system_timer.start(2000)
+        self._update_system_info()
+
+    def _update_system_info(self):
+        cpu_percent = psutil.cpu_percent(interval=None)
+        mem = psutil.virtual_memory()
+        mem_percent = mem.percent
+        
+        self.cpu_bar.setValue(int(cpu_percent))
+        self.cpu_value.setText(f"{cpu_percent:.1f}%")
+        
+        self.mem_bar.setValue(int(mem_percent))
+        self.mem_value.setText(f"{mem_percent:.1f}%")
+        
+        is_dark = self._is_dark_theme()
+        if cpu_percent > 80:
+            bar_color = "#ef5350"
+        elif cpu_percent > 60:
+            bar_color = "#ffa726"
+        else:
+            bar_color = "#66bb6a"
+        
+        self.cpu_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: none;
+                border-radius: 4px;
+                background-color: {'#3a3a3a' if is_dark else '#e0e0e0'};
+            }}
+            QProgressBar::chunk {{
+                background-color: {bar_color};
+                border-radius: 4px;
+            }}
+        """)
+        
+        if mem_percent > 80:
+            bar_color = "#ef5350"
+        elif mem_percent > 60:
+            bar_color = "#ffa726"
+        else:
+            bar_color = "#66bb6a"
+        
+        self.mem_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: none;
+                border-radius: 4px;
+                background-color: {'#3a3a3a' if is_dark else '#e0e0e0'};
+            }}
+            QProgressBar::chunk {{
+                background-color: {bar_color};
+                border-radius: 4px;
+            }}
+        """)
+
+    def _is_dark_theme(self):
+        from qfluentwidgets import isDarkTheme
+        return isDarkTheme()
 
     def _on_quote_changed(self, quote: str):
         self.quote_label.setText(quote)
@@ -267,3 +382,13 @@ class PetAvatarCard(CardWidget):
                     color: #666;
                 }
             """)
+        
+        self._update_system_labels_theme(is_dark)
+        self._update_system_info()
+
+    def _update_system_labels_theme(self, is_dark: bool):
+        label_color = "#888" if not is_dark else "#aaa"
+        self.cpu_label.setStyleSheet(f"font-size: 12px; color: {label_color};")
+        self.cpu_value.setStyleSheet(f"font-size: 11px; color: {label_color};")
+        self.mem_label.setStyleSheet(f"font-size: 12px; color: {label_color};")
+        self.mem_value.setStyleSheet(f"font-size: 11px; color: {label_color};")
