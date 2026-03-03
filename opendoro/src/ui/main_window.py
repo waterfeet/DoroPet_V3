@@ -93,7 +93,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.settings_interface, FIF.SETTING, "通用设置", NavigationItemPosition.BOTTOM)
 
     def init_window(self):
-        icon_path = resource_path("data/icons/logo-small.png")
+        icon_path = resource_path("data/icons/logo.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         

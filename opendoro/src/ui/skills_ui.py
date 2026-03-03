@@ -1,13 +1,14 @@
 import os
 import json
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QListWidget, 
-                             QStackedWidget, QLabel, QMessageBox, QFrame, QListWidgetItem,
+                             QStackedWidget, QLabel, QFrame, QListWidgetItem,
                              QTextEdit, QLineEdit, QSplitter)
 from PyQt5.QtCore import Qt, pyqtSignal, QThread
 from PyQt5.QtGui import QColor
 from qfluentwidgets import (SubtitleLabel, BodyLabel, PrimaryPushButton, PushButton,
                             FluentIcon, CardWidget, LineEdit, InfoBar, InfoBarPosition,
-                            ComboBox, TextEdit, ProgressRing, SwitchButton, SegmentedWidget)
+                            ComboBox, TextEdit, ProgressRing, SwitchButton, SegmentedWidget,
+                            MessageBox)
 from PyQt5.QtCore import QSettings
 
 from src.core.skill_manager import SkillManager, SkillType
@@ -227,14 +228,15 @@ class SkillDetailWidget(QWidget):
             return
         
         skill_name = self.current_skill.get("name")
-        reply = QMessageBox.question(
-            self, "确认删除",
+        box = MessageBox(
+            "确认删除",
             f"确定要删除技能 '{skill_name}' 吗？",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            self
         )
+        box.yesButton.setText("删除")
+        box.cancelButton.setText("取消")
         
-        if reply == QMessageBox.Yes:
+        if box.exec_():
             try:
                 result = self.skill_manager.remove_skill(skill_name)
                 result_data = json.loads(result)

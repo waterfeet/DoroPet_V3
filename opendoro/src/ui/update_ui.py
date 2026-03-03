@@ -1,7 +1,7 @@
 import os
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-    QStackedWidget, QTextEdit, QProgressBar, QFileDialog, QMessageBox
+    QStackedWidget, QTextEdit, QProgressBar, QFileDialog
 )
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor
@@ -163,11 +163,26 @@ class UpdateWidget(CardWidget):
         install_layout.setSpacing(8)
         
         install_header = QHBoxLayout()
-        self.install_label = BodyLabel("正在准备安装...", self)
+        self.install_label = BodyLabel("正在安装更新...", self)
         install_header.addWidget(self.install_label, 1)
+        
+        self.install_percent = CaptionLabel("", self)
+        install_header.addWidget(self.install_percent)
         install_layout.addLayout(install_header)
         
-        install_info = CaptionLabel("下载完成后将自动关闭程序并安装更新", self)
+        self.install_progress = QProgressBar(self)
+        self.install_progress.setObjectName("installProgressBar")
+        self.install_progress.setRange(0, 100)
+        self.install_progress.setValue(0)
+        self.install_progress.setTextVisible(False)
+        self.install_progress.setFixedHeight(6)
+        install_layout.addWidget(self.install_progress)
+        
+        self.install_step_label = CaptionLabel("", self)
+        install_layout.addWidget(self.install_step_label)
+        
+        install_info = CaptionLabel("安装完成后将自动重启程序", self)
+        install_info.setObjectName("installInfoLabel")
         install_layout.addWidget(install_info)
         
         self.install_widget.hide()
@@ -234,6 +249,9 @@ class UpdateWidget(CardWidget):
         self.version_manager.download_progress.connect(self.on_download_progress)
         self.version_manager.download_completed.connect(self.on_download_completed)
         self.version_manager.download_error.connect(self.on_download_error)
+        self.version_manager.install_progress.connect(self.on_install_progress)
+        self.version_manager.install_completed.connect(self.on_install_completed)
+        self.version_manager.install_error.connect(self.on_install_error)
     
     def load_versions(self):
         self._is_loading = True
@@ -353,17 +371,17 @@ class UpdateWidget(CardWidget):
             )
             return
         
-        reply = QMessageBox.question(
-            self,
+        box = MessageBox(
             "确认更新",
             f"即将下载并安装 v{version.version}\n\n"
             "下载完成后程序将自动关闭并进行更新。\n"
             "是否继续？",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.Yes
+            self
         )
+        box.yesButton.setText("开始更新")
+        box.cancelButton.setText("取消")
         
-        if reply != QMessageBox.Yes:
+        if not box.exec_():
             return
         
         self.download_widget.show()
@@ -386,17 +404,10 @@ class UpdateWidget(CardWidget):
     def on_download_completed(self, file_path):
         self.download_widget.hide()
         self.install_widget.show()
-        self.install_label.setText("下载完成，正在准备安装...")
-        
-        InfoBar.success(
-            title="下载完成",
-            content=f"文件已保存到: {file_path}",
-            orient=Qt.Horizontal,
-            isClosable=True,
-            position=InfoBarPosition.TOP,
-            duration=3000,
-            parent=self
-        )
+        self.install_label.setText("正在安装更新...")
+        self.install_progress.setValue(0)
+        self.install_percent.setText("0%")
+        self.install_step_label.setText("准备安装...")
         
         self.download_completed.emit(file_path)
     
@@ -414,6 +425,49 @@ class UpdateWidget(CardWidget):
             duration=5000,
             parent=self
         )
+    
+    def on_install_progress(self, step_text: str, percent: int):
+        self.install_progress.setValue(percent)
+        self.install_percent.setText(f"{percent}%")
+        self.install_step_label.setText(step_text)
+    
+    def on_install_completed(self):
+        self.install_step_label.setText("安装完成，即将重启...")
+        self.install_progress.setValue(100)
+        self.install_percent.setText("100%")
+        
+        InfoBar.success(
+            title="更新完成",
+            content="程序将在3秒后自动重启...",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self
+        )
+        
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(3000, self._restart_application)
+    
+    def on_install_error(self, error_msg):
+        self.install_widget.hide()
+        self.status_card.show()
+        
+        InfoBar.error(
+            title="安装失败",
+            content=error_msg,
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=self
+        )
+    
+    def _restart_application(self):
+        import sys
+        from PyQt5.QtWidgets import QApplication
+        QApplication.quit()
+        sys.exit(0)
     
     def cancel_download(self):
         self.version_manager.cancel_download()

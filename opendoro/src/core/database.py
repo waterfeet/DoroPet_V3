@@ -322,35 +322,44 @@ class ConfigDatabase(BaseDatabase):
             cursor.execute("ALTER TABLE models ADD COLUMN is_visual INTEGER DEFAULT 0")
         if 'is_thinking' not in columns:
             cursor.execute("ALTER TABLE models ADD COLUMN is_thinking INTEGER DEFAULT 0")
+        if 'proxy' not in columns:
+            cursor.execute("ALTER TABLE models ADD COLUMN proxy TEXT DEFAULT ''")
         
         cursor.execute("PRAGMA table_info(image_models)")
         columns = [info[1] for info in cursor.fetchall()]
         if 'provider' not in columns:
             cursor.execute("ALTER TABLE image_models ADD COLUMN provider TEXT")
+        if 'proxy' not in columns:
+            cursor.execute("ALTER TABLE image_models ADD COLUMN proxy TEXT DEFAULT ''")
+        
+        cursor.execute("PRAGMA table_info(tts_models)")
+        columns = [info[1] for info in cursor.fetchall()]
+        if 'proxy' not in columns:
+            cursor.execute("ALTER TABLE tts_models ADD COLUMN proxy TEXT DEFAULT ''")
         
         self.conn.commit()
 
     # LLM Model Methods
-    def add_model(self, name, provider, api_key, base_url, model_name, is_visual=0, is_thinking=0):
+    def add_model(self, name, provider, api_key, base_url, model_name, is_visual=0, is_thinking=0, proxy=""):
         cursor = self.conn.cursor()
         cursor.execute("SELECT count(*) FROM models")
         count = cursor.fetchone()[0]
         is_active = 1 if count == 0 else 0
         
-        cursor.execute("INSERT INTO models (name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
-                       (name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking))
+        cursor.execute("INSERT INTO models (name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking, proxy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                       (name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking, proxy))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_models(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking FROM models ORDER BY id ASC")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, is_active, is_visual, is_thinking, proxy FROM models ORDER BY id ASC")
         return cursor.fetchall()
 
-    def update_model(self, model_id, name, provider, api_key, base_url, model_name, is_visual=0, is_thinking=0):
+    def update_model(self, model_id, name, provider, api_key, base_url, model_name, is_visual=0, is_thinking=0, proxy=""):
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, is_visual=?, is_thinking=? WHERE id=?", 
-                       (name, provider, api_key, base_url, model_name, is_visual, is_thinking, model_id))
+        cursor.execute("UPDATE models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, is_visual=?, is_thinking=?, proxy=? WHERE id=?", 
+                       (name, provider, api_key, base_url, model_name, is_visual, is_thinking, proxy, model_id))
         self.conn.commit()
 
     def delete_model(self, model_id):
@@ -366,30 +375,30 @@ class ConfigDatabase(BaseDatabase):
         
     def get_active_model(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, is_visual, is_thinking FROM models WHERE is_active = 1")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, is_visual, is_thinking, proxy FROM models WHERE is_active = 1")
         return cursor.fetchone()
 
     # TTS Model Methods
-    def add_tts_model(self, name, provider, api_key, base_url, model_name, voice):
+    def add_tts_model(self, name, provider, api_key, base_url, model_name, voice, proxy=""):
         cursor = self.conn.cursor()
         cursor.execute("SELECT count(*) FROM tts_models")
         count = cursor.fetchone()[0]
         is_active = 1 if count == 0 else 0
         
-        cursor.execute("INSERT INTO tts_models (name, provider, api_key, base_url, model_name, voice, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-                       (name, provider, api_key, base_url, model_name, voice, is_active))
+        cursor.execute("INSERT INTO tts_models (name, provider, api_key, base_url, model_name, voice, is_active, proxy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                       (name, provider, api_key, base_url, model_name, voice, is_active, proxy))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_tts_models(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, is_active FROM tts_models ORDER BY id ASC")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, is_active, proxy FROM tts_models ORDER BY id ASC")
         return cursor.fetchall()
 
-    def update_tts_model(self, model_id, name, provider, api_key, base_url, model_name, voice):
+    def update_tts_model(self, model_id, name, provider, api_key, base_url, model_name, voice, proxy=""):
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE tts_models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, voice=? WHERE id=?", 
-                       (name, provider, api_key, base_url, model_name, voice, model_id))
+        cursor.execute("UPDATE tts_models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, voice=?, proxy=? WHERE id=?", 
+                       (name, provider, api_key, base_url, model_name, voice, proxy, model_id))
         self.conn.commit()
 
     def delete_tts_model(self, model_id):
@@ -405,7 +414,7 @@ class ConfigDatabase(BaseDatabase):
 
     def get_active_tts_model(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice FROM tts_models WHERE is_active = 1")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, proxy FROM tts_models WHERE is_active = 1")
         return cursor.fetchone()
 
     # Voice Settings Methods
@@ -421,26 +430,26 @@ class ConfigDatabase(BaseDatabase):
         self.conn.commit()
 
     # Image Model Methods
-    def add_image_model(self, name, provider, base_url, api_key, model_name):
+    def add_image_model(self, name, provider, base_url, api_key, model_name, proxy=""):
         cursor = self.conn.cursor()
         cursor.execute("SELECT count(*) FROM image_models")
         count = cursor.fetchone()[0]
         is_active = 1 if count == 0 else 0
         
-        cursor.execute("INSERT INTO image_models (name, provider, base_url, api_key, model_name, is_active) VALUES (?, ?, ?, ?, ?, ?)", 
-                       (name, provider, base_url, api_key, model_name, is_active))
+        cursor.execute("INSERT INTO image_models (name, provider, base_url, api_key, model_name, is_active, proxy) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+                       (name, provider, base_url, api_key, model_name, is_active, proxy))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_image_models(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, base_url, api_key, model_name, is_active FROM image_models ORDER BY id ASC")
+        cursor.execute("SELECT id, name, provider, base_url, api_key, model_name, is_active, proxy FROM image_models ORDER BY id ASC")
         return cursor.fetchall()
 
-    def update_image_model(self, model_id, name, provider, base_url, api_key, model_name):
+    def update_image_model(self, model_id, name, provider, base_url, api_key, model_name, proxy=""):
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE image_models SET name=?, provider=?, base_url=?, api_key=?, model_name=? WHERE id=?", 
-                       (name, provider, base_url, api_key, model_name, model_id))
+        cursor.execute("UPDATE image_models SET name=?, provider=?, base_url=?, api_key=?, model_name=?, proxy=? WHERE id=?", 
+                       (name, provider, base_url, api_key, model_name, proxy, model_id))
         self.conn.commit()
 
     def delete_image_model(self, model_id):
@@ -456,7 +465,7 @@ class ConfigDatabase(BaseDatabase):
 
     def get_active_image_model(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, base_url, api_key, model_name FROM image_models WHERE is_active=1")
+        cursor.execute("SELECT id, name, provider, base_url, api_key, model_name, proxy FROM image_models WHERE is_active=1")
         return cursor.fetchone()
 
 class PersonaDatabase(BaseDatabase):

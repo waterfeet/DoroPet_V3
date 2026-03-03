@@ -3123,6 +3123,8 @@ class ChatInterface(QWidget):
         
         api_key, base_url, model = self.vision_model_data[:3]
         
+        logger.info(f"[Vision] Starting vision model: base_url={base_url}, model={model}")
+        
         # Use LLMWorker with skip_tools_and_max_tokens=True for vision models
         self.vision_worker = LLMWorker(api_key, base_url, vision_messages, model, self.db, enabled_plugins=[], skip_tools_and_max_tokens=True)
         self.vision_worker.finished.connect(self.on_vision_item_finished)
@@ -3130,6 +3132,7 @@ class ChatInterface(QWidget):
         self.vision_worker.start()
 
     def on_vision_item_finished(self, content, reasoning, tool_calls, generated_images=[]):
+        logger.info(f"[Vision] Vision model finished, content length: {len(content) if content else 0}")
         # Save to cache and update history
         if self.vision_queue:
             msg_idx, content_idx, file_path = self.vision_queue.pop(0)

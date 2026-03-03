@@ -110,16 +110,18 @@ class StreamProcessor(QObject):
             chunk.content = delta.content
         
         if hasattr(delta, 'tool_calls') and delta.tool_calls:
-            tc = delta.tool_calls[0]
-            chunk.is_tool_call = True
-            chunk.tool_call_index = tc.index
-            if tc.id:
-                chunk.tool_call_id = tc.id
-            if tc.function:
-                if tc.function.name:
-                    chunk.tool_call_name = tc.function.name
-                if tc.function.arguments:
-                    chunk.tool_call_args = tc.function.arguments
+            for tc in delta.tool_calls:
+                tc_chunk = StreamChunk()
+                tc_chunk.is_tool_call = True
+                tc_chunk.tool_call_index = tc.index if tc.index is not None else 0
+                if tc.id:
+                    tc_chunk.tool_call_id = tc.id
+                if tc.function:
+                    if tc.function.name:
+                        tc_chunk.tool_call_name = tc.function.name
+                    if tc.function.arguments:
+                        tc_chunk.tool_call_args = tc.function.arguments
+                self._handle_tool_call(tc_chunk)
         
         return chunk
     

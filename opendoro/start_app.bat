@@ -8,6 +8,8 @@ if not exist "runtime\python.exe" (
     exit /b 1
 )
 
+set "QT_PLUGIN_PATH=%~dp0runtime\Lib\site-packages\PyQt5\Qt5\plugins"
+
 echo Starting DoroPet...
 :: Using python.exe to ensure console logs are captured by your LogInterface
 "runtime\python.exe" "main.py"

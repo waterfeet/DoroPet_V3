@@ -44,7 +44,7 @@ class PetAvatarCard(CardWidget):
         ui_dir = os.path.dirname(widgets_dir)
         src_dir = os.path.dirname(ui_dir)
         base_dir = os.path.dirname(src_dir)
-        avatar_path = os.path.join(base_dir, "data", "icons", "touxiang.jpeg")
+        avatar_path = os.path.join(base_dir, "data", "icons", "app.ico")
         if os.path.exists(avatar_path):
             return avatar_path
         return ""

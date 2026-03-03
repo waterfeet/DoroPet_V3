@@ -86,8 +86,6 @@ opendoro/
    - Ask about weather, news, knowledge, etc.
    - Chat, tell stories, play games
    - Provide life advice and help
-   
-   ![AI Dialogue Interface](opendoro/data/resourse/ai会话.png)
 
 2. **System Monitoring**:
    - Display CPU, memory usage
@@ -103,12 +101,6 @@ opendoro/
    - Install and manage various skills
    - Customize skill behaviors
    - Extend Doro's capabilities through skills
-
-5. **Doro Status**:
-   - Real-time display of Doro's status and emotions
-   - Provide intuitive status feedback
-   
-   ![Doro Status](opendoro/data/resourse/doro状态.png)
 
 ## Configuration Instructions
 

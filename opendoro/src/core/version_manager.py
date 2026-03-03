@@ -14,7 +14,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 import requests
 from src.core.logger import logger
 
-__version__ = "3.1.4"
+__version__ = "3.1.3"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"
@@ -296,6 +296,109 @@ class UpdateDownloadWorker(QThread):
     def cancel(self):
         self._is_cancelled = True
 
+
+class UpdateInstallWorker(QThread):
+    progress = pyqtSignal(str, int)
+    completed = pyqtSignal()
+    error = pyqtSignal(str)
+    
+    STEP_EXTRACT = 10
+    STEP_PREPARE = 30
+    STEP_COPY = 60
+    STEP_FINALIZE = 90
+    STEP_DONE = 100
+    
+    def __init__(self, zip_path: str, version: str, parent=None):
+        super().__init__(parent)
+        self.zip_path = zip_path
+        self.version = version
+        self._is_cancelled = False
+        
+        self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.project_root = os.path.dirname(self.app_dir)
+        self.temp_dir = tempfile.gettempdir()
+    
+    def run(self):
+        try:
+            self.progress.emit("正在解压更新包...", self.STEP_EXTRACT)
+            
+            extract_dir = os.path.join(self.temp_dir, f"DoroPet_Update_{self.version}")
+            if os.path.exists(extract_dir):
+                shutil.rmtree(extract_dir)
+            os.makedirs(extract_dir)
+            
+            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+                zf.extractall(extract_dir)
+            
+            if self._is_cancelled:
+                shutil.rmtree(extract_dir)
+                self.error.emit("安装已取消")
+                return
+            
+            self.progress.emit("正在准备安装...", self.STEP_PREPARE)
+            
+            items = os.listdir(extract_dir)
+            if len(items) == 1 and os.path.isdir(os.path.join(extract_dir, items[0])):
+                source_dir = os.path.join(extract_dir, items[0])
+            else:
+                source_dir = extract_dir
+            
+            self.progress.emit("正在复制文件...", self.STEP_COPY)
+            
+            python_exe = sys.executable
+            main_script = os.path.join(self.app_dir, "main.py")
+            restart_cmd = f'start "" /b "{python_exe}" "{main_script}"'
+            
+            script_content = f'''@echo off
+chcp 65001 >nul
+set "SOURCE={source_dir}"
+set "TARGET={self.project_root}"
+
+timeout /t 3 /nobreak >nul
+
+xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I /Q >nul 2>&1
+
+if %errorlevel% neq 0 (
+    exit /b 1
+)
+
+{restart_cmd}
+
+exit /b 0
+'''
+            
+            script_path = os.path.join(self.temp_dir, "DoroPet_Updater.bat")
+            with open(script_path, 'w', encoding='utf-8') as f:
+                f.write(script_content)
+            
+            if self._is_cancelled:
+                os.remove(script_path)
+                shutil.rmtree(extract_dir)
+                self.error.emit("安装已取消")
+                return
+            
+            self.progress.emit("正在完成安装...", self.STEP_FINALIZE)
+            
+            subprocess.Popen(
+                ['cmd', '/c', script_path],
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+            )
+            
+            self.progress.emit("安装完成，即将重启...", self.STEP_DONE)
+            self.completed.emit()
+            
+        except zipfile.BadZipFile:
+            self.error.emit("更新包文件损坏，请重新下载")
+        except PermissionError:
+            self.error.emit("权限不足，无法写入文件")
+        except Exception as e:
+            logger.error(f"Install failed: {e}")
+            self.error.emit(f"安装失败: {str(e)}")
+    
+    def cancel(self):
+        self._is_cancelled = True
+
+
 class UpdateInstaller:
     def __init__(self):
         self.app_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -319,8 +422,27 @@ class UpdateInstaller:
         
         return source_dir
     
-    def create_updater_script(self, source_dir: str, target_dir: str, restart_cmd: str) -> str:
-        script_content = f'''@echo off
+    def create_updater_script(self, source_dir: str, target_dir: str, restart_cmd: str, silent: bool = True) -> str:
+        if silent:
+            script_content = f'''@echo off
+chcp 65001 >nul
+set "SOURCE={source_dir}"
+set "TARGET={target_dir}"
+
+timeout /t 2 /nobreak >nul
+
+xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I /Q >nul 2>&1
+
+if %errorlevel% neq 0 (
+    exit /b 1
+)
+
+{restart_cmd}
+
+exit /b 0
+'''
+        else:
+            script_content = f'''@echo off
 chcp 65001 >nul
 echo ========================================
 echo   DoroPet 自动更新程序
@@ -357,20 +479,30 @@ exit /b 0
         
         return script_path
     
-    def execute_update(self, zip_path: str, version: str) -> bool:
+    def execute_update(self, zip_path: str, version: str, silent: bool = True) -> bool:
         try:
             source_dir = self.prepare_installation(zip_path, version)
             
             python_exe = sys.executable
             main_script = os.path.join(self.app_dir, "main.py")
-            restart_cmd = f'cd /d "{self.app_dir}" & "{python_exe}" "{main_script}"'
             
-            script_path = self.create_updater_script(source_dir, self.project_root, restart_cmd)
+            if silent:
+                restart_cmd = f'start "" /b "{python_exe}" "{main_script}"'
+            else:
+                restart_cmd = f'cd /d "{self.app_dir}" & "{python_exe}" "{main_script}"'
             
-            subprocess.Popen(
-                ['cmd', '/c', script_path],
-                creationflags=subprocess.CREATE_NEW_CONSOLE
-            )
+            script_path = self.create_updater_script(source_dir, self.project_root, restart_cmd, silent)
+            
+            if silent:
+                subprocess.Popen(
+                    ['cmd', '/c', script_path],
+                    creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS
+                )
+            else:
+                subprocess.Popen(
+                    ['cmd', '/c', script_path],
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
             
             return True
             
@@ -385,6 +517,9 @@ class VersionManager(QObject):
     download_progress = pyqtSignal(int, int, str)
     download_completed = pyqtSignal(str)
     download_error = pyqtSignal(str)
+    install_progress = pyqtSignal(str, int)
+    install_completed = pyqtSignal()
+    install_error = pyqtSignal(str)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -392,7 +527,10 @@ class VersionManager(QObject):
         self._versions: List[VersionInfo] = []
         self._api_worker: Optional[GiteeApiWorker] = None
         self._download_worker: Optional[UpdateDownloadWorker] = None
+        self._install_worker: Optional[UpdateInstallWorker] = None
         self._installer = UpdateInstaller()
+        self._current_download_version: VersionInfo = None
+        self._auto_install = True
     
     def get_current_version(self) -> str:
         return self.current_version
@@ -478,8 +616,22 @@ class VersionManager(QObject):
     def _on_download_completed(self, file_path: str):
         self.download_completed.emit(file_path)
         
-        if self._auto_install:
-            self.install_update(file_path, self._current_download_version)
+        if self._auto_install and self._current_download_version:
+            self.start_installation(file_path, self._current_download_version)
+    
+    def start_installation(self, zip_path: str, version: VersionInfo):
+        if self._install_worker and self._install_worker.isRunning():
+            self._install_worker.cancel()
+            self._install_worker.wait()
+        
+        self._install_worker = UpdateInstallWorker(zip_path, version.version, self)
+        self._install_worker.progress.connect(self.install_progress.emit)
+        self._install_worker.completed.connect(self._on_install_completed)
+        self._install_worker.error.connect(self.install_error.emit)
+        self._install_worker.start()
+    
+    def _on_install_completed(self):
+        self.install_completed.emit()
     
     def install_update(self, zip_path: str, version: VersionInfo) -> bool:
         return self._installer.execute_update(zip_path, version.version)
@@ -488,6 +640,11 @@ class VersionManager(QObject):
         if self._download_worker and self._download_worker.isRunning():
             self._download_worker.cancel()
             logger.info("Download cancelled")
+    
+    def cancel_installation(self):
+        if self._install_worker and self._install_worker.isRunning():
+            self._install_worker.cancel()
+            logger.info("Installation cancelled")
     
     def _get_fallback_versions(self) -> List[VersionInfo]:
         return [

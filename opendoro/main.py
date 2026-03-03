@@ -9,6 +9,8 @@ from src.live2dview import Live2DWidget
 from src.resource_utils import resource_path
 from src.core.logger import setup_logger
 from src.splash_screen import SplashScreen
+from src.provider.manager import ProviderManager
+from src.core.database import DatabaseManager
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtCore import QSettings
 from PyQt5.QtGui import *
@@ -16,12 +18,30 @@ from PyQt5.QtGui import *
 # Initialize Logger
 logger = setup_logger()
 
+def init_provider_framework():
+    try:
+        from src.provider.sources import (
+            ProviderOpenAI, ProviderDeepSeek, ProviderAnthropic,
+            ProviderOllama, ProviderMoonshot, ProviderGemini,
+            ProviderGroq, ProviderZhipu,
+            ProviderEdgeTTS, ProviderOpenAITTS,
+            ProviderOpenAIImage
+        )
+        logger.info("Provider adapters loaded successfully")
+    except ImportError as e:
+        logger.warning(f"Some provider adapters could not be loaded: {e}")
+    
+    db = DatabaseManager().config
+    pm = ProviderManager.get_instance()
+    pm.load_providers_from_db(db)
+    logger.info(f"ProviderManager initialized with {len(pm.get_all_llm_providers())} LLM providers")
+
 def setup_tray_icon(app, widget):
     """设置系统托盘"""
     tray_icon = QSystemTrayIcon(app)
     
     # 尝试加载图标
-    icon_path = resource_path("data/icons/app.ico")
+    icon_path = resource_path("data/icons/logo.png")
     if not os.path.exists(icon_path):
         icon_path = resource_path("data/icons/orange.ico")
         
@@ -94,7 +114,7 @@ def main():
     logger.info("Application started.")
 
     # 设置应用程序图标 (任务栏图标)
-    icon_path = resource_path("data/icons/logo-small.png")
+    icon_path = resource_path("data/icons/logo.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     
@@ -109,6 +129,10 @@ def main():
     # 防止关闭主窗口（设置界面）时导致程序退出
     # 同时也配合系统托盘功能，使程序可以后台运行
     app.setQuitOnLastWindowClosed(False) 
+
+    # Initialize Provider Framework
+    splash.set_status("正在初始化 Provider 框架...")
+    init_provider_framework()
 
     # Load light.qss
     qss_path = resource_path("themes/light.qss")
