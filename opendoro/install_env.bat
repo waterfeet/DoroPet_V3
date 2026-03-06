@@ -76,13 +76,7 @@ REM =================== 新增sherpa-onnx修复结束 ===================
 echo [4/7] Installing dependencies from requirements.txt...
 "%RUNTIME_DIR%\python.exe" -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple --no-warn-script-location
 
-echo [5/7] Installing local pylive2d...
-:: Using the specific wheel found in your project
-if exist "live2dpy\src\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" (
-    "%RUNTIME_DIR%\python.exe" -m pip install "live2dpy\src\whls\pylive2d-1.3-cp312-cp312-win_amd64.whl" --no-warn-script-location
-) else (
-    echo Warning: pylive2d wheel not found! Please ensure live2dpy folder is present.
-)
+echo [5/7] Skipping local pylive2d (now using live2d-py from PyPI)...
 
 echo [6/7] Skipping voice models download (Use Voice Settings to download)...
 if not exist "models\voice" mkdir "models\voice"

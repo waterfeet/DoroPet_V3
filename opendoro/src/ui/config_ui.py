@@ -638,7 +638,8 @@ class ConfigInterface(QWidget):
         voice_layout.addWidget(self.voice_input, 1)
         
         self.fetch_voices_btn = PushButton(FluentIcon.SEARCH, "", voice_widget)
-        self.fetch_voices_btn.setFixedSize(32, 32)
+        self.fetch_voices_btn.setFixedHeight(32)
+        self.fetch_voices_btn.setText("获取语音列表")
         self.fetch_voices_btn.setToolTip("获取可用语音列表")
         self.fetch_voices_btn.clicked.connect(self.fetch_voices_from_provider)
         voice_layout.addWidget(self.fetch_voices_btn)

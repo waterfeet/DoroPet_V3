@@ -1,9 +1,10 @@
 import sys
 import os
 
-# 将当前目录添加到 sys.path 以便能找到 src 模块
-# 嵌入式 Python 环境可能不会自动添加脚本所在目录
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from src.core.dependency_checker import check_and_exit_on_failure
+check_and_exit_on_failure()
 
 from src.live2dview import Live2DWidget
 from src.resource_utils import resource_path
