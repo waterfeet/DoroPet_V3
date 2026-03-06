@@ -14,7 +14,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 import requests
 from src.core.logger import logger
 
-__version__ = "3.1.6"
+__version__ = "3.2.0"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"
