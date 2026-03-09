@@ -14,6 +14,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 import requests
 from src.core.logger import logger
 
+
 __version__ = "3.2.1"
 __app_name__ = "DoroPet"
 
