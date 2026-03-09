@@ -1483,9 +1483,12 @@ class ChatInterface(QWidget):
         self.state_manager = StateManager()
         self._connect_state_manager_signals()
         
-        # UI Update Timer for throttling streaming updates (fix lag)
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_streaming_display)
+        
+        self._stop_timer = QTimer(self)
+        self._stop_timer.setSingleShot(True)
+        self._stop_timer.timeout.connect(self._check_stop_timeout)
         
         self.init_ui()
         self.load_sessions_list()
@@ -2644,32 +2647,71 @@ class ChatInterface(QWidget):
 
     def stop_generation(self):
         if hasattr(self, 'worker') and self.worker and self.worker.isRunning():
-            self.worker.stop()
             logger.info("[ChatUI] Stop requested by user")
+            self.worker.stop()
+            self._stop_timer.start(100)
+        else:
+            self._is_generating = False
+            self.btn_send.setIcon(FluentIcon.SEND)
+            self.btn_send.setText("发送")
+    
+    def _check_stop_timeout(self):
+        if hasattr(self, 'worker') and self.worker and self.worker.isRunning():
+            logger.warning("[ChatUI] Stop timeout, forcing worker termination")
+            self.worker.terminate()
+            self.worker.wait(500)
+            self.on_generation_stopped()
+        self._stop_timer.stop()
             
     def on_generation_stopped(self):
         self._is_generating = False
         self.btn_send.setIcon(FluentIcon.SEND)
         self.btn_send.setText("发送")
         
+        self._stop_timer.stop()
         self.update_timer.stop()
         
         if self.streaming_bubble:
-            self.streaming_content += "\n\n*[已停止]*"
-            self.streaming_bubble.setText(self.streaming_content)
+            try:
+                self.streaming_content += "\n\n*[已停止]*"
+                self.streaming_bubble.update_content(self.streaming_content)
+            except RuntimeError:
+                pass
             self.streaming_bubble = None
         
         if self.status_bubble:
-            self.status_bubble.deleteLater()
+            try:
+                self.status_bubble.deleteLater()
+            except RuntimeError:
+                pass
             self.status_bubble = None
             
         if self.thinking_bubble:
-            self.thinking_bubble.deleteLater()
+            try:
+                self.thinking_bubble.deleteLater()
+            except RuntimeError:
+                pass
             self.thinking_bubble = None
         
         if self.tool_execution_widget:
-            self.tool_execution_widget.deleteLater()
+            try:
+                self.tool_execution_widget.deleteLater()
+            except RuntimeError:
+                pass
             self.tool_execution_widget = None
+        
+        if hasattr(self, 'worker') and self.worker:
+            try:
+                self.worker.finished.disconnect()
+                self.worker.error.disconnect()
+                self.worker.chunk_received.disconnect()
+                self.worker.thinking_chunk.disconnect()
+                self.worker.tool_status_changed.disconnect()
+                self.worker.tool_execution_update.disconnect()
+                self.worker.stopped.disconnect()
+            except (TypeError, RuntimeError):
+                pass
+            self.worker = None
         
         self.scroll_to_bottom()
 
@@ -2831,6 +2873,33 @@ class ChatInterface(QWidget):
                 tool_instruction += "     * 编写 Python 脚本并运行：先 write_file('script.py', content)，后 run_python_script('script.py')。\n"
                 tool_instruction += "     * 创建网页：write_file('index.html', html_content)。\n"
                 tool_instruction += "   - 务必检查运行结果并据此回答用户。\n"
+                tool_instruction += "\n"
+                tool_instruction += "【推荐工作流程】\n"
+                tool_instruction += "1. 先用 list_files 或 search_files 了解项目结构\n"
+                tool_instruction += "2. 用 read_file 确认文件内容\n"
+                tool_instruction += "3. 再用 edit_file 进行精确修改\n"
+                tool_instruction += "\n"
+                tool_instruction += "【edit_file 使用技巧】\n"
+                tool_instruction += "- search内容必须完全匹配，建议先read_file复制原文\n"
+                tool_instruction += "- 包含正确的缩进（Python对缩进敏感）\n"
+                tool_instruction += "- 如不确定内容，先用read_file查看\n"
+                tool_instruction += "- 可使用fuzzy_match=true启用模糊匹配（忽略空格差异）\n"
+                tool_instruction += "- 可使用context_before/context_after帮助定位重复内容\n"
+                tool_instruction += "\n"
+                tool_instruction += "【insert_at_line 使用技巧】\n"
+                tool_instruction += "- 行号从1开始（1-indexed）\n"
+                tool_instruction += "- line_number=0 表示插入到文件开头\n"
+                tool_instruction += "- 先read_file确认行号\n"
+                tool_instruction += "\n"
+                tool_instruction += "【delete_lines 使用技巧】\n"
+                tool_instruction += "- start_line和end_line都是包含的（inclusive）\n"
+                tool_instruction += "- 只删除一行时，end_line可省略\n"
+                tool_instruction += "\n"
+                tool_instruction += "【常见错误避免】\n"
+                tool_instruction += "- 路径必须相对于项目根目录\n"
+                tool_instruction += "- 不能访问 src/core/ 目录（保护区域）\n"
+                tool_instruction += "- 文件不存在时用write_file创建\n"
+                tool_instruction += "- 使用find_in_file工具定位内容位置\n"
 
             if "expression" in enabled_tools and available_expressions:
                 tool_instruction += f"4. Live2D表情控制工具（set_expression）：\n"

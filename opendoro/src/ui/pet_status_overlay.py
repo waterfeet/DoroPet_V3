@@ -121,7 +121,7 @@ class PetStatusOverlay(QWidget):
         self._is_pinned = False
         
         self._init_ui()
-        self._connect_signals()
+        self._bind_attributes()
         
         self.hide_timer = QTimer(self)
         self.hide_timer.setSingleShot(True)
@@ -132,7 +132,6 @@ class PetStatusOverlay(QWidget):
         self._fade_animation.setDuration(200)
         self._fade_animation.setEasingCurve(QEasingCurve.OutCubic)
         
-        self._update_display()
         self._apply_styles()
 
     def _init_ui(self):
@@ -177,18 +176,12 @@ class PetStatusOverlay(QWidget):
             }
         """)
 
-    def _connect_signals(self):
-        self.attr_manager.attribute_changed.connect(self._on_attribute_changed)
-
-    def _on_attribute_changed(self, attr_name: str, new_value: float, old_value: float):
-        if attr_name in self.attr_bars:
-            self.attr_bars[attr_name].set_value(new_value)
-
-    def _update_display(self):
-        all_attrs = self.attr_manager.get_all_attributes()
-        for attr_name, value in all_attrs.items():
-            if attr_name in self.attr_bars:
-                self.attr_bars[attr_name].set_value(value)
+    def _bind_attributes(self):
+        for attr_name, bar in self.attr_bars.items():
+            self.attr_manager.bind_attribute_widget(
+                attr_name,
+                bar.set_value
+            )
 
     def follow_pet(self, pet_pos: QPoint, pet_size: QSize):
         if self._is_pinned:

@@ -2,7 +2,8 @@ import json
 import httpx
 import time
 import copy
-from PyQt5.QtCore import QThread, pyqtSignal, QSettings
+import threading
+from PyQt5.QtCore import QThread, pyqtSignal, QSettings, QMutex, QMutexLocker
 from src.core.agent_tools import TOOLS_SCHEMA, AVAILABLE_TOOLS
 from src.core.logger import logger
 from src.core.skill_manager import SkillManager
@@ -41,7 +42,10 @@ class LLMWorker(QThread):
         self.available_expressions = available_expressions if available_expressions else []
         self.skill_manager = SkillManager()
         self._is_stopped = False
+        self._stop_mutex = QMutex()
         self._response_iterator = None
+        self._http_client = None
+        self._provider_stream = None
         self.stream_processor = StreamProcessor()
         self.stream_processor.chunk_ready.connect(self.chunk_received.emit)
         self.stream_processor.thinking_chunk.connect(self.thinking_chunk.emit)
@@ -70,14 +74,18 @@ class LLMWorker(QThread):
         return False
 
     def stop(self):
-        self._is_stopped = True
+        with QMutexLocker(self._stop_mutex):
+            if self._is_stopped:
+                return
+            self._is_stopped = True
+            logger.info("[LLMWorker] Stop requested")
+        
         self.stream_processor.stop()
-        if self._response_iterator:
-            try:
-                if hasattr(self._response_iterator, 'close'):
-                    self._response_iterator.close()
-            except:
-                pass
+        logger.info("[LLMWorker] Stop flag set, waiting for worker to exit gracefully")
+    
+    def is_stopped(self) -> bool:
+        with QMutexLocker(self._stop_mutex):
+            return self._is_stopped
 
     def _build_api_params(self, max_tokens, turn_count):
         messages_for_api = []
@@ -104,7 +112,7 @@ class LLMWorker(QThread):
                 continue
             if tool_name == "generate_image" and "image" not in self.enabled_plugins:
                 continue
-            if tool_name in ["read_file", "write_file", "list_directory"] and "file" not in self.enabled_plugins:
+            if tool_name in ["read_file", "write_file", "list_files", "search_files", "edit_file", "insert_at_line", "delete_lines", "find_in_file"] and "file" not in self.enabled_plugins:
                 continue
             if tool_name in ["execute_python_code", "execute_command"] and "coding" not in self.enabled_plugins:
                 continue
@@ -129,7 +137,7 @@ class LLMWorker(QThread):
         return api_params
 
     def run(self):
-        http_client = None
+        was_stopped = False
         try:
             if self._use_provider_framework:
                 self._run_with_provider()
@@ -138,15 +146,31 @@ class LLMWorker(QThread):
                 
         except Exception as e:
             logger.error(f"[LLMWorker] Critical Error: {e}")
-            self.error.emit(str(e))
+            if not self.is_stopped():
+                self.error.emit(str(e))
         finally:
-            if not self._is_stopped:
+            was_stopped = self.is_stopped()
+            self._cleanup_resources()
+        
+        try:
+            if was_stopped:
+                self.state_manager.set_generation_state(GenerationState.STOPPED)
+                self.stopped.emit()
+            else:
                 self.state_manager.set_generation_state(GenerationState.COMPLETED)
-            if http_client:
-                try:
-                    http_client.close()
-                except:
-                    pass
+        except RuntimeError:
+            pass
+    
+    def _cleanup_resources(self):
+        if self._http_client:
+            try:
+                self._http_client.close()
+            except:
+                pass
+            self._http_client = None
+        
+        self._response_iterator = None
+        self._provider_stream = None
 
     def _run_with_provider(self):
         provider = self._matched_provider
@@ -162,10 +186,8 @@ class LLMWorker(QThread):
         self.state_manager.set_generation_state(GenerationState.PREPARING)
         
         while turn_count < self.max_turns:
-            if self._is_stopped:
+            if self.is_stopped():
                 logger.info("[LLMWorker] Stopped by user request")
-                self.state_manager.set_generation_state(GenerationState.STOPPED)
-                self.stopped.emit()
                 return
                 
             turn_count += 1
@@ -188,17 +210,18 @@ class LLMWorker(QThread):
             tool_calls_buffer = {}
             
             try:
-                for response in provider.chat_stream(
+                stream = provider.chat_stream(
                     messages=messages_for_api,
                     tools=tools,
                     max_tokens=max_tokens if not self.skip_tools_and_max_tokens else None,
                     thinking_budget=4096 if self.is_thinking_model else None
-                ):
-                    if self._is_stopped:
+                )
+                self._provider_stream = stream
+                
+                for response in stream:
+                    if self.is_stopped():
                         logger.info("[LLMWorker] Stopped during streaming")
-                        self.state_manager.set_generation_state(GenerationState.STOPPED)
-                        self.stopped.emit()
-                        return
+                        break
                     
                     if response.content:
                         current_turn_content += response.content
@@ -233,9 +256,24 @@ class LLMWorker(QThread):
                             if tc.arguments:
                                 tool_calls_buffer[tc_key]["function"]["arguments"] += tc.arguments
                 
+            except StopIteration:
+                logger.info("[LLMWorker] Stream stopped by user")
+                return
+            except GeneratorExit:
+                logger.info("[LLMWorker] Generator closed by user")
+                return
             except Exception as e:
+                if self.is_stopped():
+                    logger.info("[LLMWorker] Stopped during streaming (exception)")
+                    return
                 logger.error(f"[LLMWorker] Provider streaming error: {e}")
                 self.error.emit(str(e))
+                return
+            finally:
+                self._provider_stream = None
+            
+            if self.is_stopped():
+                logger.info("[LLMWorker] Processing stop state after streaming")
                 return
             
             if current_turn_reasoning:
@@ -276,16 +314,14 @@ class LLMWorker(QThread):
 
     def _run_legacy(self):
         logger.info(f"[LLMWorker] Using legacy mode: base_url={self.base_url}, model={self.model}")
-        http_client = httpx.Client()
-        client = OpenAI(api_key=self.api_key, base_url=self.base_url, http_client=http_client)
+        self._http_client = httpx.Client()
+        client = OpenAI(api_key=self.api_key, base_url=self.base_url, http_client=self._http_client)
         turn_count = 0
         self.state_manager.set_generation_state(GenerationState.PREPARING)
         
         while turn_count < self.max_turns:
-            if self._is_stopped:
+            if self.is_stopped():
                 logger.info("[LLMWorker] Stopped by user request")
-                self.state_manager.set_generation_state(GenerationState.STOPPED)
-                self.stopped.emit()
                 return
                 
             turn_count += 1
@@ -303,22 +339,41 @@ class LLMWorker(QThread):
                 preview = str(content)[:200] + "..." if len(str(content)) > 200 else str(content)
                 logger.debug(f"[LLMWorker] Message[{i}] role={msg.get('role')}: {preview}")
             
-            response = client.chat.completions.create(**api_params)
-            self._response_iterator = response
-            self.state_manager.set_generation_state(GenerationState.STREAMING)
-            
-            for chunk in response:
-                if self._is_stopped:
-                    logger.info("[LLMWorker] Stopped during streaming")
-                    self.state_manager.set_generation_state(GenerationState.STOPPED)
-                    self.stopped.emit()
+            try:
+                response = client.chat.completions.create(**api_params)
+                self._response_iterator = response
+                self.state_manager.set_generation_state(GenerationState.STREAMING)
+                
+                for chunk in response:
+                    if self.is_stopped():
+                        logger.info("[LLMWorker] Stopped during streaming")
+                        return
+                    
+                    if not chunk.choices:
+                        continue
+                    
+                    delta = chunk.choices[0].delta
+                    self.stream_processor.process_chunk(delta)
+                
+            except StopIteration:
+                logger.info("[LLMWorker] Stream stopped by user")
+                return
+            except GeneratorExit:
+                logger.info("[LLMWorker] Generator closed by user")
+                return
+            except Exception as e:
+                if self.is_stopped():
+                    logger.info("[LLMWorker] Stopped during streaming (exception)")
                     return
-                
-                if not chunk.choices:
-                    continue
-                
-                delta = chunk.choices[0].delta
-                self.stream_processor.process_chunk(delta)
+                logger.error(f"[LLMWorker] Legacy streaming error: {e}")
+                self.error.emit(str(e))
+                return
+            finally:
+                self._response_iterator = None
+            
+            if self.is_stopped():
+                logger.info("[LLMWorker] Processing stop state after streaming")
+                return
             
             full_content, current_turn_content, current_turn_reasoning, tool_calls_buffer = self.stream_processor.finalize()
             
@@ -357,18 +412,11 @@ class LLMWorker(QThread):
             
         if turn_count >= self.max_turns:
             logger.warning("[LLMWorker] Max turns reached. Loop finished without explicit break.")
-        
-        try:
-            http_client.close()
-        except:
-            pass
 
     def _execute_tool_calls(self, sorted_indices, tool_calls_buffer):
         for idx in sorted_indices:
-            if self._is_stopped:
+            if self.is_stopped():
                 logger.info("[LLMWorker] Stopped during tool execution")
-                self.state_manager.set_generation_state(GenerationState.STOPPED)
-                self.stopped.emit()
                 return
             
             tc_data = tool_calls_buffer[idx]

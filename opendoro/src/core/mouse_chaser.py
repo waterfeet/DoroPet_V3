@@ -2,7 +2,7 @@ import math
 import time
 import random
 from typing import Optional, Tuple, Callable
-from PyQt5.QtCore import QTimer, QObject
+from PyQt5.QtCore import QTimer, QObject, pyqtSignal
 from PyQt5.QtGui import QCursor
 from PyQt5.QtWidgets import QApplication
 
@@ -18,6 +18,9 @@ class MouseChaser(QObject):
     - 边界检测
     - 属性变化（能量消耗、心情提升）
     """
+    
+    # 能量耗尽信号，用于通知 widget 停止追逐模式
+    energy_exhausted = pyqtSignal()
     
     MIN_UPDATE_INTERVAL = 33
     ENERGY_LOW_THRESHOLD = 30.0
@@ -55,6 +58,7 @@ class MouseChaser(QObject):
         self._running_motion_group: Optional[str] = None
         self._motion_priority = 3
         self._motion_check_timer: Optional[QTimer] = None
+        self._animation_loop_enabled = True
         
         self._energy_drain_rate = 2.0
         self._mood_boost_rate = 1.5
@@ -124,12 +128,14 @@ class MouseChaser(QObject):
             return
             
         self._is_active = True
+        self._animation_loop_enabled = True
         self._velocity_x = 0.0
         self._velocity_y = 0.0
         self._sin_time = 0.0
         self._last_update_time = time.time()
         self._last_attr_update_time = time.time()
         self._low_energy_warned = False
+        self._running_motion_group = None
         
         if self._timer is None:
             self._timer = QTimer(self)
@@ -174,6 +180,9 @@ class MouseChaser(QObject):
         
         self._update_attributes(current_time)
         self._check_energy_state()
+        
+        if not self._is_active:
+            return
             
         mouse_pos = QCursor.pos()
         
@@ -258,6 +267,11 @@ class MouseChaser(QObject):
             
     def _trigger_exhausted_dialogue(self):
         """触发能量耗尽对话和黑脸表情"""
+        self._animation_loop_enabled = False
+        
+        # 发射信号，通知 widget 停止追逐模式
+        self.energy_exhausted.emit()
+            
         if hasattr(self.widget, 'talk'):
             exhausted_dialogues = [
                 "彻底没力气了...",
@@ -366,6 +380,10 @@ class MouseChaser(QObject):
             
     def _start_running_animation(self):
         """开始跑动动画并持续循环"""
+        if not self._animation_loop_enabled:
+            self._animation_loop_enabled = True
+            return
+            
         if not self._running_motion_group:
             motion_groups = self.model.GetMotionGroups() if hasattr(self.model, 'GetMotionGroups') else {}
             for group in motion_groups.keys():

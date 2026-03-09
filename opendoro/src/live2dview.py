@@ -192,6 +192,8 @@ class Live2DWidget(QOpenGLWidget):
             on_direction_changed=self._on_chase_direction_changed,
             on_running_changed=self._on_chase_running_changed
         )
+        # 连接能量耗尽信号，自动停止追逐模式
+        self.mouse_chaser.energy_exhausted.connect(lambda: self.toggle_mouse_chase(False))
         
     def _on_chase_direction_changed(self, facing_right: bool):
         """追逐方向改变时的回调"""

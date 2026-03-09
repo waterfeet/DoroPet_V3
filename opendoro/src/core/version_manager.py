@@ -14,7 +14,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QThread
 import requests
 from src.core.logger import logger
 
-__version__ = "3.1.6"
+__version__ = "3.2.1"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"
@@ -99,8 +99,21 @@ class GiteeApiWorker(QThread):
     def run(self):
         try:
             url = f"{GITEE_API_BASE}/repos/{self.owner}/{self.repo}/releases"
-            headers = {'User-Agent': 'DoroPet-Update-Checker/1.0'}
-            response = requests.get(url, timeout=15, headers=headers)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json',
+                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                'Referer': 'https://gitee.com/'
+            }
+            response = requests.get(url, timeout=15, headers=headers, allow_redirects=True)
+            
+            if response.status_code == 403:
+                self.error.emit("服务器访问受限(403)，可能是由于请求频率限制。请稍后重试。")
+                return
+            elif response.status_code == 404:
+                self.error.emit("未找到版本仓库")
+                return
+            
             response.raise_for_status()
             
             releases = response.json()

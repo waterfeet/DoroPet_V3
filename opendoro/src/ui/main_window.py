@@ -49,11 +49,9 @@ class MainWindow(FluentWindow):
         self.update_interface = UpdateInterface(self)
         self.settings_interface = SettingsInterface(self)
         
-        # 创建属性管理器（在 db 初始化之后）
-        self.attr_manager = self.live2d_widget.attr_manager if hasattr(self, 'live2d_widget') else None
+        self.attr_manager = None
         
-        # 创建属性管理界面
-        self.pet_status_interface = PetStatusInterface(self.attr_manager, self)
+        self.pet_status_interface = PetStatusInterface(None, self)
         
         # 4. 初始化导航栏
         self.init_navigation()
@@ -185,15 +183,18 @@ class MainWindow(FluentWindow):
 
     def set_live2d_widget(self, widget):
         self.live2d_widget = widget
-        # Propagate to SettingsInterface
+        
+        if hasattr(widget, 'attr_manager'):
+            self.attr_manager = widget.attr_manager
+        
         if hasattr(self, 'settings_interface'):
             self.settings_interface.set_live2d_widget(widget)
-        # Propagate to ChatInterface
+        
         if hasattr(self, 'chat_interface'):
             self.chat_interface.set_live2d_widget(widget)
-        # Propagate to PetStatusInterface
-        if hasattr(self, 'pet_status_interface') and hasattr(widget, 'attr_manager'):
-            self.pet_status_interface.set_attr_manager(widget.attr_manager)
+        
+        if hasattr(self, 'pet_status_interface') and self.attr_manager:
+            self.pet_status_interface.set_attr_manager(self.attr_manager)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

@@ -15,6 +15,106 @@ from src.ui.widgets.pet_avatar_card import PetAvatarCard
 from src.ui.widgets.fun_games import FunInteractionPanel
 
 
+class AttributeCard(CardWidget):
+    def __init__(self, attr_name: str, parent=None):
+        super().__init__(parent)
+        self.attr_name = attr_name
+        self.setMinimumWidth(180)
+        
+        self._init_ui()
+    
+    def _init_ui(self):
+        card_layout = QVBoxLayout(self)
+        card_layout.setContentsMargins(15, 12, 15, 12)
+        card_layout.setSpacing(8)
+        
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        
+        attr_icons = {
+            ATTR_HUNGER: "🍖",
+            ATTR_MOOD: "💖",
+            ATTR_CLEANLINESS: "✨",
+            ATTR_ENERGY: "⚡",
+        }
+        
+        icon_label = QLabel(attr_icons.get(self.attr_name, "📊"))
+        icon_label.setObjectName("petAttrIcon")
+        icon_label.setStyleSheet("font-size: 20px; background: transparent;")
+        
+        name_label = QLabel(ATTR_NAMES[self.attr_name])
+        name_label.setObjectName("petAttrNameLabel")
+        
+        self.value_label = QLabel()
+        self.value_label.setObjectName(f"value_{self.attr_name}")
+        self.value_label.setAlignment(Qt.AlignRight)
+        
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(name_label)
+        header_layout.addStretch()
+        header_layout.addWidget(self.value_label)
+        
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setObjectName(f"bar_{self.attr_name}")
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setFixedHeight(8)
+        self.progress_bar.setTextVisible(False)
+        
+        self.status_label = QLabel()
+        self.status_label.setObjectName(f"status_{self.attr_name}")
+        self.status_label.setAlignment(Qt.AlignCenter)
+        self.status_label.setFixedHeight(22)
+        
+        card_layout.addLayout(header_layout)
+        card_layout.addWidget(self.progress_bar)
+        card_layout.addWidget(self.status_label)
+    
+    def update_value(self, value: float):
+        self.value_label.setText(f"{value:.0f}%")
+        self.progress_bar.setValue(int(value))
+    
+    def update_status(self, status: str):
+        if status == "critical":
+            status_text = "危急"
+            self.status_label.setObjectName("petStatusCritical")
+        elif status == "warning":
+            status_text = "警告"
+            self.status_label.setObjectName("petStatusWarning")
+        else:
+            status_text = "良好"
+            self.status_label.setObjectName("petStatusGood")
+        self.status_label.setText(status_text)
+        self.status_label.setStyleSheet("")
+        
+        if status == "critical":
+            color = STATUS_COLORS["critical"]
+        elif status == "warning":
+            color = STATUS_COLORS["warning"]
+        else:
+            color = STATUS_COLORS["good"]
+        
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                border: none;
+                border-radius: 4px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {color};
+                border-radius: 4px;
+            }}
+        """)
+    
+    def update_theme(self, is_dark: bool):
+        name_label_style = f"font-size: 14px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'}; background: transparent;"
+        value_label_style = f"font-size: 14px; color: {'#aaa' if is_dark else '#666'};"
+        
+        for label in self.findChildren(QLabel):
+            if label.text() == ATTR_NAMES[self.attr_name]:
+                label.setStyleSheet(name_label_style)
+            if label.objectName() == f"value_{self.attr_name}":
+                label.setStyleSheet(value_label_style)
+
+
 class PetStatusInterface(ScrollArea):
     interaction_requested = pyqtSignal(str)
     fun_message_requested = pyqtSignal(str)
@@ -35,7 +135,6 @@ class PetStatusInterface(ScrollArea):
         
         self._init_ui()
         self._connect_signals()
-        self._update_all_attributes()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self._container)
@@ -102,62 +201,11 @@ class PetStatusInterface(ScrollArea):
         
         attrs_order = [ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY]
         for i, attr_name in enumerate(attrs_order):
-            card = self._create_compact_attribute_card(attr_name)
+            card = AttributeCard(attr_name, self)
             self.attribute_cards[attr_name] = card
             attrs_layout.addWidget(card, 0, i)
         
         main_layout.addWidget(attrs_container)
-
-    def _create_compact_attribute_card(self, attr_name: str) -> CardWidget:
-        card = CardWidget(self)
-        card.setMinimumWidth(180)
-        
-        card_layout = QVBoxLayout(card)
-        card_layout.setContentsMargins(15, 12, 15, 12)
-        card_layout.setSpacing(8)
-        
-        header_layout = QHBoxLayout()
-        header_layout.setSpacing(8)
-        
-        attr_icons = {
-            ATTR_HUNGER: "🍖",
-            ATTR_MOOD: "💖",
-            ATTR_CLEANLINESS: "✨",
-            ATTR_ENERGY: "⚡",
-        }
-        
-        icon_label = QLabel(attr_icons.get(attr_name, "📊"))
-        icon_label.setObjectName("petAttrIcon")
-        icon_label.setStyleSheet("font-size: 20px; background: transparent;")
-        
-        name_label = QLabel(ATTR_NAMES[attr_name])
-        name_label.setObjectName("petAttrNameLabel")
-        
-        value_label = QLabel()
-        value_label.setObjectName(f"value_{attr_name}")
-        value_label.setAlignment(Qt.AlignRight)
-        
-        header_layout.addWidget(icon_label)
-        header_layout.addWidget(name_label)
-        header_layout.addStretch()
-        header_layout.addWidget(value_label)
-        
-        progress_bar = QProgressBar()
-        progress_bar.setObjectName(f"bar_{attr_name}")
-        progress_bar.setRange(0, 100)
-        progress_bar.setFixedHeight(8)
-        progress_bar.setTextVisible(False)
-        
-        status_label = QLabel()
-        status_label.setObjectName(f"status_{attr_name}")
-        status_label.setAlignment(Qt.AlignCenter)
-        status_label.setFixedHeight(22)
-        
-        card_layout.addLayout(header_layout)
-        card_layout.addWidget(progress_bar)
-        card_layout.addWidget(status_label)
-        
-        return card
 
     def _init_interaction_buttons(self, main_layout):
         interaction_layout = QHBoxLayout()
@@ -199,6 +247,17 @@ class PetStatusInterface(ScrollArea):
         self.fun_panel.fun_event_triggered.connect(self._on_fun_message)
         self.fun_panel.event_bonuses_ready.connect(self._apply_event_bonuses)
         self.fun_panel.event_with_type.connect(self._show_event_notification)
+    
+    def _bind_attributes(self):
+        if self.attr_manager is None:
+            return
+        
+        for attr_name, card in self.attribute_cards.items():
+            self.attr_manager.bind_attribute_widget(
+                attr_name,
+                card.update_value,
+                card.update_status
+            )
 
     def _apply_event_bonuses(self, bonuses: dict):
         if not self.attr_manager or not bonuses:
@@ -221,71 +280,16 @@ class PetStatusInterface(ScrollArea):
                 self.attr_manager.set_attribute(attr_name, new_value)
 
     def _on_attribute_changed(self, attr_name: str, new_value: float, old_value: float):
-        self._update_single_attribute(attr_name)
+        pass
 
     def _on_status_changed(self, attr_name: str, new_status: str, old_status: str):
-        self._update_single_attribute(attr_name)
-
-    def _update_single_attribute(self, attr_name: str):
-        if attr_name not in self.attribute_cards:
-            return
-        
-        if self.attr_manager is None:
-            return
-        
-        value = self.attr_manager.get_attribute(attr_name)
-        status = self.attr_manager.get_status(attr_name)
-        
-        card = self.attribute_cards[attr_name]
-        
-        value_label = card.findChild(QLabel, f"value_{attr_name}")
-        if value_label:
-            value_label.setText(f"{value:.0f}%")
-        
-        status_label = card.findChild(QLabel, f"status_{attr_name}")
-        if status_label:
-            if status == "critical":
-                status_text = "危急"
-                status_label.setObjectName("petStatusCritical")
-            elif status == "warning":
-                status_text = "警告"
-                status_label.setObjectName("petStatusWarning")
-            else:
-                status_text = "良好"
-                status_label.setObjectName("petStatusGood")
-            status_label.setText(status_text)
-            status_label.setStyleSheet("")
-        
-        bar = card.findChild(QProgressBar, f"bar_{attr_name}")
-        if bar:
-            bar.setValue(int(value))
-            bar.setObjectName("petAttrProgressBar")
-            if status == "critical":
-                color = STATUS_COLORS["critical"]
-            elif status == "warning":
-                color = STATUS_COLORS["warning"]
-            else:
-                color = STATUS_COLORS["good"]
-            bar.setStyleSheet(f"""
-                QProgressBar {{
-                    border: none;
-                    border-radius: 4px;
-                }}
-                QProgressBar::chunk {{
-                    background-color: {color};
-                    border-radius: 4px;
-                }}
-            """)
-
-    def _update_all_attributes(self):
-        for attr_name in [ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY]:
-            self._update_single_attribute(attr_name)
+        pass
 
     def set_attr_manager(self, attr_manager):
         self.attr_manager = attr_manager
         self.avatar_card.set_attr_manager(attr_manager)
         self._connect_signals()
-        self._update_all_attributes()
+        self._bind_attributes()
 
     def _on_interaction(self, interaction_type: str):
         if self.attr_manager:
@@ -347,39 +351,29 @@ class PetStatusInterface(ScrollArea):
                 child.setStyleSheet(section_title_style)
         
         for attr_name, card in self.attribute_cards.items():
-            name_label_style = f"font-size: 14px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'}; background: transparent;"
-            value_label_style = f"font-size: 14px; color: {'#aaa' if is_dark else '#666'};"
+            card.update_theme(is_dark)
             
-            for label in card.findChildren(QLabel):
-                if label.text() == ATTR_NAMES[attr_name]:
-                    label.setStyleSheet(name_label_style)
-                if label.objectName() == f"value_{attr_name}":
-                    label.setStyleSheet(value_label_style)
+            bar_bg = '#2d2d2d' if is_dark else '#f0f0f0'
+            status = self.attr_manager.get_status(attr_name) if self.attr_manager else "good"
+            if status == "critical":
+                color = STATUS_COLORS["critical"]
+            elif status == "warning":
+                color = STATUS_COLORS["warning"]
+            else:
+                color = STATUS_COLORS["good"]
+            card.progress_bar.setStyleSheet(f"""
+                QProgressBar {{
+                    border: none;
+                    border-radius: 4px;
+                    background-color: {bar_bg};
+                }}
+                QProgressBar::chunk {{
+                    background-color: {color};
+                    border-radius: 4px;
+                }}
+            """)
             
-            bar = card.findChild(QProgressBar, f"bar_{attr_name}")
-            if bar:
-                bar_bg = '#2d2d2d' if is_dark else '#f0f0f0'
-                status = self.attr_manager.get_status(attr_name) if self.attr_manager else "good"
-                if status == "critical":
-                    color = STATUS_COLORS["critical"]
-                elif status == "warning":
-                    color = STATUS_COLORS["warning"]
-                else:
-                    color = STATUS_COLORS["good"]
-                bar.setStyleSheet(f"""
-                    QProgressBar {{
-                        border: none;
-                        border-radius: 4px;
-                        background-color: {bar_bg};
-                    }}
-                    QProgressBar::chunk {{
-                        background-color: {color};
-                        border-radius: 4px;
-                    }}
-                """)
-            
-            status_label = card.findChild(QLabel, f"status_{attr_name}")
-            if status_label and self.attr_manager:
+            if self.attr_manager:
                 status = self.attr_manager.get_status(attr_name)
                 if status == "critical":
                     status_text = "危急"
@@ -393,8 +387,8 @@ class PetStatusInterface(ScrollArea):
                     status_text = "良好"
                     bg_color = "#1c4a2c" if is_dark else "#e8f5e9"
                     text_color = "#66bb6a" if is_dark else "#4caf50"
-                status_label.setText(status_text)
-                status_label.setStyleSheet(f"""
+                card.status_label.setText(status_text)
+                card.status_label.setStyleSheet(f"""
                     font-size: 11px;
                     padding: 2px 10px;
                     border-radius: 11px;

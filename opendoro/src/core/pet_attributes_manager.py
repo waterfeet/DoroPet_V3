@@ -1,5 +1,5 @@
 import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable, List, Tuple
 from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QSettings
 
 from src.core.pet_attribute import PetAttribute
@@ -24,6 +24,7 @@ class PetAttributesManager(QObject):
         self.decay_timer = QTimer()
         self.decay_timer.timeout.connect(self._on_decay_tick)
         self.settings = QSettings("DoroPet", "PetAttributes")
+        self._bound_widgets: Dict[str, List[Tuple[Callable, Optional[Callable]]]] = {}
         self._init_default_attributes()
         self._load_state()
 
@@ -93,6 +94,8 @@ class PetAttributesManager(QObject):
         
         if old_status != new_status:
             self.status_changed.emit(attr_name, new_status, old_status)
+        
+        self._notify_bound_widgets(attr_name, new_value, new_status)
 
     def set_attribute(self, attr_name: str, value: float):
         if attr_name not in self.attributes:
@@ -110,6 +113,8 @@ class PetAttributesManager(QObject):
         
         if old_status != new_status:
             self.status_changed.emit(attr_name, new_status, old_status)
+        
+        self._notify_bound_widgets(attr_name, attr.value, new_status)
 
     def get_attribute(self, attr_name: str) -> float:
         if attr_name in self.attributes:
@@ -242,3 +247,82 @@ class PetAttributesManager(QObject):
         if contexts:
             return "当前宠物状态：" + "；".join(contexts) + "。"
         return ""
+    
+    def bind_attribute_widget(self, attr_name: str, update_callback: Callable[[float], None], 
+                               status_callback: Optional[Callable[[str], None]] = None):
+        """
+        绑定一个属性到UI组件的更新回调函数
+        
+        Args:
+            attr_name: 属性名称 (ATTR_HUNGER, ATTR_MOOD, etc.)
+            update_callback: 当属性值变化时调用的函数，参数为新的属性值
+            status_callback: 当状态变化时调用的函数（可选），参数为新的状态字符串
+        
+        Example:
+            def on_hunger_changed(value: float):
+                progress_bar.setValue(int(value))
+            
+            attr_manager.bind_attribute_widget(ATTR_HUNGER, on_hunger_changed)
+        """
+        if attr_name not in self.attributes:
+            return
+        
+        if attr_name not in self._bound_widgets:
+            self._bound_widgets[attr_name] = []
+        
+        self._bound_widgets[attr_name].append((update_callback, status_callback))
+        
+        current_value = self.get_attribute(attr_name)
+        update_callback(current_value)
+        
+        if status_callback:
+            current_status = self.get_status(attr_name)
+            status_callback(current_status)
+    
+    def unbind_attribute_widget(self, attr_name: str, update_callback: Callable):
+        """
+        解绑一个属性更新回调
+        
+        Args:
+            attr_name: 属性名称
+            update_callback: 之前绑定的更新回调函数
+        """
+        if attr_name not in self._bound_widgets:
+            return
+        
+        self._bound_widgets[attr_name] = [
+            (cb, status_cb) for cb, status_cb in self._bound_widgets[attr_name]
+            if cb != update_callback
+        ]
+    
+    def unbind_all_widgets(self, attr_name: str = None):
+        """
+        解绑所有或指定属性的UI组件
+        
+        Args:
+            attr_name: 如果指定，只解绑该属性；否则解绑所有属性
+        """
+        if attr_name:
+            self._bound_widgets.pop(attr_name, None)
+        else:
+            self._bound_widgets.clear()
+    
+    def _notify_bound_widgets(self, attr_name: str, value: float, status: str):
+        """
+        通知所有绑定的UI组件更新
+        
+        Args:
+            attr_name: 属性名称
+            value: 新的属性值
+            status: 新的状态
+        """
+        if attr_name not in self._bound_widgets:
+            return
+        
+        for update_callback, status_callback in self._bound_widgets[attr_name]:
+            try:
+                update_callback(value)
+                if status_callback:
+                    status_callback(status)
+            except Exception as e:
+                pass

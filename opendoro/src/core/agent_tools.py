@@ -1,5 +1,6 @@
 import os
 import json
+import glob
 import requests
 import pathlib
 import subprocess
@@ -7,6 +8,31 @@ import sys
 from datetime import datetime
 from bs4 import BeautifulSoup
 from src.core.skill_manager import SkillManager
+
+
+def _get_similar_files_suggestion(file_path, project_dir):
+    similar_files = glob.glob(os.path.join(project_dir, '**', f'*{os.path.basename(file_path)}*'), recursive=True)
+    similar_names = [os.path.relpath(f, project_dir) for f in similar_files[:5]]
+    if similar_names:
+        return f" 相似文件: {', '.join(similar_names)}"
+    return ""
+
+
+def _format_permission_error(abs_path, project_dir):
+    return json.dumps({
+        "status": "error",
+        "message": f"Permission denied: 只能访问项目目录 '{project_dir}' 内的文件。当前路径 '{abs_path}' 超出允许范围。",
+        "allowed_dir": project_dir
+    }, ensure_ascii=False)
+
+
+def _format_file_not_found_error(file_path, project_dir):
+    suggestion = _get_similar_files_suggestion(file_path, project_dir)
+    return json.dumps({
+        "status": "error",
+        "message": f"File not found: {file_path}.{suggestion}",
+        "suggestion": "请检查文件路径是否正确"
+    }, ensure_ascii=False)
 
 # Tool Schemas for OpenAI
 TOOLS_SCHEMA = [
@@ -253,6 +279,18 @@ TOOLS_SCHEMA = [
                     "replace_all": {
                         "type": "boolean",
                         "description": "If true, replace all occurrences. Default is false (replace first occurrence only)."
+                    },
+                    "fuzzy_match": {
+                        "type": "boolean",
+                        "description": "是否启用模糊匹配（忽略空格和制表符差异）。当精确匹配失败时可尝试启用。"
+                    },
+                    "context_before": {
+                        "type": "string",
+                        "description": "目标内容前的上下文（帮助定位重复内容）"
+                    },
+                    "context_after": {
+                        "type": "string",
+                        "description": "目标内容后的上下文"
                     }
                 },
                 "required": ["file_path", "search", "replace"]
@@ -306,6 +344,32 @@ TOOLS_SCHEMA = [
                     }
                 },
                 "required": ["file_path", "start_line"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_in_file",
+            "description": "在文件中搜索内容并返回精确位置信息。支持正则表达式模式。返回匹配行的行号、内容和上下文。用于定位内容后再进行精确编辑。",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "要搜索的文件路径"
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "搜索模式（支持正则表达式）"
+                    },
+                    "context_lines": {
+                        "type": "integer",
+                        "description": "返回匹配行前后的上下文行数（默认2行）",
+                        "default": 2
+                    }
+                },
+                "required": ["file_path", "pattern"]
             }
         }
     },
@@ -683,10 +747,12 @@ def generate_image(client, prompt, base_url=None, api_key=None, model=None):
         return json.dumps({"status": "error", "message": str(e)})
 
 
-def edit_file(client=None, file_path="", search="", replace="", replace_all=False, **kwargs):
+def edit_file(client=None, file_path="", search="", replace="", replace_all=False, fuzzy_match=False, context_before="", context_after="", **kwargs):
     """
     Edit a file by searching for specific content and replacing it with new content.
+    Supports fuzzy matching and context-based positioning.
     """
+    import re
     try:
         if isinstance(client, str) and not file_path:
             file_path = client
@@ -699,24 +765,121 @@ def edit_file(client=None, file_path="", search="", replace="", replace_all=Fals
         abs_path = os.path.abspath(file_path)
         project_dir = os.getcwd()
         
-        if not abs_path.startswith(project_dir):
-            return json.dumps({"status": "error", "message": f"Permission denied: You can only edit files within the project directory '{project_dir}'."})
-        
         if not os.path.exists(abs_path):
-            return json.dumps({"status": "error", "message": f"File not found: {file_path}"})
+            return _format_file_not_found_error(file_path, project_dir)
+        
+        if not abs_path.startswith(project_dir):
+            return _format_permission_error(abs_path, project_dir)
         
         with open(abs_path, "r", encoding="utf-8") as f:
             content = f.read()
         
-        if search not in content:
-            return json.dumps({"status": "error", "message": f"Search content not found in file. Make sure to use the exact text including whitespace."})
+        def find_with_context(content, search, context_before, context_after):
+            if not context_before and not context_after:
+                return -1
+            
+            occurrences = []
+            start = 0
+            while True:
+                pos = content.find(search, start)
+                if pos == -1:
+                    break
+                occurrences.append(pos)
+                start = pos + 1
+            
+            if len(occurrences) <= 1:
+                return -1
+            
+            for pos in occurrences:
+                context_start = max(0, pos - len(context_before) - 100) if context_before else pos
+                context_end = min(len(content), pos + len(search) + len(context_after) + 100) if context_after else pos + len(search)
+                surrounding = content[context_start:context_end]
+                
+                if context_before and context_before in surrounding[:pos - context_start + len(search) + 50]:
+                    if context_after and context_after in surrounding:
+                        return pos
+                    elif not context_after:
+                        return pos
+                elif not context_before and context_after and context_after in surrounding:
+                    return pos
+            
+            return -1
         
-        if replace_all:
-            new_content = content.replace(search, replace)
-            count = content.count(search)
+        context_pos = find_with_context(content, search, context_before, context_after)
+        
+        if search in content:
+            if context_pos != -1 and not replace_all:
+                new_content = content[:context_pos] + replace + content[context_pos + len(search):]
+                count = 1
+            elif replace_all:
+                new_content = content.replace(search, replace)
+                count = content.count(search)
+            else:
+                new_content = content.replace(search, replace, 1)
+                count = 1
+        elif fuzzy_match:
+            normalized_content = re.sub(r'[ \t]+', ' ', content)
+            normalized_search = re.sub(r'[ \t]+', ' ', search)
+            
+            if normalized_search in normalized_content:
+                norm_pos = normalized_content.find(normalized_search)
+                orig_pos = 0
+                norm_idx = 0
+                
+                for i, char in enumerate(content):
+                    if norm_idx == norm_pos:
+                        orig_pos = i
+                        break
+                    if char in ' \t':
+                        if norm_idx < len(normalized_content) and normalized_content[norm_idx] == ' ':
+                            norm_idx += 1
+                    else:
+                        norm_idx += 1
+                
+                orig_end = orig_pos
+                search_chars_consumed = 0
+                for char in search:
+                    if char in ' \t':
+                        while orig_end < len(content) and content[orig_end] in ' \t':
+                            orig_end += 1
+                        search_chars_consumed += 1
+                    else:
+                        while orig_end < len(content) and content[orig_end] in ' \t':
+                            orig_end += 1
+                        if orig_end < len(content):
+                            orig_end += 1
+                        search_chars_consumed += 1
+                
+                while orig_end < len(content) and content[orig_end] in ' \t':
+                    orig_end += 1
+                
+                new_content = content[:orig_pos] + replace + content[orig_end:]
+                count = 1
+            else:
+                lines = content.split('\n')
+                search_words = [w for w in search.lower().split()[:3] if len(w) > 2]
+                similar_lines = []
+                for i, line in enumerate(lines):
+                    line_lower = line.lower()
+                    if any(word in line_lower for word in search_words):
+                        similar_lines.append(f"Line {i+1}: {line.strip()[:100]}")
+                
+                if similar_lines:
+                    return json.dumps({
+                        "status": "error", 
+                        "message": f"搜索内容未找到。文件中最相似的内容：\n" + "\n".join(similar_lines[:5])
+                    }, ensure_ascii=False)
+                else:
+                    return json.dumps({
+                        "status": "error", 
+                        "message": f"搜索内容未找到，且未找到相似内容。请检查搜索文本是否正确。"
+                    }, ensure_ascii=False)
         else:
-            new_content = content.replace(search, replace, 1)
-            count = 1
+            hint = "Try fuzzy_match=true for flexible matching."
+            return json.dumps({
+                "status": "error", 
+                "message": f"Search content not found in file. Make sure to use the exact text including whitespace. {hint}"
+            })
         
         with open(abs_path, "w", encoding="utf-8") as f:
             f.write(new_content)
@@ -744,11 +907,11 @@ def insert_at_line(client=None, file_path="", line_number=0, content="", **kwarg
         abs_path = os.path.abspath(file_path)
         project_dir = os.getcwd()
         
-        if not abs_path.startswith(project_dir):
-            return json.dumps({"status": "error", "message": f"Permission denied: You can only modify files within the project directory '{project_dir}'."})
-        
         if not os.path.exists(abs_path):
-            return json.dumps({"status": "error", "message": f"File not found: {file_path}"})
+            return _format_file_not_found_error(file_path, project_dir)
+        
+        if not abs_path.startswith(project_dir):
+            return _format_permission_error(abs_path, project_dir)
         
         with open(abs_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -792,11 +955,11 @@ def delete_lines(client=None, file_path="", start_line=1, end_line=None, **kwarg
         abs_path = os.path.abspath(file_path)
         project_dir = os.getcwd()
         
-        if not abs_path.startswith(project_dir):
-            return json.dumps({"status": "error", "message": f"Permission denied: You can only modify files within the project directory '{project_dir}'."})
-        
         if not os.path.exists(abs_path):
-            return json.dumps({"status": "error", "message": f"File not found: {file_path}"})
+            return _format_file_not_found_error(file_path, project_dir)
+        
+        if not abs_path.startswith(project_dir):
+            return _format_permission_error(abs_path, project_dir)
         
         with open(abs_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
@@ -826,6 +989,73 @@ def delete_lines(client=None, file_path="", start_line=1, end_line=None, **kwarg
         return json.dumps({"status": "error", "message": str(e)})
 
 
+def find_in_file(client=None, file_path="", pattern="", context_lines=2, **kwargs):
+    """
+    在文件中搜索内容并返回精确位置信息。
+    """
+    import re
+    try:
+        if isinstance(client, str) and not file_path:
+            file_path = client
+        
+        if not file_path:
+            return json.dumps({"status": "error", "message": "File path is required."})
+        if not pattern:
+            return json.dumps({"status": "error", "message": "Pattern is required."})
+        
+        project_dir = os.getcwd()
+        abs_path = os.path.abspath(file_path)
+        
+        if not os.path.exists(abs_path):
+            return _format_file_not_found_error(file_path, project_dir)
+        
+        if not os.path.isfile(abs_path):
+            return json.dumps({"status": "error", "message": f"Path is not a file: {file_path}"})
+        
+        try:
+            with open(abs_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        except UnicodeDecodeError:
+            try:
+                with open(abs_path, 'r', encoding='gbk') as f:
+                    lines = f.readlines()
+            except:
+                return json.dumps({"status": "error", "message": "Failed to decode file content."})
+        
+        matches = []
+        try:
+            regex = re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            regex = re.compile(re.escape(pattern), re.IGNORECASE)
+        
+        for i, line in enumerate(lines, 1):
+            if regex.search(line):
+                start = max(0, i - context_lines - 1)
+                end = min(len(lines), i + context_lines)
+                context = "".join(lines[start:end])
+                matches.append({
+                    "line_number": i,
+                    "line_content": line.rstrip('\n\r'),
+                    "context": context.rstrip('\n\r')
+                })
+        
+        if not matches:
+            return json.dumps({
+                "status": "info",
+                "message": f"Pattern '{pattern}' not found in {file_path}",
+                "matches": []
+            })
+        
+        return json.dumps({
+            "status": "success",
+            "message": f"Found {len(matches)} match(es) in {file_path}",
+            "matches": matches[:20]
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({"status": "error", "message": str(e)})
+
+
 def write_file(client=None, file_path="", content="", **kwargs):
     """
     Writes content to a file in the local filesystem.
@@ -842,7 +1072,7 @@ def write_file(client=None, file_path="", content="", **kwargs):
         project_dir = os.getcwd()
         
         if not abs_path.startswith(project_dir):
-             return json.dumps({"status": "error", "message": f"Permission denied: You can only write files within the project directory '{project_dir}'."})
+            return _format_permission_error(abs_path, project_dir)
         
         protected_dirs = [
             os.path.join(project_dir, "src", "core"),
@@ -885,7 +1115,7 @@ def run_python_script(client=None, file_path="", **kwargs):
         project_dir = os.getcwd()
 
         if not abs_path.startswith(project_dir):
-             return json.dumps({"status": "error", "message": f"Permission denied: You can only run scripts within the project directory '{project_dir}'."})
+            return _format_permission_error(abs_path, project_dir)
 
         protected_dirs = [
             os.path.join(project_dir, "src", "core"),
@@ -895,7 +1125,7 @@ def run_python_script(client=None, file_path="", **kwargs):
                 return json.dumps({"status": "error", "message": f"Permission denied: Cannot run scripts from protected directory '{protected}'."})
 
         if not os.path.exists(abs_path):
-             return json.dumps({"status": "error", "message": f"File not found: {file_path}"})
+            return _format_file_not_found_error(file_path, project_dir)
 
         # Run the script
         result = subprocess.run([sys.executable, abs_path], capture_output=True, text=False, timeout=30)
@@ -938,11 +1168,11 @@ def read_file(client=None, file_path="", **kwargs):
         if not file_path:
             return json.dumps({"status": "error", "message": "File path is required."})
 
-        # Normalize path
+        project_dir = os.getcwd()
         abs_path = os.path.abspath(file_path)
         
         if not os.path.exists(abs_path):
-            return json.dumps({"status": "error", "message": f"File not found: {file_path}"})
+            return _format_file_not_found_error(file_path, project_dir)
             
         if not os.path.isfile(abs_path):
             return json.dumps({"status": "error", "message": f"Path is not a file: {file_path}"})
@@ -1189,6 +1419,7 @@ AVAILABLE_TOOLS = {
     "edit_file": edit_file,
     "insert_at_line": insert_at_line,
     "delete_lines": delete_lines,
+    "find_in_file": find_in_file,
     "run_python_script": run_python_script,
     "read_file": read_file,
     "list_files": list_files,
