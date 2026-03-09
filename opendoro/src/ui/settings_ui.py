@@ -71,6 +71,17 @@ class DisplaySettingsPage(QWidget):
         self.add_slider_option(card, "气泡显示时长", 1000, 10000, 3000, " ms")
         
         layout.addWidget(card)
+        
+        monitor_card = SettingCard("系统监控", self)
+        
+        self.check_system_monitor = CheckBox("启用系统监控 (CPU/内存),占用过高让doro提示,低配置建议调高阈值", self)
+        self.check_system_monitor.setChecked(True)
+        monitor_card.addWidget(self.check_system_monitor)
+        
+        self.add_slider_option(monitor_card, "CPU 告警阈值", 50, 100, 70, "%")
+        self.add_slider_option(monitor_card, "内存告警阈值", 50, 100, 80, "%")
+        
+        layout.addWidget(monitor_card)
         layout.addStretch()
     
     def add_slider_option(self, parent_card, text, min_val, max_val, default_val, unit_suffix=""):
@@ -231,6 +242,10 @@ class SettingsInterface(ScrollArea):
         self.display_page.sliders["模型缩放"].valueChanged.connect(self.on_scale_changed)
         self.display_page.sliders["气泡显示时长"].valueChanged.connect(self.on_bubble_duration_changed)
         
+        self.display_page.check_system_monitor.stateChanged.connect(self.on_system_monitor_changed)
+        self.display_page.sliders["CPU 告警阈值"].valueChanged.connect(self.on_cpu_threshold_changed)
+        self.display_page.sliders["内存告警阈值"].valueChanged.connect(self.on_mem_threshold_changed)
+        
         self.sound_page.sliders["TTS 音量"].valueChanged.connect(self.on_volume_changed)
         
         self.ai_page.check_inject_time.stateChanged.connect(self.on_inject_time_changed)
@@ -278,6 +293,21 @@ class SettingsInterface(ScrollArea):
         if self.live2d_widget and hasattr(self.live2d_widget, 'status_overlay'):
             self.live2d_widget.status_overlay.set_visible_by_setting(checked)
         self.settings.setValue("show_pet_status", checked)
+
+    def on_system_monitor_changed(self, checked):
+        if self.live2d_widget:
+            self.live2d_widget.set_system_monitor_enabled(checked)
+        self.settings.setValue("system_monitor_enabled", checked)
+
+    def on_cpu_threshold_changed(self, value):
+        if self.live2d_widget:
+            self.live2d_widget.cpu_threshold = value
+        self.settings.setValue("cpu_threshold", value)
+
+    def on_mem_threshold_changed(self, value):
+        if self.live2d_widget:
+            self.live2d_widget.mem_threshold = value
+        self.settings.setValue("mem_threshold", value)
 
     def on_inject_time_changed(self, checked):
         self.settings.setValue("inject_time", checked)
@@ -328,6 +358,9 @@ class SettingsInterface(ScrollArea):
         expression_response = self.settings.value("enable_expression_response", True, type=bool)
         llm_max_tokens = self.settings.value("llm_max_tokens", 8192, type=int)
         show_pet_status = self.settings.value("show_pet_status", True, type=bool)
+        system_monitor_enabled = self.settings.value("system_monitor_enabled", True, type=bool)
+        cpu_threshold = self.settings.value("cpu_threshold", 70, type=int)
+        mem_threshold = self.settings.value("mem_threshold", 80, type=int)
         
         self.general_page.check_autorun.setChecked(autorun)
         self.general_page.check_hide_pet_on_startup.setChecked(hide_pet_on_startup)
@@ -336,6 +369,9 @@ class SettingsInterface(ScrollArea):
         self.display_page.check_show_pet_status.setChecked(show_pet_status)
         self.display_page.sliders["模型缩放"].setValue(scale)
         self.display_page.sliders["气泡显示时长"].setValue(bubble_duration)
+        self.display_page.check_system_monitor.setChecked(system_monitor_enabled)
+        self.display_page.sliders["CPU 告警阈值"].setValue(cpu_threshold)
+        self.display_page.sliders["内存告警阈值"].setValue(mem_threshold)
         
         self.sound_page.sliders["TTS 音量"].setValue(volume)
         

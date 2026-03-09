@@ -159,6 +159,10 @@ class Live2DWidget(QOpenGLWidget):
         mouse_interact = self.settings.value("mouse_interact", True, type=bool)
         self.is_locked = not mouse_interact
         
+        self.system_monitor_enabled = self.settings.value("system_monitor_enabled", True, type=bool)
+        self.cpu_threshold = self.settings.value("cpu_threshold", 70, type=int)
+        self.mem_threshold = self.settings.value("mem_threshold", 80, type=int)
+        
         if self.is_locked:
             self.setMouseTracking(False)
             self.setCursor(Qt.ArrowCursor)
@@ -622,24 +626,39 @@ class Live2DWidget(QOpenGLWidget):
 
     def init_system_monitor(self):
         """初始化系统资源监控"""
-        if psutil:
+        if psutil and self.system_monitor_enabled:
             self.monitor_timer = QTimer(self)
             self.monitor_timer.timeout.connect(self.check_system_status)
             self.monitor_timer.start(3000)
     
+    def set_system_monitor_enabled(self, enabled: bool):
+        """设置系统监控是否启用"""
+        self.system_monitor_enabled = enabled
+        if enabled:
+            if not hasattr(self, 'monitor_timer') and psutil:
+                self.monitor_timer = QTimer(self)
+                self.monitor_timer.timeout.connect(self.check_system_status)
+                self.monitor_timer.start(3000)
+            elif hasattr(self, 'monitor_timer'):
+                self.monitor_timer.start(3000)
+        else:
+            if hasattr(self, 'monitor_timer'):
+                self.monitor_timer.stop()
+    
     def check_system_status(self):
         """检查系统状态并触发反应"""
-        if not psutil: return
+        if not psutil or not self.system_monitor_enabled: 
+            return
         
         try:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
             
-            if cpu > 70:
+            if cpu > self.cpu_threshold:
                 self.talk(f"CPU好烫 ({cpu}%)！我要融化了...", 4000)
                 if "失去高光" in self.expression_ids:
                     self.set_expression_safe("失去高光")
-            elif mem > 80:
+            elif mem > self.mem_threshold:
                 self.talk(f"内存快满了 ({mem}%)！", 4000)
                 if "无语" in self.expression_ids:
                     self.set_expression_safe("无语")
