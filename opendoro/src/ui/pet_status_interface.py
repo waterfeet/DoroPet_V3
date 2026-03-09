@@ -120,9 +120,10 @@ class PetStatusInterface(ScrollArea):
     fun_message_requested = pyqtSignal(str)
     start_chat_requested = pyqtSignal()
 
-    def __init__(self, attr_manager=None, parent=None):
+    def __init__(self, attr_manager=None, db=None, parent=None):
         super().__init__(parent)
         self.attr_manager = attr_manager
+        self.db = db
         self.quotes_manager = PetQuotesManager(self)
         self.fun_manager = PetFunManager(self)
         

@@ -51,7 +51,7 @@ class MainWindow(FluentWindow):
         
         self.attr_manager = None
         
-        self.pet_status_interface = PetStatusInterface(None, self)
+        self.pet_status_interface = PetStatusInterface(None, self.db, self)
         
         # 4. 初始化导航栏
         self.init_navigation()

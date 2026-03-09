@@ -1,10 +1,12 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -12,20 +14,29 @@ from typing import List, Optional, Callable
 from enum import Enum
 from PyQt5.QtCore import QObject, pyqtSignal, QThread
 import requests
+from bs4 import BeautifulSoup
 from src.core.logger import logger
 
 
-__version__ = "3.2.1"
+__version__ = "3.2.2"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"
 GITEE_REPO_OWNER = "waterfeet"
 GITEE_REPO_NAME = "DoroPet_V3"
+GITEE_RELEASES_URL = "https://gitee.com/waterfeet/DoroPet_V3/releases"
+GITEE_BASE_URL = "https://gitee.com"
+
+WEB_CRAWLER_MAX_RETRIES = 3
+WEB_CRAWLER_RETRY_DELAY = 2
+WEB_CRAWLER_TIMEOUT = 30
+
 
 class ReleaseType(Enum):
     STABLE = "stable"
     BETA = "beta"
     ALPHA = "alpha"
+
 
 @dataclass
 class VersionInfo:
@@ -62,6 +73,7 @@ class VersionInfo:
             return f"{self.file_size / 1024:.2f} KB"
         return f"{self.file_size} B"
 
+
 def compare_versions(v1: str, v2: str) -> int:
     p1 = v1.lstrip('v').split('.')
     p2 = v2.lstrip('v').split('.')
@@ -80,6 +92,7 @@ def compare_versions(v1: str, v2: str) -> int:
         return -1
     return 0
 
+
 def parse_release_type_from_tag(tag: str) -> ReleaseType:
     tag_lower = tag.lower()
     if 'alpha' in tag_lower:
@@ -87,6 +100,221 @@ def parse_release_type_from_tag(tag: str) -> ReleaseType:
     elif 'beta' in tag_lower:
         return ReleaseType.BETA
     return ReleaseType.STABLE
+
+
+class GiteeWebCrawlerWorker(QThread):
+    finished = pyqtSignal(list)
+    error = pyqtSignal(str)
+    
+    def __init__(self, parent=None, max_retries: int = WEB_CRAWLER_MAX_RETRIES):
+        super().__init__(parent)
+        self._max_retries = max_retries
+        self._is_cancelled = False
+    
+    def cancel(self):
+        self._is_cancelled = True
+    
+    def run(self):
+        logger.info("[WebCrawler] Starting version fetch via web crawler")
+        
+        for attempt in range(1, self._max_retries + 1):
+            if self._is_cancelled:
+                logger.info("[WebCrawler] Request cancelled by user")
+                self.error.emit("请求已取消")
+                return
+            
+            try:
+                logger.debug(f"[WebCrawler] Attempt {attempt}/{self._max_retries}")
+                versions = self._fetch_releases_with_retry(attempt)
+                if versions:
+                    logger.info(f"[WebCrawler] Successfully fetched {len(versions)} versions")
+                    self.finished.emit(versions)
+                    return
+            except requests.exceptions.Timeout:
+                error_msg = f"请求超时 (尝试 {attempt}/{self._max_retries})"
+                logger.warning(f"[WebCrawler] {error_msg}")
+                if attempt < self._max_retries:
+                    time.sleep(WEB_CRAWLER_RETRY_DELAY)
+                    continue
+                self.error.emit("请求超时，请检查网络连接")
+                return
+            except requests.exceptions.ConnectionError as e:
+                error_msg = f"网络连接失败 (尝试 {attempt}/{self._max_retries})"
+                logger.warning(f"[WebCrawler] {error_msg}: {e}")
+                if attempt < self._max_retries:
+                    time.sleep(WEB_CRAWLER_RETRY_DELAY)
+                    continue
+                self.error.emit("网络连接失败，请检查网络设置")
+                return
+            except Exception as e:
+                error_msg = f"获取版本信息失败: {str(e)}"
+                logger.error(f"[WebCrawler] Error on attempt {attempt}: {e}")
+                if attempt < self._max_retries:
+                    time.sleep(WEB_CRAWLER_RETRY_DELAY)
+                    continue
+                self.error.emit(error_msg)
+                return
+        
+        self.error.emit("获取版本信息失败，已达到最大重试次数")
+    
+    def _fetch_releases_with_retry(self, attempt: int) -> List[VersionInfo]:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+            'Referer': 'https://gitee.com/',
+            'Cache-Control': 'no-cache'
+        }
+        
+        logger.debug(f"[WebCrawler] Fetching URL: {GITEE_RELEASES_URL}")
+        response = requests.get(
+            GITEE_RELEASES_URL, 
+            timeout=WEB_CRAWLER_TIMEOUT, 
+            headers=headers,
+            allow_redirects=True
+        )
+        
+        if response.status_code == 403:
+            raise PermissionError("服务器访问受限(403)，可能是由于请求频率限制")
+        elif response.status_code == 404:
+            raise FileNotFoundError("未找到版本仓库页面")
+        
+        response.raise_for_status()
+        response.encoding = 'utf-8'
+        
+        logger.debug(f"[WebCrawler] Response status: {response.status_code}, length: {len(response.text)}")
+        
+        versions = self._parse_releases_html(response.text)
+        
+        if not versions:
+            logger.warning("[WebCrawler] No versions found via standard parsing, trying fallback")
+            versions = self._fallback_parse(response.text)
+        
+        versions.sort(key=lambda v: v.version_tuple, reverse=True)
+        return versions
+    
+    def _parse_releases_html(self, html: str) -> List[VersionInfo]:
+        versions = []
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        release_items = soup.select('.release-item')
+        
+        if not release_items:
+            release_items = soup.select('div.release')
+        
+        if not release_items:
+            release_items = soup.find_all('div', class_=re.compile(r'release', re.I))
+        
+        logger.debug(f"[WebCrawler] Found {len(release_items)} release items")
+        
+        for item in release_items:
+            if self._is_cancelled:
+                break
+            try:
+                version_info = self._parse_single_release(item)
+                if version_info:
+                    versions.append(version_info)
+            except Exception as e:
+                logger.debug(f"[WebCrawler] Failed to parse release item: {e}")
+                continue
+        
+        return versions
+    
+    def _parse_single_release(self, item) -> Optional[VersionInfo]:
+        version = ""
+        changelog = ""
+        download_url = ""
+        file_size = 0
+        asset_name = ""
+        release_date = ""
+        
+        title_elem = item.select_one('.release-title a, .title a, h3 a, a[href*="/releases/"]')
+        if title_elem:
+            version = title_elem.get_text(strip=True)
+        
+        if not version:
+            version_elem = item.select_one('.release-tag, .tag, .version')
+            if version_elem:
+                version = version_elem.get_text(strip=True)
+        
+        if not version:
+            return None
+        
+        version = version.lstrip('v')
+        
+        desc_elem = item.select_one('.release-body, .description, .content, .markdown-body')
+        if desc_elem:
+            changelog = desc_elem.get_text(strip=True)
+        
+        date_elem = item.select_one('.release-date, .date, time')
+        if date_elem:
+            release_date = date_elem.get_text(strip=True)
+        
+        download_link = item.select_one('a[href$=".zip"], a[href*="download"], a.btn-download')
+        if download_link:
+            href = download_link.get('href', '')
+            if href:
+                if href.startswith('/'):
+                    download_url = GITEE_BASE_URL + href
+                elif href.startswith('http'):
+                    download_url = href
+                else:
+                    download_url = GITEE_BASE_URL + '/' + href
+                
+                asset_name = href.split('/')[-1] if '/' in href else href
+        
+        size_elem = item.select_one('.file-size, .size')
+        if size_elem:
+            size_text = size_elem.get_text(strip=True)
+            file_size = self._parse_file_size(size_text)
+        
+        return VersionInfo(
+            version=version,
+            release_type=parse_release_type_from_tag(version),
+            release_date=release_date,
+            changelog=changelog or "暂无更新说明",
+            download_url=download_url,
+            file_size=file_size,
+            asset_name=asset_name
+        )
+    
+    def _parse_file_size(self, size_text: str) -> int:
+        size_text = size_text.upper().strip()
+        match = re.match(r'([\d.]+)\s*(KB|MB|GB|B)?', size_text, re.I)
+        if not match:
+            return 0
+        
+        value = float(match.group(1))
+        unit = (match.group(2) or 'B').upper()
+        
+        multipliers = {'B': 1, 'KB': 1024, 'MB': 1024**2, 'GB': 1024**3}
+        return int(value * multipliers.get(unit, 1))
+    
+    def _fallback_parse(self, html: str) -> List[VersionInfo]:
+        versions = []
+        soup = BeautifulSoup(html, 'html.parser')
+        all_text = soup.get_text()
+        
+        version_pattern = r'v?(\d+\.\d+\.\d+(?:-[a-zA-Z]+)?)'
+        matches = re.findall(version_pattern, all_text)
+        
+        seen_versions = set()
+        for v in matches:
+            if v not in seen_versions:
+                seen_versions.add(v)
+                versions.append(VersionInfo(
+                    version=v,
+                    release_type=parse_release_type_from_tag(v),
+                    release_date="",
+                    changelog="请访问 Gitee 查看详细更新内容",
+                    download_url=f"{GITEE_RELEASES_URL}/{v}",
+                    file_size=0,
+                    asset_name=""
+                ))
+        
+        logger.debug(f"[WebCrawler] Fallback parse found {len(versions)} versions")
+        return versions
+
 
 class GiteeApiWorker(QThread):
     finished = pyqtSignal(list)
@@ -96,8 +324,14 @@ class GiteeApiWorker(QThread):
         super().__init__(parent)
         self.owner = owner
         self.repo = repo
+        self._is_cancelled = False
+    
+    def cancel(self):
+        self._is_cancelled = True
     
     def run(self):
+        logger.info("[API] Starting version fetch via Gitee API")
+        
         try:
             url = f"{GITEE_API_BASE}/repos/{self.owner}/{self.repo}/releases"
             headers = {
@@ -106,12 +340,21 @@ class GiteeApiWorker(QThread):
                 'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
                 'Referer': 'https://gitee.com/'
             }
+            
+            logger.debug(f"[API] Fetching URL: {url}")
             response = requests.get(url, timeout=15, headers=headers, allow_redirects=True)
             
+            if self._is_cancelled:
+                logger.info("[API] Request cancelled by user")
+                self.error.emit("请求已取消")
+                return
+            
             if response.status_code == 403:
+                logger.warning("[API] Server returned 403 Forbidden")
                 self.error.emit("服务器访问受限(403)，可能是由于请求频率限制。请稍后重试。")
                 return
             elif response.status_code == 404:
+                logger.warning("[API] Repository not found (404)")
                 self.error.emit("未找到版本仓库")
                 return
             
@@ -121,6 +364,9 @@ class GiteeApiWorker(QThread):
             versions = []
             
             for release in releases:
+                if self._is_cancelled:
+                    break
+                    
                 if release.get('draft'):
                     continue
                 
@@ -157,16 +403,22 @@ class GiteeApiWorker(QThread):
                 versions.append(version_info)
             
             versions.sort(key=lambda v: v.version_tuple, reverse=True)
+            logger.info(f"[API] Successfully fetched {len(versions)} versions")
             self.finished.emit(versions)
             
         except requests.exceptions.Timeout:
+            logger.error("[API] Request timeout")
             self.error.emit("请求超时，请检查网络连接")
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"[API] Connection error: {e}")
             self.error.emit("网络连接失败，请检查网络设置")
         except requests.exceptions.HTTPError as e:
+            logger.error(f"[API] HTTP error: {e}")
             self.error.emit(f"服务器错误: {e.response.status_code}")
         except Exception as e:
+            logger.error(f"[API] Unexpected error: {e}")
             self.error.emit(f"获取版本信息失败: {str(e)}")
+
 
 class GiteeSpecificVersionWorker(QThread):
     finished = pyqtSignal(object)
@@ -234,6 +486,7 @@ class GiteeSpecificVersionWorker(QThread):
         except Exception as e:
             self.error.emit(f"获取版本信息失败: {str(e)}")
 
+
 class UpdateDownloadWorker(QThread):
     progress = pyqtSignal(int, int, str)
     completed = pyqtSignal(str)
@@ -264,7 +517,6 @@ class UpdateDownloadWorker(QThread):
             downloaded = 0
             block_size = 8192
             
-            import time
             start_time = time.time()
             last_progress_time = start_time
             
@@ -524,6 +776,7 @@ exit /b 0
             logger.error(f"Failed to prepare update: {e}")
             return False
 
+
 class VersionManager(QObject):
     check_completed = pyqtSignal(object)
     versions_loaded = pyqtSignal(list)
@@ -539,24 +792,71 @@ class VersionManager(QObject):
         super().__init__(parent)
         self.current_version = __version__
         self._versions: List[VersionInfo] = []
+        self._cached_versions: List[VersionInfo] = []
+        self._crawler_worker: Optional[GiteeWebCrawlerWorker] = None
         self._api_worker: Optional[GiteeApiWorker] = None
         self._download_worker: Optional[UpdateDownloadWorker] = None
         self._install_worker: Optional[UpdateInstallWorker] = None
         self._installer = UpdateInstaller()
         self._current_download_version: VersionInfo = None
         self._auto_install = True
+        self._fetch_method = "crawler"
     
     def get_current_version(self) -> str:
         return self.current_version
     
     def fetch_remote_versions(self):
+        logger.info(f"[VersionManager] Starting version fetch using method: {self._fetch_method}")
+        self._start_crawler_fetch()
+    
+    def _start_crawler_fetch(self):
+        if self._crawler_worker and self._crawler_worker.isRunning():
+            self._crawler_worker.cancel()
+            self._crawler_worker.wait()
+        
+        self._crawler_worker = GiteeWebCrawlerWorker(self)
+        self._crawler_worker.finished.connect(self._on_crawler_success)
+        self._crawler_worker.error.connect(self._on_crawler_error)
+        self._crawler_worker.start()
+    
+    def _on_crawler_success(self, versions: List[VersionInfo]):
+        logger.info(f"[VersionManager] Web crawler fetch successful, got {len(versions)} versions")
+        self._versions = versions
+        self._cached_versions = versions.copy()
+        self.versions_loaded.emit(versions)
+    
+    def _on_crawler_error(self, error_msg: str):
+        logger.warning(f"[VersionManager] Web crawler failed: {error_msg}, falling back to API")
+        self._start_api_fetch()
+    
+    def _start_api_fetch(self):
         if self._api_worker and self._api_worker.isRunning():
-            self._api_worker.quit()
+            self._api_worker.cancel()
+            self._api_worker.wait()
         
         self._api_worker = GiteeApiWorker(GITEE_REPO_OWNER, GITEE_REPO_NAME, self)
-        self._api_worker.finished.connect(self._on_versions_loaded)
-        self._api_worker.error.connect(self._on_load_error)
+        self._api_worker.finished.connect(self._on_api_success)
+        self._api_worker.error.connect(self._on_api_error)
         self._api_worker.start()
+    
+    def _on_api_success(self, versions: List[VersionInfo]):
+        logger.info(f"[VersionManager] API fetch successful, got {len(versions)} versions")
+        self._versions = versions
+        self._cached_versions = versions.copy()
+        self.versions_loaded.emit(versions)
+    
+    def _on_api_error(self, error_msg: str):
+        logger.warning(f"[VersionManager] API fetch failed: {error_msg}")
+        
+        if self._cached_versions:
+            logger.info("[VersionManager] Using cached versions as fallback")
+            self._versions = self._cached_versions
+            self.versions_loaded.emit(self._versions)
+        else:
+            logger.info("[VersionManager] No cached versions, using hardcoded fallback")
+            self._versions = self._get_fallback_versions()
+            self.load_error.emit(error_msg)
+            self.versions_loaded.emit(self._versions)
     
     def fetch_specific_version(self, tag: str, callback: Callable[[Optional[VersionInfo]], None]):
         worker = GiteeSpecificVersionWorker(GITEE_REPO_OWNER, GITEE_REPO_NAME, tag, self)
@@ -584,7 +884,10 @@ class VersionManager(QObject):
     
     def get_all_versions(self) -> List[VersionInfo]:
         if not self._versions:
-            self._versions = self._get_fallback_versions()
+            if self._cached_versions:
+                self._versions = self._cached_versions
+            else:
+                self._versions = self._get_fallback_versions()
         return self._versions
     
     def get_latest_version(self, include_beta: bool = False) -> Optional[VersionInfo]:
@@ -660,6 +963,14 @@ class VersionManager(QObject):
             self._install_worker.cancel()
             logger.info("Installation cancelled")
     
+    def cancel_fetch(self):
+        if self._crawler_worker and self._crawler_worker.isRunning():
+            self._crawler_worker.cancel()
+            logger.info("Crawler fetch cancelled")
+        if self._api_worker and self._api_worker.isRunning():
+            self._api_worker.cancel()
+            logger.info("API fetch cancelled")
+    
     def _get_fallback_versions(self) -> List[VersionInfo]:
         return [
             VersionInfo(
@@ -673,8 +984,10 @@ class VersionManager(QObject):
             ),
         ]
 
+
 def format_changelog(changelog: str) -> str:
     return changelog
+
 
 def get_version_type_display(release_type: ReleaseType) -> str:
     type_map = {

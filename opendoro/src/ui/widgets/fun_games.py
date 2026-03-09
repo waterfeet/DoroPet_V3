@@ -1,16 +1,20 @@
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QSpinBox, QDialog, QStackedWidget
+from datetime import datetime, date
+import random
+from PyQt5.QtCore import Qt, pyqtSignal, QThread
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QStackedWidget
 
-from qfluentwidgets import CardWidget, PushButton, PrimaryPushButton, SubtitleLabel, BodyLabel, InfoBar, InfoBarPosition
+from qfluentwidgets import (
+    CardWidget, PushButton, PrimaryPushButton, SubtitleLabel, BodyLabel,
+    TransparentToolButton, FluentIcon
+)
 
 
-class RockPaperScissorsGame(CardWidget):
-    game_finished = pyqtSignal(str, int)
+class FortuneWidget(CardWidget):
+    fortune_generated = pyqtSignal(str)
 
     def __init__(self, fun_manager, parent=None):
         super().__init__(parent)
         self.fun_manager = fun_manager
-        self._result_type = "normal"
         self._init_ui()
 
     def _init_ui(self):
@@ -18,217 +22,300 @@ class RockPaperScissorsGame(CardWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(12)
         
-        title = SubtitleLabel("猜拳游戏", self)
+        title = SubtitleLabel("🔮 今日运势", self)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
-        desc = BodyLabel("选择你要出的手势：", self)
-        desc.setAlignment(Qt.AlignCenter)
-        layout.addWidget(desc)
+        self.fortune_display = QWidget(self)
+        fortune_layout = QVBoxLayout(self.fortune_display)
+        fortune_layout.setContentsMargins(0, 0, 0, 0)
+        fortune_layout.setSpacing(8)
+        
+        self.date_label = BodyLabel("", self)
+        self.date_label.setAlignment(Qt.AlignCenter)
+        self.date_label.setStyleSheet("font-size: 12px; color: #888;")
+        fortune_layout.addWidget(self.date_label)
+        
+        self.lucky_label = BodyLabel("", self)
+        self.lucky_label.setAlignment(Qt.AlignCenter)
+        self.lucky_label.setStyleSheet("font-size: 24px;")
+        fortune_layout.addWidget(self.lucky_label)
+        
+        self.fortune_stars = BodyLabel("", self)
+        self.fortune_stars.setAlignment(Qt.AlignCenter)
+        self.fortune_stars.setStyleSheet("font-size: 16px;")
+        fortune_layout.addWidget(self.fortune_stars)
+        
+        self.fortune_text = BodyLabel("", self)
+        self.fortune_text.setAlignment(Qt.AlignCenter)
+        self.fortune_text.setWordWrap(True)
+        self.fortune_text.setStyleSheet("font-size: 13px; padding: 8px; line-height: 1.5;")
+        fortune_layout.addWidget(self.fortune_text)
+        
+        self.lucky_items = BodyLabel("", self)
+        self.lucky_items.setAlignment(Qt.AlignCenter)
+        self.lucky_items.setWordWrap(True)
+        self.lucky_items.setStyleSheet("font-size: 12px; color: #666;")
+        fortune_layout.addWidget(self.lucky_items)
+        
+        layout.addWidget(self.fortune_display)
         
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(8)
+        btn_layout.setSpacing(10)
         
-        self.rock_btn = PushButton("✊", self)
-        self.rock_btn.setFixedSize(60, 50)
-        self.rock_btn.clicked.connect(lambda: self._play("rock"))
-        
-        self.paper_btn = PushButton("✋", self)
-        self.paper_btn.setFixedSize(60, 50)
-        self.paper_btn.clicked.connect(lambda: self._play("paper"))
-        
-        self.scissors_btn = PushButton("✌️", self)
-        self.scissors_btn.setFixedSize(60, 50)
-        self.scissors_btn.clicked.connect(lambda: self._play("scissors"))
+        self.refresh_btn = PrimaryPushButton("🔄 刷新运势", self)
+        self.refresh_btn.setFixedHeight(35)
+        self.refresh_btn.clicked.connect(self._generate_fortune)
         
         btn_layout.addStretch()
-        btn_layout.addWidget(self.rock_btn)
-        btn_layout.addWidget(self.paper_btn)
-        btn_layout.addWidget(self.scissors_btn)
+        btn_layout.addWidget(self.refresh_btn)
         btn_layout.addStretch()
         
         layout.addLayout(btn_layout)
         
-        self.result_label = BodyLabel("", self)
-        self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setWordWrap(True)
-        self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
-        layout.addWidget(self.result_label)
+        self._generate_fortune()
 
-    def _play(self, choice: str):
+    def _generate_fortune(self):
         if self.fun_manager:
-            message, _, result = self.fun_manager.play_rock_paper_scissors(choice)
-            self.result_label.setText(message)
+            fortune_data = self.fun_manager.generate_daily_fortune()
             
-            if result == 1:
-                self._result_type = "win"
-            elif result == -1:
-                self._result_type = "lose"
-            else:
-                self._result_type = "draw"
-            self._apply_result_style()
+            self.date_label.setText(fortune_data.get("date", ""))
+            self.lucky_label.setText(fortune_data.get("emoji", "🌟"))
+            self.fortune_stars.setText(fortune_data.get("stars", "⭐⭐⭐"))
+            self.fortune_text.setText(fortune_data.get("text", ""))
+            self.lucky_items.setText(fortune_data.get("lucky_items", ""))
             
-            self.game_finished.emit(message, result)
-
-    def _apply_result_style(self):
-        colors = {
-            "win": "#4caf50",
-            "lose": "#f44336",
-            "draw": "#ff9800",
-            "normal": "#333",
-        }
-        color = colors.get(self._result_type, colors["normal"])
-        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+            self.fortune_generated.emit(fortune_data.get("text", ""))
 
     def update_theme(self, is_dark: bool):
-        dark_colors = {
-            "win": "#66bb6a",
-            "lose": "#ef5350",
-            "draw": "#ffa726",
-            "normal": "#e0e0e0",
-        }
-        light_colors = {
-            "win": "#4caf50",
-            "lose": "#f44336",
-            "draw": "#ff9800",
-            "normal": "#333",
-        }
-        colors = dark_colors if is_dark else light_colors
-        color = colors.get(self._result_type, colors["normal"])
-        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
-
-    def reset(self):
-        self.result_label.setText("")
-        self._result_type = "normal"
-        self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
+        date_color = "#aaa" if is_dark else "#888"
+        items_color = "#999" if is_dark else "#666"
+        
+        self.date_label.setStyleSheet(f"font-size: 12px; color: {date_color};")
+        self.lucky_items.setStyleSheet(f"font-size: 12px; color: {items_color};")
 
 
-class GuessNumberGame(CardWidget):
-    game_finished = pyqtSignal(str, int)
+class WeatherWidget(CardWidget):
+    weather_received = pyqtSignal(str)
+    weather_error = pyqtSignal(str)
+    back_requested = pyqtSignal()
 
     def __init__(self, fun_manager, parent=None):
         super().__init__(parent)
         self.fun_manager = fun_manager
-        self._target = 0
-        self._attempts = 0
-        self._result_type = "normal"
+        self._is_loading = False
         self._init_ui()
-        self._start_new_game()
 
     def _init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(12)
         
-        title = SubtitleLabel("猜数字", self)
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.back_btn = TransparentToolButton(FluentIcon.LEFT_ARROW, self)
+        self.back_btn.setFixedSize(16, 16)
+        self.back_btn.setIconSize(self.back_btn.size())
+        self.back_btn.setToolTip("返回")
+        self.back_btn.clicked.connect(self.back_requested.emit)
+        header_layout.addWidget(self.back_btn)
+        header_layout.addStretch()
+        
+        layout.addLayout(header_layout)
+        
+        title = SubtitleLabel("🌤️ 天气查询", self)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
-        desc = BodyLabel("猜一个1-10之间的数字：", self)
+        desc = BodyLabel("点击下方按钮查询实时天气", self)
         desc.setAlignment(Qt.AlignCenter)
         layout.addWidget(desc)
         
-        input_layout = QHBoxLayout()
-        input_layout.setSpacing(10)
+        self.weather_display = QWidget(self)
+        weather_layout = QVBoxLayout(self.weather_display)
+        weather_layout.setContentsMargins(0, 0, 0, 0)
+        weather_layout.setSpacing(8)
         
-        self.spin_box = QSpinBox(self)
-        self.spin_box.setRange(1, 10)
-        self.spin_box.setFixedSize(80, 35)
-        self.spin_box.setAlignment(Qt.AlignCenter)
+        self.location_label = BodyLabel("", self)
+        self.location_label.setAlignment(Qt.AlignCenter)
+        self.location_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        weather_layout.addWidget(self.location_label)
         
-        self.guess_btn = PrimaryPushButton("猜！", self)
-        self.guess_btn.setFixedSize(70, 35)
-        self.guess_btn.clicked.connect(self._make_guess)
+        self.temp_label = BodyLabel("", self)
+        self.temp_label.setAlignment(Qt.AlignCenter)
+        self.temp_label.setStyleSheet("font-size: 28px; font-weight: bold;")
+        weather_layout.addWidget(self.temp_label)
         
-        self.new_game_btn = PushButton("新游戏", self)
-        self.new_game_btn.setFixedSize(70, 35)
-        self.new_game_btn.clicked.connect(self._start_new_game)
+        self.weather_icon = BodyLabel("", self)
+        self.weather_icon.setAlignment(Qt.AlignCenter)
+        self.weather_icon.setStyleSheet("font-size: 36px;")
+        weather_layout.addWidget(self.weather_icon)
         
-        input_layout.addStretch()
-        input_layout.addWidget(self.spin_box)
-        input_layout.addWidget(self.guess_btn)
-        input_layout.addWidget(self.new_game_btn)
-        input_layout.addStretch()
+        self.weather_desc = BodyLabel("", self)
+        self.weather_desc.setAlignment(Qt.AlignCenter)
+        self.weather_desc.setWordWrap(True)
+        self.weather_desc.setStyleSheet("font-size: 13px;")
+        weather_layout.addWidget(self.weather_desc)
         
-        layout.addLayout(input_layout)
+        self.weather_display.hide()
+        layout.addWidget(self.weather_display)
         
-        self.result_label = BodyLabel("", self)
-        self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setWordWrap(True)
-        self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
-        layout.addWidget(self.result_label)
+        self.loading_label = BodyLabel("🔍 正在查询天气...", self)
+        self.loading_label.setAlignment(Qt.AlignCenter)
+        self.loading_label.setStyleSheet("font-size: 14px; color: #888;")
+        self.loading_label.hide()
+        layout.addWidget(self.loading_label)
         
-        self.attempts_label = BodyLabel("剩余机会：3", self)
-        self.attempts_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(self.attempts_label)
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+        
+        self.query_btn = PrimaryPushButton("🔍 查询天气", self)
+        self.query_btn.setFixedHeight(35)
+        self.query_btn.clicked.connect(self._query_weather)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.query_btn)
+        btn_layout.addStretch()
+        
+        layout.addLayout(btn_layout)
 
-    def _start_new_game(self):
+    def _query_weather(self):
+        if self._is_loading:
+            return
+            
+        self._is_loading = True
+        self.query_btn.setEnabled(False)
+        self.weather_display.hide()
+        self.loading_label.show()
+        
         if self.fun_manager:
-            self._target = self.fun_manager.start_guess_number_game()
-        else:
-            import random
-            self._target = random.randint(1, 10)
-        self._attempts = 0
-        self._result_type = "normal"
-        self.result_label.setText("")
-        self.result_label.setStyleSheet("font-size: 14px; padding: 10px;")
-        self.attempts_label.setText("剩余机会：3")
-        self.guess_btn.setEnabled(True)
+            self.fun_manager.query_weather(self._on_weather_result)
 
-    def _make_guess(self):
-        guess = self.spin_box.value()
-        self._attempts += 1
+    def _on_weather_result(self, success: bool, data: dict):
+        self._is_loading = False
+        self.query_btn.setEnabled(True)
+        self.loading_label.hide()
         
-        if self.fun_manager:
-            message, finished = self.fun_manager.make_guess(guess)
+        if success and data:
+            self.location_label.setText(f"📍 {data.get('location', '未知位置')}")
+            self.temp_label.setText(data.get('temperature', '--'))
+            self.weather_icon.setText(data.get('icon', '🌤️'))
+            self.weather_desc.setText(data.get('description', '暂无天气信息'))
+            self.weather_display.show()
+            
+            weather_text = f"{data.get('location', '')} {data.get('temperature', '')} {data.get('description', '')}"
+            self.weather_received.emit(weather_text)
         else:
-            message, finished = f"猜了 {guess}", False
-        
-        remaining = 3 - self._attempts
-        self.attempts_label.setText(f"剩余机会：{max(0, remaining)}")
-        
-        self.result_label.setText(message)
-        
-        if finished:
-            if "对了" in message or "猜对" in message:
-                self._result_type = "win"
-            else:
-                self._result_type = "lose"
-            self._apply_result_style()
-            self.game_finished.emit(message, 1 if self._result_type == "win" else -1)
-            self.guess_btn.setEnabled(False)
-        else:
-            self._result_type = "draw"
-            self._apply_result_style()
-            if remaining <= 0:
-                self.guess_btn.setEnabled(False)
-
-    def _apply_result_style(self):
-        colors = {
-            "win": "#4caf50",
-            "lose": "#f44336",
-            "draw": "#ff9800",
-            "normal": "#333",
-        }
-        color = colors.get(self._result_type, colors["normal"])
-        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+            error_msg = data.get('error', '查询失败，请稍后重试') if data else '查询失败'
+            self.weather_desc.setText(error_msg)
+            self.weather_icon.setText("😕")
+            self.weather_display.show()
+            self.weather_error.emit(error_msg)
 
     def update_theme(self, is_dark: bool):
-        dark_colors = {
-            "win": "#66bb6a",
-            "lose": "#ef5350",
-            "draw": "#ffa726",
-            "normal": "#e0e0e0",
-        }
-        light_colors = {
-            "win": "#4caf50",
-            "lose": "#f44336",
-            "draw": "#ff9800",
-            "normal": "#333",
-        }
-        colors = dark_colors if is_dark else light_colors
-        color = colors.get(self._result_type, colors["normal"])
-        self.result_label.setStyleSheet(f"font-size: 14px; padding: 10px; color: {color};")
+        loading_color = "#aaa" if is_dark else "#888"
+        self.loading_label.setStyleSheet(f"font-size: 14px; color: {loading_color};")
+
+
+class FortunePageWidget(CardWidget):
+    fortune_generated = pyqtSignal(str)
+    back_requested = pyqtSignal()
+
+    def __init__(self, fun_manager, parent=None):
+        super().__init__(parent)
+        self.fun_manager = fun_manager
+        self._init_ui()
+
+    def _init_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(12)
+        
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.back_btn = TransparentToolButton(FluentIcon.LEFT_ARROW, self)
+        self.back_btn.setFixedSize(16, 16)
+        self.back_btn.setIconSize(self.back_btn.size())
+        self.back_btn.setToolTip("返回")
+        self.back_btn.clicked.connect(self.back_requested.emit)
+        header_layout.addWidget(self.back_btn)
+        header_layout.addStretch()
+        
+        layout.addLayout(header_layout)
+        
+        title = SubtitleLabel("🔮 今日运势", self)
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        self.fortune_display = QWidget(self)
+        fortune_layout = QVBoxLayout(self.fortune_display)
+        fortune_layout.setContentsMargins(0, 0, 0, 0)
+        fortune_layout.setSpacing(8)
+        
+        self.date_label = BodyLabel("", self)
+        self.date_label.setAlignment(Qt.AlignCenter)
+        self.date_label.setStyleSheet("font-size: 12px; color: #888;")
+        fortune_layout.addWidget(self.date_label)
+        
+        self.lucky_label = BodyLabel("", self)
+        self.lucky_label.setAlignment(Qt.AlignCenter)
+        self.lucky_label.setStyleSheet("font-size: 24px;")
+        fortune_layout.addWidget(self.lucky_label)
+        
+        self.fortune_stars = BodyLabel("", self)
+        self.fortune_stars.setAlignment(Qt.AlignCenter)
+        self.fortune_stars.setStyleSheet("font-size: 16px;")
+        fortune_layout.addWidget(self.fortune_stars)
+        
+        self.fortune_text = BodyLabel("", self)
+        self.fortune_text.setAlignment(Qt.AlignCenter)
+        self.fortune_text.setWordWrap(True)
+        self.fortune_text.setStyleSheet("font-size: 13px; padding: 8px; line-height: 1.5;")
+        fortune_layout.addWidget(self.fortune_text)
+        
+        self.lucky_items = BodyLabel("", self)
+        self.lucky_items.setAlignment(Qt.AlignCenter)
+        self.lucky_items.setWordWrap(True)
+        self.lucky_items.setStyleSheet("font-size: 12px; color: #666;")
+        fortune_layout.addWidget(self.lucky_items)
+        
+        layout.addWidget(self.fortune_display)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+        
+        self.refresh_btn = PrimaryPushButton("🔄 刷新运势", self)
+        self.refresh_btn.setFixedHeight(35)
+        self.refresh_btn.clicked.connect(self._generate_fortune)
+        
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.refresh_btn)
+        btn_layout.addStretch()
+        
+        layout.addLayout(btn_layout)
+        
+        self._generate_fortune()
+
+    def _generate_fortune(self):
+        if self.fun_manager:
+            fortune_data = self.fun_manager.generate_daily_fortune()
+            
+            self.date_label.setText(fortune_data.get("date", ""))
+            self.lucky_label.setText(fortune_data.get("emoji", "🌟"))
+            self.fortune_stars.setText(fortune_data.get("stars", "⭐⭐⭐"))
+            self.fortune_text.setText(fortune_data.get("text", ""))
+            self.lucky_items.setText(fortune_data.get("lucky_items", ""))
+            
+            self.fortune_generated.emit(fortune_data.get("text", ""))
+
+    def update_theme(self, is_dark: bool):
+        date_color = "#aaa" if is_dark else "#888"
+        items_color = "#999" if is_dark else "#666"
+        
+        self.date_label.setStyleSheet(f"font-size: 12px; color: {date_color};")
+        self.lucky_items.setStyleSheet(f"font-size: 12px; color: {items_color};")
 
 
 class TouchInteractionCard(CardWidget):
@@ -278,6 +365,7 @@ class FunInteractionPanel(CardWidget):
     fun_event_triggered = pyqtSignal(str)
     event_bonuses_ready = pyqtSignal(dict)
     event_with_type = pyqtSignal(str, bool)
+    weather_query_requested = pyqtSignal()
 
     def __init__(self, fun_manager, parent=None):
         super().__init__(parent)
@@ -289,7 +377,7 @@ class FunInteractionPanel(CardWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(12)
         
-        title = SubtitleLabel("🎲 趣味互动", self)
+        title = SubtitleLabel("✨ 趣味互动", self)
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
         
@@ -303,16 +391,16 @@ class FunInteractionPanel(CardWidget):
         row1 = QHBoxLayout()
         row1.setSpacing(8)
         
-        self.rps_btn = PushButton("✊ 猜拳", self)
-        self.rps_btn.setFixedHeight(45)
-        self.rps_btn.clicked.connect(lambda: self.game_stack.setCurrentIndex(1))
+        self.weather_btn = PushButton("🌤️ 天气查询", self)
+        self.weather_btn.setFixedHeight(45)
+        self.weather_btn.clicked.connect(lambda: self.game_stack.setCurrentIndex(1))
         
-        self.guess_btn = PushButton("🔢 猜数字", self)
-        self.guess_btn.setFixedHeight(45)
-        self.guess_btn.clicked.connect(lambda: self.game_stack.setCurrentIndex(2))
+        self.fortune_btn = PushButton("🔮 今日运势", self)
+        self.fortune_btn.setFixedHeight(45)
+        self.fortune_btn.clicked.connect(lambda: self.game_stack.setCurrentIndex(2))
         
-        row1.addWidget(self.rps_btn)
-        row1.addWidget(self.guess_btn)
+        row1.addWidget(self.weather_btn)
+        row1.addWidget(self.fortune_btn)
         
         row2 = QHBoxLayout()
         row2.setSpacing(8)
@@ -333,21 +421,23 @@ class FunInteractionPanel(CardWidget):
         
         self.game_stack.addWidget(self.main_menu)
         
-        self.rps_game = RockPaperScissorsGame(self.fun_manager, self)
-        rps_layout = QVBoxLayout(self.rps_game)
-        back_btn = PushButton("← 返回", self.rps_game)
-        back_btn.clicked.connect(lambda: self.game_stack.setCurrentIndex(0))
-        rps_layout.insertWidget(0, back_btn)
-        self.game_stack.addWidget(self.rps_game)
+        self.weather_widget = WeatherWidget(self.fun_manager, self)
+        self.weather_widget.back_requested.connect(lambda: self.game_stack.setCurrentIndex(0))
+        self.weather_widget.weather_received.connect(self._on_weather_received)
+        self.game_stack.addWidget(self.weather_widget)
         
-        self.guess_game = GuessNumberGame(self.fun_manager, self)
-        guess_layout = QVBoxLayout(self.guess_game)
-        back_btn2 = PushButton("← 返回", self.guess_game)
-        back_btn2.clicked.connect(lambda: self.game_stack.setCurrentIndex(0))
-        guess_layout.insertWidget(0, back_btn2)
-        self.game_stack.addWidget(self.guess_game)
+        self.fortune_widget = FortunePageWidget(self.fun_manager, self)
+        self.fortune_widget.back_requested.connect(lambda: self.game_stack.setCurrentIndex(0))
+        self.fortune_widget.fortune_generated.connect(self._on_fortune_generated)
+        self.game_stack.addWidget(self.fortune_widget)
         
         layout.addWidget(self.game_stack)
+
+    def _on_weather_received(self, weather_text: str):
+        self.fun_event_triggered.emit(f"天气查询：{weather_text}")
+
+    def _on_fortune_generated(self, fortune_text: str):
+        self.fun_event_triggered.emit(f"今日运势：{fortune_text}")
 
     def _trigger_event(self):
         if self.fun_manager:
@@ -368,5 +458,5 @@ class FunInteractionPanel(CardWidget):
         self.game_stack.setCurrentIndex(0)
 
     def update_theme(self, is_dark: bool):
-        self.rps_game.update_theme(is_dark)
-        self.guess_game.update_theme(is_dark)
+        self.weather_widget.update_theme(is_dark)
+        self.fortune_widget.update_theme(is_dark)

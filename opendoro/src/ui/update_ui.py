@@ -699,12 +699,12 @@ class UpdateNotificationDialog(QWidget):
             self.move(x, y)
 
     def _on_update_now(self):
-        self.update_now.emit()
         self.close()
+        self.update_now.emit()
 
     def _on_remind_later(self):
-        self.remind_later.emit()
         self.close()
+        self.remind_later.emit()
 
     def _on_close(self):
         self.remind_later.emit()

@@ -294,7 +294,8 @@ class Live2DWidget(QOpenGLWidget):
             ratio_x = max(-1.0, min(1.0, dx / max_dx))
             ratio_y = max(-1.0, min(1.0, dy / max_dy))
             
-            target_x = center_local.x() + ratio_x * (self.width() / 2)
+            mirror_factor = -1.0 if self.is_mirrored else 1.0
+            target_x = center_local.x() + ratio_x * (self.width() / 2) * mirror_factor
             target_y = center_local.y() + ratio_y * (self.height() / 2)
             
             self.model.Drag(target_x, target_y)
