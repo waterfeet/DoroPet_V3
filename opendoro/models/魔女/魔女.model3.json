@@ -1,0 +1,87 @@
+{
+	"Version": 3,
+	"FileReferences": {
+		"Moc": "魔女.moc3",
+		"Textures": [
+			"魔女.8192/texture_00.png",
+			"魔女.8192/texture_01.png"
+		],
+		"Physics": "魔女.physics3.json",
+		"DisplayInfo": "魔女.cdi3.json",
+		"Expressions": [
+			{
+				"Name": "幽灵",
+				"File": "cw.exp3.json"
+			},
+			{
+				"Name": "法杖",
+				"File": "fz.exp3.json"
+			},
+			{
+				"Name": "黑脸",
+				"File": "h.exp3.json"
+			},
+			{
+				"Name": "默认",
+				"File": "hdj.exp3.json"
+			},
+			{
+				"Name": "哭",
+				"File": "ku.exp3.json"
+			},
+			{
+				"Name": "不戴帽子",
+				"File": "mz.exp3.json"
+			},
+			{
+				"Name": "生气",
+				"File": "sq.exp3.json"
+			},
+			{
+				"Name": "爱心眼睛",
+				"File": "x.exp3.json"
+			},
+			{
+				"Name": "星星眼睛",
+				"File": "xx.exp3.json"
+			},
+			{
+				"Name": "戴眼镜",
+				"File": "yj.exp3.json"
+			},
+			{
+				"Name": "打游戏",
+				"File": "zs1.exp3.json"
+			},
+			{
+				"Name": "唱歌",
+				"File": "zs2.exp3.json"
+			}
+		],
+		"Motions": {
+			"": [
+				{
+					"File": "Scene1.motion3.json"
+				}
+			]
+		}
+	},
+	"Groups": [
+		{
+			"Target": "Parameter",
+			"Name": "EyeBlink",
+			"Ids": [
+				"ParamEyeLOpen",
+				"ParamEyeROpen"
+			]
+		},
+		{
+			"Target": "Parameter",
+			"Name": "LipSync",
+			"Ids": [
+				"ParamMouthOpenY"
+			]
+		}
+	],
+	"HitAreas": []
+}

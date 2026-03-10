@@ -13,6 +13,7 @@ from src.core.pet_fun_manager import PetFunManager
 from src.ui.widgets.greeting_banner import GreetingBanner
 from src.ui.widgets.pet_avatar_card import PetAvatarCard
 from src.ui.widgets.fun_games import FunInteractionPanel
+from src.ui.widgets.music_player_card import MusicPlayerCard
 
 
 class AttributeCard(CardWidget):
@@ -150,8 +151,18 @@ class PetStatusInterface(ScrollArea):
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(15)
         
+        left_section = QWidget()
+        left_layout = QVBoxLayout(left_section)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(15)
+        
         self.avatar_card = PetAvatarCard(self.quotes_manager, self.attr_manager, self)
-        top_layout.addWidget(self.avatar_card, 2)
+        left_layout.addWidget(self.avatar_card, 2)
+        
+        self.music_player_card = MusicPlayerCard(self)
+        left_layout.addWidget(self.music_player_card, 1)
+        
+        top_layout.addWidget(left_section, 2)
         
         self.fun_panel = FunInteractionPanel(self.fun_manager, self)
         self.fun_panel.setMinimumWidth(260)
@@ -345,6 +356,7 @@ class PetStatusInterface(ScrollArea):
         self.greeting_banner.update_theme(is_dark)
         self.avatar_card.update_theme(is_dark)
         self.fun_panel.update_theme(is_dark)
+        self.music_player_card.update_theme(is_dark)
         
         section_title_style = f"font-size: 16px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'};"
         for child in self.findChildren(QLabel):

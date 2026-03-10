@@ -16,3 +16,5 @@ live2d-py
 pyopengl
 packaging
 edge-tts
+musicdl
+gradio_client

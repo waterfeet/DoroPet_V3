@@ -5,6 +5,7 @@ import json
 import shutil
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from src.core.logger import logger
 
 def get_user_data_dir():
     """
@@ -107,6 +108,102 @@ class OpenAITTSWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+
+class GradioTTSWorker(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    DEFAULT_PROMPT_AUDIO = "https://github.com/gradio-app/gradio/raw/main/test/test_files/audio_sample.wav"
+    DEFAULT_PROMPT_TEXT = "Hello"
+
+    def __init__(self, base_url, voice, api_name, text, cache_path, prompt_audio=None, prompt_text=None):
+        super().__init__()
+        self.base_url = base_url
+        self.voice = voice
+        self.api_name = api_name
+        self.text = text
+        self.cache_path = cache_path
+        self.prompt_audio = prompt_audio
+        self.prompt_text = prompt_text
+
+    def run(self):
+        try:
+            if os.path.exists(self.cache_path):
+                self.finished.emit(self.cache_path)
+                return
+
+            try:
+                from gradio_client import Client, handle_file
+            except ImportError:
+                self.error.emit("gradio_client 未安装，请运行: pip install gradio_client")
+                return
+
+            client = Client(self.base_url)
+            
+            api_endpoint = self.api_name or "/tts_request"
+            
+            result = None
+            
+            prompt_audio = self.prompt_audio if (self.prompt_audio and os.path.exists(self.prompt_audio)) else self.DEFAULT_PROMPT_AUDIO
+            prompt_text = self.prompt_text if self.prompt_text else self.DEFAULT_PROMPT_TEXT
+            
+            try:
+                result = client.predict(
+                    multi_spk_files=[handle_file(prompt_audio)],
+                    spk_weights="1.0",
+                    prompt_audio=handle_file(prompt_audio),
+                    prompt_text=prompt_text,
+                    text=self.text,
+                    top_k=15,
+                    top_p=1,
+                    temperature=1,
+                    rep_penalty=1.35,
+                    noise_scale=0.5,
+                    speed=1,
+                    enable_enhance=True,
+                    is_cut_text=True,
+                    api_name=api_endpoint
+                )
+            except Exception as e:
+                logger.warning(f"SoVITS TTS call failed: {e}")
+                try:
+                    result = client.predict(self.text, api_name=api_endpoint)
+                except Exception as e2:
+                    self.error.emit(f"Gradio TTS 调用失败: {str(e2)}")
+                    return
+            
+            audio_path = None
+            if isinstance(result, str):
+                if os.path.exists(result):
+                    audio_path = result
+            elif isinstance(result, tuple):
+                for item in result:
+                    if isinstance(item, str) and os.path.exists(item):
+                        audio_path = item
+                        break
+            
+            if audio_path:
+                os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+                
+                actual_ext = os.path.splitext(audio_path)[1].lower()
+                if actual_ext and actual_ext in ['.wav', '.mp3', '.ogg', '.flac']:
+                    cache_path_with_ext = os.path.splitext(self.cache_path)[0] + actual_ext
+                else:
+                    cache_path_with_ext = self.cache_path
+                
+                shutil.copy(audio_path, cache_path_with_ext)
+                self.finished.emit(cache_path_with_ext)
+            else:
+                self.error.emit(f"Gradio TTS 返回了无效的结果: {type(result)}")
+                
+            try:
+                client.close()
+            except:
+                pass
+                
+        except Exception as e:
+            self.error.emit(str(e))
+
 class TTSManager(QObject):
     playback_started = pyqtSignal(int)
     playback_stopped = pyqtSignal(int)
@@ -136,17 +233,37 @@ class TTSManager(QObject):
             self.playback_error.emit(msg_id, "请先在配置页设置并激活 TTS 模型")
             self.current_msg_id = None
             return
-            
-        provider_id, _, provider, api_key, base_url, model_name, voice, _ = config
+        
+        if len(config) >= 12:
+            provider_id, _, provider, api_key, base_url, model_name, voice, _, proxy, api_name, prompt_audio, prompt_text = config
+        elif len(config) >= 9:
+            provider_id, _, provider, api_key, base_url, model_name, voice, _, api_name = config[:9]
+            prompt_audio = ""
+            prompt_text = ""
+        else:
+            provider_id, _, provider, api_key, base_url, model_name, voice, _ = config[:8]
+            api_name = "/tts_request"
+            prompt_audio = ""
+            prompt_text = ""
         
         content_hash = hashlib.md5(f"{text}{provider}{voice}".encode()).hexdigest()
-        file_path = os.path.join(self.cache_dir, f"{content_hash}.mp3")
+        cache_base = os.path.join(self.cache_dir, content_hash)
         
-        if os.path.exists(file_path):
-            self.play_file(file_path)
+        cached_file = None
+        for ext in ['.wav', '.mp3', '.ogg', '.flac']:
+            test_path = cache_base + ext
+            if os.path.exists(test_path):
+                cached_file = test_path
+                break
+        
+        if cached_file:
+            self.play_file(cached_file)
         else:
+            file_path = cache_base + '.mp3'
             if provider == "edge_tts":
                 self.worker = EdgeTTSWorker(voice or "zh-CN-XiaoxiaoNeural", text, file_path)
+            elif provider == "gradio_tts":
+                self.worker = GradioTTSWorker(base_url, voice, api_name, text, file_path, prompt_audio, prompt_text)
             else:
                 self.worker = OpenAITTSWorker(api_key, base_url, model_name, voice, text, file_path)
             

@@ -21,15 +21,17 @@ from .plugin_ui import PluginInterface
 from .skills_ui import SkillsInterface
 from .update_ui import UpdateInterface
 from .pet_status_interface import PetStatusInterface
+from .live2d_config_ui import Live2DConfigInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
 
 class MainWindow(FluentWindow):
-    def __init__(self):
+    def __init__(self, version_manager=None):
         super().__init__()
         logger.info("Initializing MainWindow...")
         self.setObjectName("MainWindow")
+        self._version_manager = version_manager
         
         # 1. 初始化窗口
         self.setWindowTitle("Doro Pet")
@@ -42,11 +44,12 @@ class MainWindow(FluentWindow):
         self.chat_interface = ChatInterface(self.db, self)
         self.config_interface = ConfigInterface(self.db, self)
         self.voice_config_interface = VoiceConfigInterface(self.db, self)
+        self.live2d_config_interface = Live2DConfigInterface(self.db, self)
         self.prompt_interface = PromptInterface(self.db, self)
         self.plugin_interface = PluginInterface(self)
         self.skills_interface = SkillsInterface(self)
         self.log_interface = LogInterface(self)
-        self.update_interface = UpdateInterface(self)
+        self.update_interface = UpdateInterface(self, version_manager)
         self.settings_interface = SettingsInterface(self)
         
         self.attr_manager = None
@@ -71,11 +74,11 @@ class MainWindow(FluentWindow):
         self.init_window()
 
     def init_navigation(self):
-        # 添加子界面到导航栏
         self.addSubInterface(self.pet_status_interface, FIF.HOME, "桌宠状态")
         self.addSubInterface(self.chat_interface, FIF.CHAT, "AI 聊天")
         self.addSubInterface(self.config_interface, FIF.ROBOT, "模型配置")
         self.addSubInterface(self.voice_config_interface, FIF.MICROPHONE, "语音设置")
+        self.addSubInterface(self.live2d_config_interface, FIF.PHOTO, "Live2D模型")
         self.addSubInterface(self.prompt_interface, FIF.PEOPLE, "角色扮演")
         self.addSubInterface(self.plugin_interface, FIF.BOOK_SHELF, "插件管理")
         self.addSubInterface(self.skills_interface, FIF.PALETTE, "技能管理")
@@ -172,6 +175,8 @@ class MainWindow(FluentWindow):
             self.settings_interface.update_theme()
         if hasattr(self, 'voice_config_interface'):
             self.voice_config_interface.update_theme()
+        if hasattr(self, 'live2d_config_interface'):
+            self.live2d_config_interface.update_theme()
 
     def load_stylesheet(self, path):
         if os.path.exists(path):
@@ -193,8 +198,18 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'chat_interface'):
             self.chat_interface.set_live2d_widget(widget)
         
+        if hasattr(self, 'live2d_config_interface'):
+            self.live2d_config_interface.set_live2d_widget(widget)
+        
         if hasattr(self, 'pet_status_interface') and self.attr_manager:
             self.pet_status_interface.set_attr_manager(self.attr_manager)
+        
+        if hasattr(widget, '_startup_checker') and widget._startup_checker:
+            widget._startup_checker.set_main_window(self)
+        
+        if hasattr(self, 'pet_status_interface') and hasattr(self.pet_status_interface, 'music_player_card'):
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(1500, self.pet_status_interface.music_player_card.auto_play)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

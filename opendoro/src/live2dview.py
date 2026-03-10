@@ -15,6 +15,7 @@ from src.core.pet_attributes_manager import PetAttributesManager
 from src.core.pet_constants import ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS
 from src.ui.pet_status_overlay import PetStatusOverlay
 from src.core.mouse_chaser import MouseChaser
+from src.core.random_wanderer import RandomWanderer
 
 class SpeechBubble(QLabel):
     """
@@ -137,6 +138,13 @@ class Live2DWidget(QOpenGLWidget):
         self.is_locked = False
 
         self.is_mirrored = False
+        
+        self._border_overlay = QWidget(self)
+        self._border_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self._border_overlay.setStyleSheet("background: transparent;")
+        self._border_opacity = 0.0
+        self._border_flash_timer = QTimer(self)
+        self._border_flash_timer.timeout.connect(self._fade_border)
 
         self.attr_manager = PetAttributesManager()
         
@@ -151,7 +159,37 @@ class Live2DWidget(QOpenGLWidget):
         self.settings = QSettings("DoroPet", "Settings")
         
         scale_val = self.settings.value("scale", 100, type=int)
-        base_w, base_h = 550, 500
+        aspect_ratio_index = self.settings.value("aspect_ratio_index", 0, type=int)
+        custom_width = self.settings.value("custom_aspect_width", 550, type=int)
+        custom_height = self.settings.value("custom_aspect_height", 500, type=int)
+        
+        ASPECT_RATIOS = [
+            1.0,
+            4.0 / 3.0,
+            3.0 / 4.0,
+            16.0 / 9.0,
+            9.0 / 16.0,
+            16.0 / 10.0,
+            10.0 / 16.0,
+            -1,
+        ]
+        
+        if aspect_ratio_index < 0 or aspect_ratio_index >= len(ASPECT_RATIOS):
+            aspect_ratio_index = 0
+        
+        ratio = ASPECT_RATIOS[aspect_ratio_index]
+        
+        if ratio < 0:
+            base_w, base_h = custom_width, custom_height
+        else:
+            base_size = 500
+            if ratio >= 1:
+                base_w = int(base_size * ratio)
+                base_h = base_size
+            else:
+                base_w = base_size
+                base_h = int(base_size / ratio)
+        
         self.resize(int(base_w * scale_val / 100.0), int(base_h * scale_val / 100.0))
         
         self.default_bubble_duration = self.settings.value("bubble_duration", 3000, type=int)
@@ -185,8 +223,77 @@ class Live2DWidget(QOpenGLWidget):
         self.refresh = self.startTimer(15)
         
         self._init_mouse_chaser()
+        self._init_random_wanderer()
         
         self.init_system_monitor()
+
+    def reload_model(self, model_path: str) -> bool:
+        """
+        重新加载 Live2D 模型
+        
+        :param model_path: 模型配置文件路径 (.model3.json)
+        :return: 是否加载成功
+        """
+        if not os.path.exists(model_path):
+            print(f"Model file not found: {model_path}")
+            return False
+        
+        try:
+            self.makeCurrent()
+            
+            if hasattr(self, 'mouse_chaser'):
+                self.mouse_chaser.stop()
+            
+            self.model = live2d.LAppModel()
+            self.model.LoadModelJson(model_path)
+            self.model.Resize(self.width(), self.height())
+            
+            self.path = model_path
+            
+            self.expression_ids = self.model.GetExpressionIds()
+            self.motion_groups = self.model.GetMotionGroups()
+            
+            self.is_mirrored = False
+            self.model.SetScaleX(1.0)
+            
+            if hasattr(self, 'mouse_chaser'):
+                self.mouse_chaser.model = self.model
+            
+            self.update()
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to reload model: {e}")
+            return False
+
+    def get_current_model_path(self) -> str:
+        """获取当前模型路径"""
+        return self.path
+    
+    def flash_border(self):
+        """闪烁边框以提供视觉反馈"""
+        self._border_opacity = 1.0
+        self._border_overlay.setGeometry(0, 0, self.width(), self.height())
+        self._border_overlay.show()
+        self._border_overlay.raise_()
+        self._fade_border()
+    
+    def _fade_border(self):
+        """逐渐淡出边框"""
+        self._border_opacity -= 0.08
+        
+        if self._border_opacity > 0:
+            color = f"rgba(0, 180, 255, {self._border_opacity * 0.8})"
+            self._border_overlay.setStyleSheet(f"""
+                background: transparent;
+                border: 4px solid {color};
+                border-radius: 8px;
+            """)
+            self._border_flash_timer.start(40)
+        else:
+            self._border_overlay.setStyleSheet("background: transparent; border: none;")
+            self._border_overlay.hide()
         
     def _init_mouse_chaser(self):
         """初始化鼠标追逐控制器"""
@@ -226,6 +333,8 @@ class Live2DWidget(QOpenGLWidget):
             if hasattr(self, "is_docked") and self.is_docked:
                 self.is_docked = None
                 self._apply_dock_rotation(None)
+            if self.is_random_wandering():
+                self.toggle_random_wander(False)
             self.mouse_chaser.start()
             self.talk("来追你咯~", 2000, force=True)
         else:
@@ -236,6 +345,54 @@ class Live2DWidget(QOpenGLWidget):
         """检查是否正在追逐鼠标"""
         if hasattr(self, 'mouse_chaser'):
             return self.mouse_chaser.is_active()
+        return False
+
+    def _init_random_wanderer(self):
+        """初始化随机溜达控制器"""
+        self.random_wanderer = RandomWanderer(self.model, self, self.attr_manager)
+        self.random_wanderer.set_walking_motion("走")
+        self.random_wanderer.set_callbacks(
+            on_direction_changed=self._on_wander_direction_changed,
+            on_running_changed=self._on_wander_running_changed
+        )
+        
+    def _on_wander_direction_changed(self, facing_right: bool):
+        """溜达方向改变时的回调"""
+        self.is_mirrored = facing_right
+        scale_x = -1.0 if self.is_mirrored else 1.0
+        self.model.SetScaleX(scale_x)
+        self.update()
+        
+    def _on_wander_running_changed(self, is_running: bool):
+        """溜达跑动状态改变时的回调"""
+        pass
+        
+    def toggle_random_wander(self, enabled: bool = None):
+        """
+        切换随机溜达模式
+        
+        :param enabled: True启用, False禁用, None切换当前状态
+        """
+        if not hasattr(self, 'random_wanderer'):
+            return
+            
+        if enabled is None:
+            enabled = not self.random_wanderer.is_active()
+            
+        if enabled:
+            if hasattr(self, "is_docked") and self.is_docked:
+                self.is_docked = None
+                self._apply_dock_rotation(None)
+            if self.is_mouse_chasing():
+                self.toggle_mouse_chase(False)
+            self.random_wanderer.start()
+        else:
+            self.random_wanderer.stop()
+            
+    def is_random_wandering(self) -> bool:
+        """检查是否正在随机溜达"""
+        if hasattr(self, 'random_wanderer'):
+            return self.random_wanderer.is_active()
         return False
 
     def paintGL(self) -> None:
@@ -276,6 +433,10 @@ class Live2DWidget(QOpenGLWidget):
                 return
                 
             if self.is_mouse_chasing():
+                self.update()
+                return
+                
+            if self.is_random_wandering():
                 self.update()
                 return
             
@@ -509,6 +670,12 @@ class Live2DWidget(QOpenGLWidget):
         action_chase.triggered.connect(lambda: self.toggle_mouse_chase())
         menu.addAction(action_chase)
         
+        action_wander = QAction("随机溜达", self)
+        action_wander.setCheckable(True)
+        action_wander.setChecked(self.is_random_wandering())
+        action_wander.triggered.connect(lambda: self.toggle_random_wander())
+        menu.addAction(action_wander)
+        
         menu.addSeparator()
 
         action_reset = QAction("重置大小", self)
@@ -544,7 +711,10 @@ class Live2DWidget(QOpenGLWidget):
     def open_main_window(self):
         try:
             if self.main_window is None:
-                self.main_window = MainWindow()
+                version_manager = None
+                if hasattr(self, '_startup_checker') and self._startup_checker:
+                    version_manager = self._startup_checker.get_version_manager()
+                self.main_window = MainWindow(version_manager)
                 self.main_window.set_live2d_widget(self)
             self.main_window.show()
             self.main_window.raise_()

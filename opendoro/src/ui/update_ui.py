@@ -66,14 +66,16 @@ class UpdateWidget(CardWidget):
     update_available = pyqtSignal(VersionInfo)
     download_completed = pyqtSignal(str)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, version_manager=None):
         super().__init__(parent)
-        self.version_manager = VersionManager(self)
+        self.version_manager = version_manager if version_manager else VersionManager(self)
         self.selected_version: VersionInfo = None
         self._is_loading = False
+        self._external_version_manager = version_manager is not None
         self.setup_ui()
         self.connect_signals()
-        self.load_versions()
+        if not self._external_version_manager:
+            self.load_versions()
     
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -270,6 +272,31 @@ class UpdateWidget(CardWidget):
         self._is_loading = False
         self.refresh_version_list(versions)
         self.check_for_updates()
+    
+    def set_versions(self, versions):
+        self._is_loading = False
+        self.refresh_version_list(versions)
+        self._check_update_status()
+    
+    def _check_update_status(self):
+        include_beta = self.show_beta_switch.isChecked()
+        latest = self.version_manager.check_for_updates(include_beta)
+        
+        self.refresh_btn.setEnabled(True)
+        self.status_icon.hide()
+        
+        if latest:
+            self.status_label.setText(f"发现新版本: v{latest.version}")
+            self.update_btn.show()
+            self.selected_version = latest
+            self.status_card.setProperty("status", "updateAvailable")
+        else:
+            self.status_label.setText("已是最新版本")
+            self.status_card.setProperty("status", "upToDate")
+        
+        self.status_card.style().unpolish(self.status_card)
+        self.status_card.style().polish(self.status_card)
+        self.status_card.show()
     
     def on_load_error(self, error_msg):
         self._is_loading = False
@@ -727,13 +754,14 @@ class UpdateNotificationDialog(QWidget):
 
 
 class UpdateInterface(ScrollArea):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, version_manager=None):
         super().__init__(parent)
         self.view = QWidget(self)
         self.view.setObjectName("updateView")
         self.setWidget(self.view)
         self.setWidgetResizable(True)
         self.setObjectName("UpdateInterface")
+        self._version_manager = version_manager
         
         self.setup_ui()
     
@@ -742,10 +770,13 @@ class UpdateInterface(ScrollArea):
         layout.setContentsMargins(36, 36, 36, 36)
         layout.setSpacing(20)
         
-        self.update_widget = UpdateWidget(self)
+        self.update_widget = UpdateWidget(self, self._version_manager)
         layout.addWidget(self.update_widget)
         
         self.about_widget = AboutWidget(self)
         layout.addWidget(self.about_widget)
         
         layout.addStretch()
+    
+    def set_versions(self, versions):
+        self.update_widget.set_versions(versions)

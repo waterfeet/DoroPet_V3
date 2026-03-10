@@ -1,9 +1,10 @@
-from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QListWidgetItem, QFrame
+from PyQt5.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QListWidgetItem
 from PyQt5.QtCore import Qt
 from qfluentwidgets import (ScrollArea, PlainTextEdit, PrimaryPushButton, PushButton,
                             TitleLabel, BodyLabel, FluentIcon, LineEdit, ListWidget, MessageBox,
-                            StrongBodyLabel, isDarkTheme, CheckBox)
+                            StrongBodyLabel, CheckBox)
 from src.core.database import ChatDatabase
+
 
 class PromptInterface(QWidget):
     def __init__(self, db=None, parent=None):
@@ -20,7 +21,6 @@ class PromptInterface(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # --- Left Panel: Persona List ---
         self.left_panel = QWidget()
         self.left_panel.setObjectName("promptLeftPanel")
         self.left_panel.setFixedWidth(250)
@@ -43,49 +43,42 @@ class PromptInterface(QWidget):
 
         main_layout.addWidget(self.left_panel)
 
-        # --- Right Panel: Edit Details ---
         right_panel = ScrollArea(self)
         right_panel.setWidgetResizable(True)
-        # right_panel.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
         
         self.edit_widget = QWidget()
         self.edit_widget.setObjectName("promptEditWidget")
+        
         right_layout = QVBoxLayout(self.edit_widget)
         right_layout.setContentsMargins(36, 36, 36, 36)
         right_layout.setSpacing(20)
 
-        # Title
         title_label = TitleLabel("编辑角色详情", self.edit_widget)
         right_layout.addWidget(title_label)
 
-        # Name Input
         right_layout.addWidget(BodyLabel("角色名称", self.edit_widget))
         self.name_input = LineEdit(self.edit_widget)
         self.name_input.setObjectName("promptNameInput")
         self.name_input.setPlaceholderText("例如：傲娇猫娘")
         right_layout.addWidget(self.name_input)
 
-        # Description Input
         right_layout.addWidget(BodyLabel("简短描述", self.edit_widget))
         self.desc_input = LineEdit(self.edit_widget)
         self.desc_input.setObjectName("promptDescInput")
         self.desc_input.setPlaceholderText("例如：一只性格傲娇的可爱猫娘...")
         right_layout.addWidget(self.desc_input)
 
-        # System Prompt Input
         right_layout.addWidget(BodyLabel("系统提示词 (System Prompt)", self.edit_widget))
         self.prompt_edit = PlainTextEdit(self.edit_widget)
         self.prompt_edit.setObjectName("promptContentEdit")
         self.prompt_edit.setPlaceholderText("在这里定义角色的详细性格、说话方式等...")
-        self.prompt_edit.setMinimumHeight(300)
+        self.prompt_edit.setMinimumHeight(200)
         right_layout.addWidget(self.prompt_edit)
         
-        # Doro Tools Option
         self.doro_tools_checkbox = CheckBox("启用 Doro 表情和属性工具", self.edit_widget)
         self.doro_tools_checkbox.setToolTip("启用后，AI 可以调用 set_expression 和 modify_pet_attribute 工具")
         right_layout.addWidget(self.doro_tools_checkbox)
 
-        # Action Buttons
         btn_layout = QHBoxLayout()
         self.save_btn = PrimaryPushButton(FluentIcon.SAVE, "保存修改", self.edit_widget)
         self.save_btn.clicked.connect(self.save_persona)
@@ -103,14 +96,12 @@ class PromptInterface(QWidget):
 
         right_panel.setWidget(self.edit_widget)
         main_layout.addWidget(right_panel)
-        
-        # self.update_theme()
 
     def load_personas(self):
         self.persona_list.clear()
         personas = self.db.get_personas()
         for p in personas:
-            p_id, name, desc, prompt, avatar, enable_doro_tools, is_protected = p
+            p_id, name, desc, prompt, avatar, enable_doro_tools, is_protected, live2d_model = p
             item = QListWidgetItem(name)
             item.setData(Qt.UserRole, p_id)
             item.setData(Qt.UserRole + 1, desc)
@@ -175,15 +166,16 @@ class PromptInterface(QWidget):
             return
 
         if self.current_persona_id:
-            self.db.update_persona(self.current_persona_id, name, desc, prompt, enable_doro_tools=enable_doro_tools)
+            self.db.update_persona(self.current_persona_id, name, desc, prompt, 
+                                   enable_doro_tools=enable_doro_tools)
             MessageBox("成功", "角色已更新", self).exec_()
         else:
-            new_id = self.db.add_persona(name, desc, prompt, enable_doro_tools=enable_doro_tools)
+            new_id = self.db.add_persona(name, desc, prompt, 
+                                         enable_doro_tools=enable_doro_tools)
             self.current_persona_id = new_id
             MessageBox("成功", "新角色已创建", self).exec_()
         
         self.load_personas()
-        # Reselect the saved item
         for i in range(self.persona_list.count()):
             item = self.persona_list.item(i)
             if item.data(Qt.UserRole) == self.current_persona_id:
@@ -209,5 +201,3 @@ class PromptInterface(QWidget):
 
     def update_theme(self):
         pass
-        # Theme handling is now done via global QSS
-        # All inline styles have been migrated to light.qss and dark.qss

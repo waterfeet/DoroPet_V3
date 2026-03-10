@@ -36,6 +36,10 @@ class StartupUpdateChecker(QObject):
 
     def set_main_window(self, main_window):
         self._main_window = main_window
+        if self._main_window and hasattr(self._main_window, 'update_interface'):
+            versions = self.version_manager.get_all_versions()
+            if versions:
+                self._main_window.update_interface.set_versions(versions)
 
     def start_check(self, delay_ms=None):
         if delay_ms is None:

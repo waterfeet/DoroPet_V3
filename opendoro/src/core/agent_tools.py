@@ -114,7 +114,7 @@ TOOLS_SCHEMA = [
                 "properties": {
                     "expression_name": {
                         "type": "string",
-                        "description": "The name of the expression to set (e.g., 'smile', 'angry', 'sad', 'surprise')."
+                        "description": "The name of the expression to set (e.g.)."
                     }
                 },
                 "required": ["expression_name"]

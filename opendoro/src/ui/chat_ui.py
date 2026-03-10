@@ -1801,17 +1801,19 @@ class ChatInterface(QWidget):
         self.persona_combo.clear()
         self.persona_prompts = []
         self.persona_doro_tools = []
+        self.persona_live2d_models = []
         
-        # Default
         self.persona_combo.addItem("默认助手")
         self.persona_prompts.append("You are a helpful assistant.")
         self.persona_doro_tools.append(False)
+        self.persona_live2d_models.append("")
         
         personas = self.db.get_personas()
         for p in personas:
             self.persona_combo.addItem(p[1])
             self.persona_prompts.append(p[3])
             self.persona_doro_tools.append(bool(p[5]) if len(p) > 5 else False)
+            self.persona_live2d_models.append(p[7] if len(p) > 7 else "")
             
         self.persona_combo.blockSignals(False)
 
@@ -1828,6 +1830,11 @@ class ChatInterface(QWidget):
             curr_item = self.session_list.currentItem()
             if curr_item:
                 curr_item.setData(Qt.UserRole + 1, new_prompt)
+        
+        if hasattr(self, 'persona_live2d_models') and index < len(self.persona_live2d_models):
+            model_path = self.persona_live2d_models[index]
+            if model_path and hasattr(self, 'live2d_widget') and self.live2d_widget:
+                self.live2d_widget.reload_model(model_path)
 
     def _get_current_persona_name(self) -> str:
         """获取当前选择的人格名称"""

@@ -652,6 +652,34 @@ class ConfigInterface(QWidget):
         )
         self.basic_card.add_field(self.voice_field)
         
+        self.api_name_field = FormField(
+            "API端点",
+            LineEdit(self),
+            "Gradio TTS 的 API 端点名称 (仅 Gradio TTS 需要)",
+            parent=self
+        )
+        self.api_name_field.widget.setPlaceholderText("例如: /predict 或 /tts_request")
+        self.api_name_field.widget.setText("/tts_request")
+        self.basic_card.add_field(self.api_name_field)
+        
+        self.prompt_audio_field = FormField(
+            "参考音频路径",
+            LineEdit(self),
+            "SoVITS TTS 参考音频文件路径 (仅 SoVITS 类型 TTS 需要)",
+            parent=self
+        )
+        self.prompt_audio_field.widget.setPlaceholderText("例如: C:/audio/reference.wav")
+        self.basic_card.add_field(self.prompt_audio_field)
+        
+        self.prompt_text_field = FormField(
+            "参考音频文本",
+            LineEdit(self),
+            "参考音频对应的文本内容 (仅 SoVITS 类型 TTS 需要)",
+            parent=self
+        )
+        self.prompt_text_field.widget.setPlaceholderText("例如: 你好，这是一个测试。")
+        self.basic_card.add_field(self.prompt_text_field)
+        
         return self.basic_card
 
     def _create_auth_card(self) -> SettingCard:
@@ -758,6 +786,18 @@ class ConfigInterface(QWidget):
     @property
     def proxy_input(self):
         return self.proxy_field.widget
+    
+    @property
+    def api_name_input(self):
+        return self.api_name_field.widget
+    
+    @property
+    def prompt_audio_input(self):
+        return self.prompt_audio_field.widget
+    
+    @property
+    def prompt_text_input(self):
+        return self.prompt_text_field.widget
 
     def switch_mode(self, item_key):
         self.current_mode = item_key
@@ -778,6 +818,9 @@ class ConfigInterface(QWidget):
         is_tts = (self.current_mode == "TTS")
         self.voice_field.setVisible(is_tts)
         self.fetch_voices_btn.setVisible(is_tts)
+        self.api_name_field.setVisible(is_tts)
+        self.prompt_audio_field.setVisible(is_tts)
+        self.prompt_text_field.setVisible(is_tts)
         
         is_llm = (self.current_mode == "LLM")
         self.chk_visual.setVisible(is_llm)
@@ -856,6 +899,12 @@ class ConfigInterface(QWidget):
                 self.voice_input.setText(target[6])
                 proxy = target[8] if len(target) > 8 else ''
                 self.proxy_input.setText(proxy)
+                api_name = target[9] if len(target) > 9 else '/tts_request'
+                self.api_name_input.setText(api_name)
+                prompt_audio = target[10] if len(target) > 10 else ''
+                self.prompt_audio_input.setText(prompt_audio)
+                prompt_text = target[11] if len(target) > 11 else ''
+                self.prompt_text_input.setText(prompt_text)
             elif self.current_mode == "LLM":
                 if len(target) > 7:
                     self.chk_visual.setChecked(bool(target[7]))
@@ -893,6 +942,7 @@ class ConfigInterface(QWidget):
                 "edge": "edge_tts",
                 "openai": "openai_tts",
                 "siliconflow": "openai_tts",
+                "gradio": "gradio_tts",
             }
         elif self.current_mode == "IMAGE":
             mapping = {
@@ -921,6 +971,10 @@ class ConfigInterface(QWidget):
         self.base_url_input.clear()
         self.model_id_input.clear()
         self.voice_input.clear()
+        self.api_name_input.clear()
+        self.api_name_input.setText("/tts_request")
+        self.prompt_audio_input.clear()
+        self.prompt_text_input.clear()
         self.proxy_input.clear()
         
         self.chk_visual.setChecked(False)
@@ -1169,10 +1223,13 @@ class ConfigInterface(QWidget):
         
         if self.current_mode == "TTS":
             voice = self.voice_input.text().strip()
+            api_name = self.api_name_input.text().strip() or "/tts_request"
+            prompt_audio = self.prompt_audio_input.text().strip()
+            prompt_text = self.prompt_text_input.text().strip()
             if self.current_model_id:
-                self.db.update_tts_model(self.current_model_id, name, provider, api_key, base_url, model_name, voice, proxy)
+                self.db.update_tts_model(self.current_model_id, name, provider, api_key, base_url, model_name, voice, proxy, api_name, prompt_audio, prompt_text)
             else:
-                self.current_model_id = self.db.add_tts_model(name, provider, api_key, base_url, model_name, voice, proxy)
+                self.current_model_id = self.db.add_tts_model(name, provider, api_key, base_url, model_name, voice, proxy, api_name, prompt_audio, prompt_text)
         elif self.current_mode == "IMAGE":
             if self.current_model_id:
                 self.db.update_image_model(self.current_model_id, name, provider, base_url, api_key, model_name, proxy)

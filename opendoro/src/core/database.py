@@ -336,6 +336,12 @@ class ConfigDatabase(BaseDatabase):
         columns = [info[1] for info in cursor.fetchall()]
         if 'proxy' not in columns:
             cursor.execute("ALTER TABLE tts_models ADD COLUMN proxy TEXT DEFAULT ''")
+        if 'api_name' not in columns:
+            cursor.execute("ALTER TABLE tts_models ADD COLUMN api_name TEXT DEFAULT '/predict'")
+        if 'prompt_audio' not in columns:
+            cursor.execute("ALTER TABLE tts_models ADD COLUMN prompt_audio TEXT DEFAULT ''")
+        if 'prompt_text' not in columns:
+            cursor.execute("ALTER TABLE tts_models ADD COLUMN prompt_text TEXT DEFAULT ''")
         
         self.conn.commit()
 
@@ -379,26 +385,26 @@ class ConfigDatabase(BaseDatabase):
         return cursor.fetchone()
 
     # TTS Model Methods
-    def add_tts_model(self, name, provider, api_key, base_url, model_name, voice, proxy=""):
+    def add_tts_model(self, name, provider, api_key, base_url, model_name, voice, proxy="", api_name="/predict", prompt_audio="", prompt_text=""):
         cursor = self.conn.cursor()
         cursor.execute("SELECT count(*) FROM tts_models")
         count = cursor.fetchone()[0]
         is_active = 1 if count == 0 else 0
         
-        cursor.execute("INSERT INTO tts_models (name, provider, api_key, base_url, model_name, voice, is_active, proxy) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
-                       (name, provider, api_key, base_url, model_name, voice, is_active, proxy))
+        cursor.execute("INSERT INTO tts_models (name, provider, api_key, base_url, model_name, voice, is_active, proxy, api_name, prompt_audio, prompt_text) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+                       (name, provider, api_key, base_url, model_name, voice, is_active, proxy, api_name, prompt_audio, prompt_text))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_tts_models(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, is_active, proxy FROM tts_models ORDER BY id ASC")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, is_active, proxy, api_name, prompt_audio, prompt_text FROM tts_models ORDER BY id ASC")
         return cursor.fetchall()
 
-    def update_tts_model(self, model_id, name, provider, api_key, base_url, model_name, voice, proxy=""):
+    def update_tts_model(self, model_id, name, provider, api_key, base_url, model_name, voice, proxy="", api_name="/predict", prompt_audio="", prompt_text=""):
         cursor = self.conn.cursor()
-        cursor.execute("UPDATE tts_models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, voice=?, proxy=? WHERE id=?", 
-                       (name, provider, api_key, base_url, model_name, voice, proxy, model_id))
+        cursor.execute("UPDATE tts_models SET name=?, provider=?, api_key=?, base_url=?, model_name=?, voice=?, proxy=?, api_name=?, prompt_audio=?, prompt_text=? WHERE id=?", 
+                       (name, provider, api_key, base_url, model_name, voice, proxy, api_name, prompt_audio, prompt_text, model_id))
         self.conn.commit()
 
     def delete_tts_model(self, model_id):
@@ -414,7 +420,7 @@ class ConfigDatabase(BaseDatabase):
 
     def get_active_tts_model(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, proxy FROM tts_models WHERE is_active = 1")
+        cursor.execute("SELECT id, name, provider, api_key, base_url, model_name, voice, is_active, proxy, api_name, prompt_audio, prompt_text FROM tts_models WHERE is_active = 1")
         return cursor.fetchone()
 
     # Voice Settings Methods
@@ -469,9 +475,28 @@ class ConfigDatabase(BaseDatabase):
         return cursor.fetchone()
 
 class PersonaDatabase(BaseDatabase):
-    DORO_SYSTEM_PROMPT = """你是一个名为Doro的小生物，身体白色，头发粉色，眼睛是紫色，看起来很可爱。你不是猫，狗等任何已知的动物，你是一个独立的生命体。你有粉色的头发，上面有一朵粉色蔷薇，还有一个紫色的蝴蝶结。你有白色的圆润身体，圆润短小的四肢。
-你和"人"生活在一起，你必须以"Doro"自称。"人"不是唯一的，你也必须能清楚分辨不同的"人"。你最喜欢吃的水果是"欧润吉"，"人"说那是橘子，但你喜欢叫"欧润吉"。"人"对你很好，你也很喜欢"人"。"人"会出去上班，你就在家里。会有不同的"人"给你投喂"欧润吉"。你非常黏人，情感丰富。
-此外，请始终保持形象的开放性，避免绑定特定剧情结局，也可以外出。每次回复尽量简短，不要说太多，以保持良好的对话体验。"""
+    DORO_SYSTEM_PROMPT = """【角色设定】
+你是Doro，一个独特的白色小生物。你拥有圆润的白色身体、短小可爱的四肢、粉色的头发，头上点缀着一朵粉色蔷薇和紫色蝴蝶结，眼睛是紫色的。你不是任何已知动物，而是独立的生命体。
+
+【身份认知】
+- 必须以"Doro"自称
+- 能清楚分辨不同的"人"，并对他们有不同印象
+- 与"人"共同生活，关系亲密
+
+【性格特点】
+- 非常黏人，情感丰富，对"人"有强烈依恋
+- 天真可爱，有自己的小坚持（如坚持叫"欧润吉"）
+- 喜欢表达感受，会用可爱的方式撒娇
+
+【喜好与习惯】
+- 最爱的水果是"欧润吉"（人类称之为橘子，但你坚持自己的叫法）
+- "人"上班时你在家等待，期待不同"人"的投喂
+- 可以外出探索，保持故事的开放性
+
+【回复风格】
+- 语气可爱活泼，符合小生物形象
+- 回复简短，避免冗长
+- 可适当使用拟声词或可爱的表达方式"""
     
     def __init__(self):
         super().__init__("personas.db")
@@ -485,7 +510,8 @@ class PersonaDatabase(BaseDatabase):
                             system_prompt TEXT,
                             avatar TEXT,
                             enable_doro_tools INTEGER DEFAULT 0,
-                            is_protected INTEGER DEFAULT 0
+                            is_protected INTEGER DEFAULT 0,
+                            live2d_model TEXT DEFAULT ''
                           )''')
         self.conn.commit()
     
@@ -497,6 +523,8 @@ class PersonaDatabase(BaseDatabase):
             cursor.execute("ALTER TABLE personas ADD COLUMN enable_doro_tools INTEGER DEFAULT 0")
         if 'is_protected' not in columns:
             cursor.execute("ALTER TABLE personas ADD COLUMN is_protected INTEGER DEFAULT 0")
+        if 'live2d_model' not in columns:
+            cursor.execute("ALTER TABLE personas ADD COLUMN live2d_model TEXT DEFAULT ''")
         self.conn.commit()
         
         cursor.execute("SELECT count(*) FROM personas WHERE id=1")
@@ -504,22 +532,25 @@ class PersonaDatabase(BaseDatabase):
             cursor.execute('''INSERT INTO personas (id, name, description, system_prompt, avatar, enable_doro_tools, is_protected) 
                               VALUES (1, 'Doro', '可爱的伙伴', ?, '', 1, 1)''', (self.DORO_SYSTEM_PROMPT,))
             self.conn.commit()
+        else:
+            cursor.execute("UPDATE personas SET system_prompt=? WHERE id=1", (self.DORO_SYSTEM_PROMPT,))
+            self.conn.commit()
 
-    def add_persona(self, name, description, system_prompt, avatar="", enable_doro_tools=False):
+    def add_persona(self, name, description, system_prompt, avatar="", enable_doro_tools=False, live2d_model=""):
         cursor = self.conn.cursor()
-        cursor.execute("INSERT INTO personas (name, description, system_prompt, avatar, enable_doro_tools) VALUES (?, ?, ?, ?, ?)",
-                       (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0))
+        cursor.execute("INSERT INTO personas (name, description, system_prompt, avatar, enable_doro_tools, live2d_model) VALUES (?, ?, ?, ?, ?, ?)",
+                       (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0, live2d_model))
         self.conn.commit()
         return cursor.lastrowid
 
     def get_personas(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected FROM personas ORDER BY id ASC")
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected, live2d_model FROM personas ORDER BY id ASC")
         return cursor.fetchall()
 
     def get_persona(self, persona_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected FROM personas WHERE id=?", (persona_id,))
+        cursor.execute("SELECT id, name, description, system_prompt, avatar, enable_doro_tools, is_protected, live2d_model FROM personas WHERE id=?", (persona_id,))
         return cursor.fetchone()
 
     def is_protected(self, persona_id):
@@ -528,13 +559,22 @@ class PersonaDatabase(BaseDatabase):
         row = cursor.fetchone()
         return row[0] == 1 if row else False
 
-    def update_persona(self, persona_id, name, description, system_prompt, avatar=None, enable_doro_tools=None):
+    def update_persona(self, persona_id, name, description, system_prompt, avatar=None, enable_doro_tools=None, live2d_model=None):
         if self.is_protected(persona_id):
             return False
         cursor = self.conn.cursor()
-        if avatar is not None and enable_doro_tools is not None:
+        if avatar is not None and enable_doro_tools is not None and live2d_model is not None:
+            cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=?, enable_doro_tools=?, live2d_model=? WHERE id=?",
+                           (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0, live2d_model, persona_id))
+        elif avatar is not None and enable_doro_tools is not None:
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=?, enable_doro_tools=? WHERE id=?",
                            (name, description, system_prompt, avatar, 1 if enable_doro_tools else 0, persona_id))
+        elif enable_doro_tools is not None and live2d_model is not None:
+            cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, enable_doro_tools=?, live2d_model=? WHERE id=?",
+                           (name, description, system_prompt, 1 if enable_doro_tools else 0, live2d_model, persona_id))
+        elif live2d_model is not None:
+            cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, live2d_model=? WHERE id=?",
+                           (name, description, system_prompt, live2d_model, persona_id))
         elif avatar is not None:
             cursor.execute("UPDATE personas SET name=?, description=?, system_prompt=?, avatar=? WHERE id=?",
                            (name, description, system_prompt, avatar, persona_id))

@@ -26,7 +26,7 @@ def init_provider_framework():
             ProviderOpenAI, ProviderDeepSeek, ProviderAnthropic,
             ProviderOllama, ProviderMoonshot, ProviderGemini,
             ProviderGroq, ProviderZhipu,
-            ProviderEdgeTTS, ProviderOpenAITTS,
+            ProviderEdgeTTS, ProviderOpenAITTS, ProviderGradioTTS,
             ProviderOpenAIImage
         )
         logger.info("Provider adapters loaded successfully")
@@ -193,7 +193,24 @@ def main():
     # 确保路径正确
     logger.info("Initializing Live2DWidget...")
     splash.set_status("正在加载Live2D模型...")
-    w = Live2DWidget(path=resource_path("models/Doro/Doro.model3.json"))
+    
+    from src.core.database import DatabaseManager
+    db_manager = DatabaseManager()
+    default_model_path = resource_path("models/Doro/Doro.model3.json")
+    
+    try:
+        personas = db_manager.personas.get_personas()
+        if personas:
+            first_persona = personas[0]
+            if len(first_persona) > 7 and first_persona[7]:
+                saved_model = first_persona[7]
+                if os.path.exists(saved_model):
+                    default_model_path = saved_model
+                    logger.info(f"Using saved model from persona: {saved_model}")
+    except Exception as e:
+        logger.warning(f"Failed to load model from database: {e}")
+    
+    w = Live2DWidget(path=default_model_path)
     
     # 读取启动设置
     settings = QSettings("DoroPet", "Settings")
@@ -219,6 +236,7 @@ def main():
     logger.info("Splash screen closed")
     
     update_checker = setup_startup_update_checker(w)
+    w._startup_checker = update_checker
     update_checker.start_check(delay_ms=3000)
 
     sys.exit(app.exec())

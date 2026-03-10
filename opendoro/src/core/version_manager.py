@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 from src.core.logger import logger
 
 
-__version__ = "3.2.2"
+__version__ = "3.2.3"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"
@@ -56,8 +56,11 @@ class VersionInfo:
     
     @property
     def version_tuple(self) -> tuple:
-        parts = self.version.lstrip('v').split('.')
-        return tuple(map(int, parts))
+        try:
+            parts = self.version.lstrip('v').split('.')
+            return tuple(map(int, parts))
+        except (ValueError, AttributeError):
+            return (0, 0, 0)
     
     @property
     def file_size_mb(self) -> float:
@@ -75,22 +78,25 @@ class VersionInfo:
 
 
 def compare_versions(v1: str, v2: str) -> int:
-    p1 = v1.lstrip('v').split('.')
-    p2 = v2.lstrip('v').split('.')
-    t1 = tuple(map(int, p1))
-    t2 = tuple(map(int, p2))
-    
-    for a, b in zip(t1, t2):
-        if a > b:
+    try:
+        p1 = v1.lstrip('v').split('.')
+        p2 = v2.lstrip('v').split('.')
+        t1 = tuple(map(int, p1))
+        t2 = tuple(map(int, p2))
+        
+        for a, b in zip(t1, t2):
+            if a > b:
+                return 1
+            elif a < b:
+                return -1
+        
+        if len(t1) > len(t2):
             return 1
-        elif a < b:
+        elif len(t1) < len(t2):
             return -1
-    
-    if len(t1) > len(t2):
-        return 1
-    elif len(t1) < len(t2):
-        return -1
-    return 0
+        return 0
+    except (ValueError, AttributeError):
+        return 0
 
 
 def parse_release_type_from_tag(tag: str) -> ReleaseType:
@@ -195,15 +201,42 @@ class GiteeWebCrawlerWorker(QThread):
     
     def _parse_releases_html(self, html: str) -> List[VersionInfo]:
         versions = []
+        seen_versions = set()
         soup = BeautifulSoup(html, 'html.parser')
         
-        release_items = soup.select('.release-item')
+        release_items = soup.select('.release-list-item, .release-item, .release__item')
         
         if not release_items:
             release_items = soup.select('div.release')
         
         if not release_items:
-            release_items = soup.find_all('div', class_=re.compile(r'release', re.I))
+            release_items = soup.find_all('div', class_=re.compile(r'release[-_]?item|release[-_]?entry', re.I))
+        
+        if not release_items:
+            all_links = soup.find_all('a', href=re.compile(r'/releases/'))
+            for link in all_links:
+                href = link.get('href', '')
+                version_match = re.search(r'/releases/(v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+)?)', href)
+                if version_match:
+                    version = version_match.group(1).lstrip('v')
+                    if version not in seen_versions and re.match(r'^\d+\.\d+\.\d+', version):
+                        seen_versions.add(version)
+                        parent = link.find_parent('div', class_=re.compile(r'release|version|item', re.I))
+                        changelog = ""
+                        release_date = ""
+                        if parent:
+                            changelog = self._extract_changelog_from_element(parent)
+                            release_date = self._extract_date_from_element(parent)
+                        versions.append(VersionInfo(
+                            version=version,
+                            release_type=parse_release_type_from_tag(version),
+                            release_date=release_date,
+                            changelog=changelog or "暂无更新说明",
+                            download_url=f"{GITEE_RELEASES_URL}/{version}",
+                            file_size=0,
+                            asset_name=""
+                        ))
+            return versions
         
         logger.debug(f"[WebCrawler] Found {len(release_items)} release items")
         
@@ -212,13 +245,73 @@ class GiteeWebCrawlerWorker(QThread):
                 break
             try:
                 version_info = self._parse_single_release(item)
-                if version_info:
+                if version_info and version_info.version not in seen_versions:
+                    seen_versions.add(version_info.version)
                     versions.append(version_info)
             except Exception as e:
                 logger.debug(f"[WebCrawler] Failed to parse release item: {e}")
                 continue
         
         return versions
+    
+    def _extract_changelog_from_element(self, element) -> str:
+        changelog_selectors = [
+            '.markdown-body', '.release-body', '.description', 
+            '.content', '.release-content', '.notes'
+        ]
+        for selector in changelog_selectors:
+            desc_elem = element.select_one(selector)
+            if desc_elem:
+                text = desc_elem.get_text('\n', strip=True)
+                text = re.sub(r'\n{3,}', '\n\n', text)
+                return text[:1000]
+        
+        text_content = element.get_text('\n', strip=True)
+        lines = text_content.split('\n')
+        content_lines = []
+        skip_patterns = [
+            r'^\s*$', r'^下载', r'^Assets', r'^\d+\s*(KB|MB|GB|B)',
+            r'^最后提交', r'^提交', r'^\.zip', r'^http',
+            r'^Source code', r'^\(', r'^\)'
+        ]
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            if any(re.match(p, line, re.I) for p in skip_patterns):
+                continue
+            if re.match(r'^v?\d+\.\d+\.\d+', line):
+                continue
+            content_lines.append(line)
+            if len(content_lines) >= 10:
+                break
+        
+        return '\n'.join(content_lines)[:1000] if content_lines else ""
+    
+    def _extract_date_from_element(self, element) -> str:
+        date_selectors = ['time', '.date', '.release-date', '.time']
+        for selector in date_selectors:
+            date_elem = element.select_one(selector)
+            if date_elem:
+                date_text = date_elem.get_text(strip=True)
+                date_match = re.search(r'(\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?|\d{1,2}[-/]\d{1,2}[-/]\d{4}|\d{4}-\d{2}-\d{2})', date_text)
+                if date_match:
+                    return date_match.group(1)
+                if date_text and len(date_text) < 30:
+                    return date_text
+        
+        text = element.get_text()
+        date_patterns = [
+            r'(\d{4}-\d{2}-\d{2})',
+            r'(\d{4}/\d{2}/\d{2})',
+            r'(\d{4}年\d{1,2}月\d{1,2}日)'
+        ]
+        for pattern in date_patterns:
+            match = re.search(pattern, text)
+            if match:
+                return match.group(1)
+        
+        return ""
     
     def _parse_single_release(self, item) -> Optional[VersionInfo]:
         version = ""
@@ -228,27 +321,33 @@ class GiteeWebCrawlerWorker(QThread):
         asset_name = ""
         release_date = ""
         
-        title_elem = item.select_one('.release-title a, .title a, h3 a, a[href*="/releases/"]')
+        title_elem = item.select_one('.release-title a, .title a, h3 a, a[href*="/releases/"], .release__title a, .release-name')
         if title_elem:
             version = title_elem.get_text(strip=True)
         
         if not version:
-            version_elem = item.select_one('.release-tag, .tag, .version')
+            version_elem = item.select_one('.release-tag, .tag, .version, .release__tag')
             if version_elem:
                 version = version_elem.get_text(strip=True)
+        
+        if not version:
+            link_elem = item.find('a', href=re.compile(r'/releases/'))
+            if link_elem:
+                href = link_elem.get('href', '')
+                version_match = re.search(r'/releases/(v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+)?)', href)
+                if version_match:
+                    version = version_match.group(1)
         
         if not version:
             return None
         
         version = version.lstrip('v')
         
-        desc_elem = item.select_one('.release-body, .description, .content, .markdown-body')
-        if desc_elem:
-            changelog = desc_elem.get_text(strip=True)
+        if not re.match(r'^\d+\.\d+\.\d+', version):
+            return None
         
-        date_elem = item.select_one('.release-date, .date, time')
-        if date_elem:
-            release_date = date_elem.get_text(strip=True)
+        changelog = self._extract_changelog_from_element(item)
+        release_date = self._extract_date_from_element(item)
         
         download_link = item.select_one('a[href$=".zip"], a[href*="download"], a.btn-download')
         if download_link:
@@ -292,25 +391,75 @@ class GiteeWebCrawlerWorker(QThread):
     
     def _fallback_parse(self, html: str) -> List[VersionInfo]:
         versions = []
-        soup = BeautifulSoup(html, 'html.parser')
-        all_text = soup.get_text()
-        
-        version_pattern = r'v?(\d+\.\d+\.\d+(?:-[a-zA-Z]+)?)'
-        matches = re.findall(version_pattern, all_text)
-        
         seen_versions = set()
-        for v in matches:
-            if v not in seen_versions:
-                seen_versions.add(v)
-                versions.append(VersionInfo(
-                    version=v,
-                    release_type=parse_release_type_from_tag(v),
-                    release_date="",
-                    changelog="请访问 Gitee 查看详细更新内容",
-                    download_url=f"{GITEE_RELEASES_URL}/{v}",
-                    file_size=0,
-                    asset_name=""
-                ))
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        release_sections = soup.find_all(['div', 'section', 'article'], class_=re.compile(r'release|version|update', re.I))
+        
+        for section in release_sections:
+            version = ""
+            
+            version_elem = section.find(['h1', 'h2', 'h3', 'h4', 'a', 'span'], string=re.compile(r'v?\d+\.\d+\.\d+', re.I))
+            if version_elem:
+                version_match = re.search(r'v?(\d+\.\d+\.\d+(?:-[a-zA-Z]+)?)', version_elem.get_text(), re.I)
+                if version_match:
+                    version = version_match.group(1)
+            
+            if not version:
+                link_elem = section.find('a', href=re.compile(r'/releases/'))
+                if link_elem:
+                    href = link_elem.get('href', '')
+                    version_match = re.search(r'/releases/(v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+)?)', href)
+                    if version_match:
+                        version = version_match.group(1).lstrip('v')
+            
+            if not version:
+                continue
+            
+            if version in seen_versions:
+                continue
+            seen_versions.add(version)
+            
+            changelog = self._extract_changelog_from_element(section)
+            release_date = self._extract_date_from_element(section)
+            
+            download_url = ""
+            download_link = section.find('a', href=re.compile(r'\.zip$|download', re.I))
+            if download_link:
+                href = download_link.get('href', '')
+                if href.startswith('/'):
+                    download_url = GITEE_BASE_URL + href
+                elif href.startswith('http'):
+                    download_url = href
+            
+            versions.append(VersionInfo(
+                version=version,
+                release_type=parse_release_type_from_tag(version),
+                release_date=release_date,
+                changelog=changelog or "暂无更新说明",
+                download_url=download_url or f"{GITEE_RELEASES_URL}/{version}",
+                file_size=0,
+                asset_name=""
+            ))
+        
+        if not versions:
+            all_links = soup.find_all('a', href=re.compile(r'/releases/'))
+            for link in all_links:
+                href = link.get('href', '')
+                version_match = re.search(r'/releases/(v?\d+\.\d+\.\d+(?:-[a-zA-Z0-9]+)?)', href)
+                if version_match:
+                    version = version_match.group(1).lstrip('v')
+                    if version not in seen_versions and re.match(r'^\d+\.\d+\.\d+', version):
+                        seen_versions.add(version)
+                        versions.append(VersionInfo(
+                            version=version,
+                            release_type=parse_release_type_from_tag(version),
+                            release_date="",
+                            changelog="暂无更新说明",
+                            download_url=f"{GITEE_RELEASES_URL}/{version}",
+                            file_size=0,
+                            asset_name=""
+                        ))
         
         logger.debug(f"[WebCrawler] Fallback parse found {len(versions)} versions")
         return versions
