@@ -11,5 +11,5 @@ if not exist "runtime\pythonw.exe" (
 set "QT_PLUGIN_PATH=%~dp0runtime\Lib\site-packages\PyQt5\Qt5\plugins"
 
 echo Starting DoroPet in background...
-start "" "runtime\pythonw.exe" "main.py"
+start "" "runtime\pythonw.exe" "main.py" --create-shortcut
 exit

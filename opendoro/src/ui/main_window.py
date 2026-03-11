@@ -208,8 +208,11 @@ class MainWindow(FluentWindow):
             widget._startup_checker.set_main_window(self)
         
         if hasattr(self, 'pet_status_interface') and hasattr(self.pet_status_interface, 'music_player_card'):
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(1500, self.pet_status_interface.music_player_card.auto_play)
+            from PyQt5.QtCore import QTimer, QSettings
+            settings = QSettings("DoroPet", "Settings")
+            play_music_on_startup = settings.value("play_music_on_startup", False, type=bool)
+            if play_music_on_startup:
+                QTimer.singleShot(1500, self.pet_status_interface.music_player_card.auto_play)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QSettings
 from qfluentwidgets import (ScrollArea, CheckBox, Slider, TitleLabel, 
                             StrongBodyLabel, CaptionLabel, PushButton, FluentIcon, 
                             isDarkTheme, LineEdit, Pivot, CardWidget, BodyLabel,
-                            ComboBox, SpinBox)
+                            ComboBox, SpinBox, InfoBar)
 from src.core.logger import logger
 
 
@@ -42,11 +42,13 @@ class GeneralSettingsPage(QWidget):
         
         self.check_autorun = CheckBox("开机自动启动", self)
         self.check_hide_pet_on_startup = CheckBox("启动时隐藏桌宠 (仅显示主界面)", self)
+        self.check_play_music_on_startup = CheckBox("启动后播放音乐", self)
         self.check_mouse_interact = CheckBox("启用鼠标交互 (取消勾选以锁定)", self)
         self.check_mouse_interact.setChecked(True)
         
         card.addWidget(self.check_autorun)
         card.addWidget(self.check_hide_pet_on_startup)
+        card.addWidget(self.check_play_music_on_startup)
         card.addWidget(self.check_mouse_interact)
         
         layout.addWidget(card)
@@ -74,10 +76,46 @@ class GeneralSettingsPage(QWidget):
         cache_card.addLayout(btn_layout)
         
         layout.addWidget(cache_card)
+        
+        shortcut_card = SettingCard("快捷方式", self)
+        
+        shortcut_info_layout = QHBoxLayout()
+        shortcut_info_label = BodyLabel("在桌面创建 DoroPet 快捷方式", self)
+        shortcut_info_layout.addWidget(shortcut_info_label)
+        shortcut_info_layout.addStretch()
+        shortcut_card.addLayout(shortcut_info_layout)
+        
+        self.btn_create_shortcut = PushButton(FluentIcon.SHARE, "创建桌面快捷方式", self)
+        self.btn_create_shortcut.setFixedWidth(160)
+        
+        btn_shortcut_layout = QHBoxLayout()
+        btn_shortcut_layout.addStretch()
+        btn_shortcut_layout.addWidget(self.btn_create_shortcut)
+        shortcut_card.addLayout(btn_shortcut_layout)
+        
+        layout.addWidget(shortcut_card)
         layout.addStretch()
         
         self.btn_clear_tts_cache.clicked.connect(self._clear_tts_cache)
+        self.btn_create_shortcut.clicked.connect(self._create_desktop_shortcut)
         self._update_cache_size()
+    
+    def _create_desktop_shortcut(self):
+        from src.core.shortcut_utils import create_desktop_shortcut
+        
+        success, message = create_desktop_shortcut(replace_existing=True)
+        if success:
+            InfoBar.success(
+                "创建成功",
+                message,
+                duration=3000
+            )
+        else:
+            InfoBar.error(
+                "创建失败",
+                message,
+                duration=3000
+            )
         
     def _get_tts_cache_dir(self):
         import os
@@ -414,6 +452,7 @@ class SettingsInterface(ScrollArea):
     def connect_signals(self):
         self.general_page.check_autorun.stateChanged.connect(self.on_autorun_changed)
         self.general_page.check_hide_pet_on_startup.stateChanged.connect(self.on_hide_pet_on_startup_changed)
+        self.general_page.check_play_music_on_startup.stateChanged.connect(self.on_play_music_on_startup_changed)
         self.general_page.check_mouse_interact.stateChanged.connect(self.on_mouse_interact_changed)
         
         self.display_page.check_show_pet_status.stateChanged.connect(self.on_show_pet_status_changed)
@@ -567,6 +606,9 @@ class SettingsInterface(ScrollArea):
     def on_hide_pet_on_startup_changed(self, checked):
         self.settings.setValue("hide_pet_on_startup", checked)
 
+    def on_play_music_on_startup_changed(self, checked):
+        self.settings.setValue("play_music_on_startup", checked)
+
     def load_settings(self):
         scale = self.settings.value("scale", 100, type=int)
         bubble_duration = self.settings.value("bubble_duration", 3000, type=int)
@@ -574,6 +616,7 @@ class SettingsInterface(ScrollArea):
         mouse_interact = self.settings.value("mouse_interact", True, type=bool)
         autorun = self.settings.value("autorun", False, type=bool)
         hide_pet_on_startup = self.settings.value("hide_pet_on_startup", False, type=bool)
+        play_music_on_startup = self.settings.value("play_music_on_startup", False, type=bool)
         inject_time = self.settings.value("inject_time", False, type=bool)
         expression_response = self.settings.value("enable_expression_response", True, type=bool)
         llm_max_tokens = self.settings.value("llm_max_tokens", 8192, type=int)
@@ -588,6 +631,7 @@ class SettingsInterface(ScrollArea):
         
         self.general_page.check_autorun.setChecked(autorun)
         self.general_page.check_hide_pet_on_startup.setChecked(hide_pet_on_startup)
+        self.general_page.check_play_music_on_startup.setChecked(play_music_on_startup)
         self.general_page.check_mouse_interact.setChecked(mouse_interact)
         
         self.display_page.check_show_pet_status.setChecked(show_pet_status)

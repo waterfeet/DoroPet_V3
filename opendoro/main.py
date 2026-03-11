@@ -149,6 +149,20 @@ def show_update_dialog(widget, version_info, update_checker):
     dialog.show()
 
 def main():
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(description='DoroPet Desktop Pet')
+    parser.add_argument('--create-shortcut', action='store_true', help='创建桌面快捷方式')
+    args = parser.parse_args()
+    
+    # 如果指定了创建快捷方式参数，执行创建操作
+    if args.create_shortcut:
+        from src.core.shortcut_utils import create_desktop_shortcut
+        success, message = create_desktop_shortcut(replace_existing=True)
+        logger.info(f"Shortcut creation: {message}")
+        # 可以选择在这里退出，或者继续启动程序
+    
     app = QApplication(sys.argv)
     # 显示启动画面（立即显示，让用户知道程序正在启动）
     splash = SplashScreen()

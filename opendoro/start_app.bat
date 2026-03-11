@@ -12,7 +12,7 @@ set "QT_PLUGIN_PATH=%~dp0runtime\Lib\site-packages\PyQt5\Qt5\plugins"
 
 echo Starting DoroPet...
 :: Using python.exe to ensure console logs are captured by your LogInterface
-"runtime\python.exe" "main.py"
+"runtime\python.exe" "main.py" --create-shortcut
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo Program exited with error code %ERRORLEVEL%.
