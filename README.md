@@ -49,16 +49,16 @@
     <td align="center"><b>💬 AI 对话</b></td>
   </tr>
   <tr>
-    <td><img src="data/resourse/img/doro.png" alt="桌面宠物" width="400"/></td>
-    <td><img src="data/resourse/img/ai会话.png" alt="AI对话" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/doro.png" alt="桌面宠物" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/ai会话.png" alt="AI对话" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>📊 宠物状态</b></td>
     <td align="center"><b>⚙️ 设置界面</b></td>
   </tr>
   <tr>
-    <td><img src="data/resourse/img/doro状态.png" alt="宠物状态" width="400"/></td>
-    <td><img src="https://via.placeholder.com/400x250?text=设置界面" alt="设置界面" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/doro状态.png" alt="宠物状态" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/api设置.png" alt="设置界面" width="400"/></td>
   </tr>
 </table>
 

@@ -49,16 +49,16 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
     <td align="center"><b>💬 AI Chat</b></td>
   </tr>
   <tr>
-    <td><img src="data/resourse/img/doro.png" alt="Desktop Pet" width="400"/></td>
-    <td><img src="data/resourse/img/ai会话.png" alt="AI Chat" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/doro.png" alt="Desktop Pet" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/ai会话.png" alt="AI Chat" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>📊 Pet Status</b></td>
     <td align="center"><b>⚙️ Settings</b></td>
   </tr>
   <tr>
-    <td><img src="data/resourse/img/doro状态.png" alt="Pet Status" width="400"/></td>
-    <td><img src="https://via.placeholder.com/400x250?text=Settings" alt="Settings" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/doro状态.png" alt="Pet Status" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/api设置.png" alt="Settings" width="400"/></td>
   </tr>
 </table>
 
