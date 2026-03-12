@@ -1,14 +1,14 @@
 <div align="center">
 
-# 🐱 DoroPet
+# DoroPet
 
 ### ✨ 你的智能桌面伴侣，让工作不再孤单
 
-[![Version](https://img.shields.io/badge/version-3.2.4-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
-[![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![QQ Group](https://img.shields.io/badge/QQ群-695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
+[!\[Version\](https://img.shields.io/badge/version-3.2.5-blue.svg null)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[!\[Python\](https://img.shields.io/badge/Python-3.12+-green.svg null)](https://www.python.org/)
+[!\[License\](https://img.shields.io/badge/license-MIT-orange.svg null)](LICENSE)
+[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](https://www.microsoft.com/windows)
+[!\[QQ Group\](https://img.shields.io/badge/QQ群-695753609-blue.svg null)](https://qm.qq.com/q/MbaBoCevaC)
 
 **一款集 Live2D 桌宠、AI 对话、语音交互、养成系统于一体的桌面应用**
 
@@ -301,10 +301,12 @@ opendoro/
 <summary><b>Q: 安装环境失败？</b></summary>
 
 A: 请检查以下几点：
+
 - **路径问题**：确保安装路径中不包含中文、空格或特殊字符（如 `D:\软件\DoroPet` ❌ → `D:\DoroPet` ✅）
 - 网络连接是否正常
 - 是否被杀毒软件或防火墙拦截
 - 尝试以管理员身份运行安装脚本
+
 </details>
 
 <details>

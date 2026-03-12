@@ -159,7 +159,7 @@ def main():
     # 如果指定了创建快捷方式参数，执行创建操作
     if args.create_shortcut:
         from src.core.shortcut_utils import create_desktop_shortcut
-        success, message = create_desktop_shortcut(replace_existing=True)
+        success, message = create_desktop_shortcut(replace_existing=False)
         logger.info(f"Shortcut creation: {message}")
         # 可以选择在这里退出，或者继续启动程序
     

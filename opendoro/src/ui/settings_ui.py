@@ -103,7 +103,7 @@ class GeneralSettingsPage(QWidget):
     def _create_desktop_shortcut(self):
         from src.core.shortcut_utils import create_desktop_shortcut
         
-        success, message = create_desktop_shortcut(replace_existing=True)
+        success, message = create_desktop_shortcut(replace_existing=False)
         if success:
             InfoBar.success(
                 "创建成功",

@@ -138,6 +138,7 @@ class Live2DWidget(QOpenGLWidget):
         self.is_locked = False
 
         self.is_mirrored = False
+        self.edge_docking_enabled = True
         
         self._border_overlay = QWidget(self)
         self._border_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
@@ -426,6 +427,15 @@ class Live2DWidget(QOpenGLWidget):
         self.model.SetScaleX(scale_x)
         self.update()
 
+    def toggle_edge_docking(self, checked: bool):
+        """切换边缘吸附状态"""
+        self.edge_docking_enabled = checked
+        if not checked and hasattr(self, "is_docked") and self.is_docked:
+            if hasattr(self, "normal_geometry"):
+                self.animate_move(self.normal_geometry.x(), self.normal_geometry.y())
+            self.is_docked = None
+            self._apply_dock_rotation(None)
+
     def timerEvent(self, event: QTimerEvent | None):
         if event.timerId() == self.refresh:
             if hasattr(self, "is_docked") and self.is_docked:
@@ -467,6 +477,8 @@ class Live2DWidget(QOpenGLWidget):
             self.update()
 
     def talk(self, text: str, duration: int = None, force: bool = False):
+        if not self.isVisible():
+            return
         if not force:
             if hasattr(self, "is_docked") and self.is_docked:
                 return
@@ -675,6 +687,12 @@ class Live2DWidget(QOpenGLWidget):
         action_wander.setChecked(self.is_random_wandering())
         action_wander.triggered.connect(lambda: self.toggle_random_wander())
         menu.addAction(action_wander)
+        
+        action_edge_dock = QAction("边缘吸附", self)
+        action_edge_dock.setCheckable(True)
+        action_edge_dock.setChecked(self.edge_docking_enabled)
+        action_edge_dock.triggered.connect(self.toggle_edge_docking)
+        menu.addAction(action_edge_dock)
         
         menu.addSeparator()
 
@@ -940,15 +958,21 @@ class Live2DWidget(QOpenGLWidget):
 
     def check_edge_docking(self):
         """检查并执行四边边缘吸附逻辑"""
+        if not self.edge_docking_enabled:
+            return
+        if self.is_mouse_chasing() or self.is_random_wandering():
+            return
+        
         screen = QApplication.primaryScreen()
         screen_geo = screen.availableGeometry()
         
         rect = self.geometry()
         x, y, w, h = rect.x(), rect.y(), rect.width(), rect.height()
         
-        threshold = 30
+        threshold = max(w, h) // 3
         
-        peek_size = min(w, h) // 3
+        peek_w = w // 3
+        peek_h = h // 3
         
         self.is_docked = None
         self.normal_geometry = rect
@@ -962,28 +986,29 @@ class Live2DWidget(QOpenGLWidget):
         
         if min_dist < threshold:
             if min_dist == dist_right:
-                target_x = screen_geo.x() + screen_geo.width() - peek_size
+                target_x = screen_geo.x() + screen_geo.width() - peek_w
+                
                 self.animate_move(target_x, y)
                 self.is_docked = "right"
-                self.dock_hidden_offset = w - peek_size
+                self.dock_hidden_offset = w - peek_w
                 self._apply_dock_rotation("right")
             elif min_dist == dist_left:
-                target_x = screen_geo.x() - w + peek_size
+                target_x = screen_geo.x() - w + peek_w
                 self.animate_move(target_x, y)
                 self.is_docked = "left"
-                self.dock_hidden_offset = w - peek_size
+                self.dock_hidden_offset = w - peek_w
                 self._apply_dock_rotation("left")
             elif min_dist == dist_bottom:
-                target_y = screen_geo.y() + screen_geo.height() - peek_size
+                target_y = screen_geo.y() + screen_geo.height() - peek_h
                 self.animate_move(x, target_y)
                 self.is_docked = "bottom"
-                self.dock_hidden_offset = h - peek_size
+                self.dock_hidden_offset = h - peek_h
                 self._apply_dock_rotation("bottom")
             elif min_dist == dist_top:
-                target_y = screen_geo.y() - h + peek_size
+                target_y = screen_geo.y() - h + peek_h
                 self.animate_move(x, target_y)
                 self.is_docked = "top"
-                self.dock_hidden_offset = h - peek_size
+                self.dock_hidden_offset = h - peek_h
                 self._apply_dock_rotation("top")
         else:
             self._apply_dock_rotation(None)
@@ -1051,19 +1076,20 @@ class Live2DWidget(QOpenGLWidget):
                 screen = QApplication.primaryScreen()
             screen_geo = screen.availableGeometry()
             
-            peek_size = min(self.width(), self.height()) // 3
+            peek_w = self.width() // 3
+            peek_h = self.height() // 3
             
             if self.is_docked == "right":
-                target_x = screen_geo.x() + screen_geo.width() - peek_size
+                target_x = screen_geo.x() + screen_geo.width() - peek_w
                 self.animate_move(target_x, self.y())
             elif self.is_docked == "left":
-                target_x = screen_geo.x() - self.width() + peek_size
+                target_x = screen_geo.x() - self.width() + peek_w
                 self.animate_move(target_x, self.y())
             elif self.is_docked == "bottom":
-                target_y = screen_geo.y() + screen_geo.height() - peek_size
+                target_y = screen_geo.y() + screen_geo.height() - peek_h
                 self.animate_move(self.x(), target_y)
             elif self.is_docked == "top":
-                target_y = screen_geo.y() - self.height() + peek_size
+                target_y = screen_geo.y() - self.height() + peek_h
                 self.animate_move(self.x(), target_y)
             
             if hasattr(self, 'model'):

@@ -1,14 +1,14 @@
 <div align="center">
 
-# 🐱 DoroPet
+# DoroPet
 
 ### ✨ Your Intelligent Desktop Companion
 
-[![Version](https://img.shields.io/badge/version-3.2.4-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
-[![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
-[![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![QQ Group](https://img.shields.io/badge/QQ_Group-695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
+[!\[Version\](https://img.shields.io/badge/version-3.2.5-blue.svg null)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[!\[Python\](https://img.shields.io/badge/Python-3.12+-green.svg null)](https://www.python.org/)
+[!\[License\](https://img.shields.io/badge/license-MIT-orange.svg null)](LICENSE)
+[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](https://www.microsoft.com/windows)
+[!\[QQ Group\](https://img.shields.io/badge/QQ\_Group-695753609-blue.svg null)](https://qm.qq.com/q/MbaBoCevaC)
 
 **A desktop application featuring Live2D pets, AI chat, voice interaction, and pet simulation system**
 
@@ -18,7 +18,7 @@
 
 </div>
 
----
+***
 
 ## 🎯 Introduction
 
@@ -28,18 +28,18 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 
 ### 🌟 Why Choose DoroPet?
 
-| Feature | Description |
-|---------|-------------|
+| Feature                         | Description                                                                                  |
+| ------------------------------- | -------------------------------------------------------------------------------------------- |
 | 🎭 **Live2D Dynamic Character** | Smooth Live2D model rendering with expression switching, motion playback, and mouse tracking |
-| 🤖 **Multi-Model AI Chat** | Supports 10+ AI models including OpenAI, DeepSeek, Claude, Gemini, Ollama, and more |
-| 🎙️ **Voice Interaction** | Speech recognition + Text-to-Speech for natural conversations |
-| 🎮 **Pet Simulation System** | Four attributes: Hunger, Mood, Cleanliness, and Energy for an immersive experience |
-| 🔌 **Skill Extensions** | Built-in skill system with customizable AI capabilities |
-| 🎨 **Theme Switching** | Light and dark themes to suit your preference |
-| 📌 **Edge Docking** | Pet can dock to screen edges and auto-hide/peek |
-| 🔄 **Auto Update** | Built-in version management for one-click updates |
+| 🤖 **Multi-Model AI Chat**      | Supports 10+ AI models including OpenAI, DeepSeek, Claude, Gemini, Ollama, and more          |
+| 🎙️ **Voice Interaction**       | Speech recognition + Text-to-Speech for natural conversations                                |
+| 🎮 **Pet Simulation System**    | Four attributes: Hunger, Mood, Cleanliness, and Energy for an immersive experience           |
+| 🔌 **Skill Extensions**         | Built-in skill system with customizable AI capabilities                                      |
+| 🎨 **Theme Switching**          | Light and dark themes to suit your preference                                                |
+| 📌 **Edge Docking**             | Pet can dock to screen edges and auto-hide/peek                                              |
+| 🔄 **Auto Update**              | Built-in version management for one-click updates                                            |
 
----
+***
 
 ## 📸 Screenshots
 
@@ -62,7 +62,7 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
   </tr>
 </table>
 
----
+***
 
 ## 🚀 Quick Start
 
@@ -78,23 +78,20 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 #### Method 1: Download Release (Recommended)
 
 1. **Download Latest Version**
-   
+
    Visit the [Releases Page](https://gitee.com/waterfeet/DoroPet_V3/releases) to download the latest ZIP package
-
 2. **Extract Files**
-   
-   Extract the downloaded ZIP file to any directory (avoid Chinese characters or special characters in the path)
 
+   Extract the downloaded ZIP file to any directory (avoid Chinese characters or special characters in the path)
 3. **Run Installation Script**
-   
+
    Double-click `install_env.bat`, the script will automatically:
    - Download Python 3.12 embedded version
    - Install pip package manager
    - Install all dependencies
    - Configure the runtime environment
-
 4. **Launch Application**
-   
+
    The app will start automatically after installation, or double-click `start_app.bat` to launch manually
 
 #### Method 2: Build from Source (Developers)
@@ -102,18 +99,15 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 For users who want to contribute or customize the application.
 
 1. **Ensure Python 3.12+ is installed**
-
 2. **Clone the repository**
    ```bash
    git clone https://gitee.com/waterfeet/DoroPet_V3.git
    cd DoroPet_V3
    ```
-
 3. **Install dependencies**
    ```bash
    pip install -r requirements.txt
    ```
-
 4. **Launch application**
    ```bash
    python main.py
@@ -127,36 +121,36 @@ After launching for the first time:
 2. **Select Model** - Choose your preferred AI model from the dropdown
 3. **Start Chatting** - Click the pet or go to "AI Chat" page to interact
 
----
+***
 
 ## ✨ Features
 
 ### 🎭 Live2D Desktop Pet
 
-| Feature | Description |
-|---------|-------------|
+| Feature               | Description                                                   |
+| --------------------- | ------------------------------------------------------------- |
 | **Expression System** | 10+ expressions including happy, confused, sleepy, cool, etc. |
-| **Motion System** | Supports idle, jump, touch, and other motions |
-| **Mouse Tracking** | Pet's eyes follow your mouse cursor |
-| **Chase Mode** | Pet chases your mouse cursor around the screen |
-| **Random Wander** | Pet walks randomly on the screen |
-| **Edge Docking** | Automatically docks and hides when dragged to screen edges |
-| **Scroll Resize** | Use mouse wheel to resize the pet |
+| **Motion System**     | Supports idle, jump, touch, and other motions                 |
+| **Mouse Tracking**    | Pet's eyes follow your mouse cursor                           |
+| **Chase Mode**        | Pet chases your mouse cursor around the screen                |
+| **Random Wander**     | Pet walks randomly on the screen                              |
+| **Edge Docking**      | Automatically docks and hides when dragged to screen edges    |
+| **Scroll Resize**     | Use mouse wheel to resize the pet                             |
 
 ### 🤖 AI Chat System
 
 Supports multiple mainstream AI model providers:
 
-| Provider | Models | Features |
-|----------|--------|----------|
-| **OpenAI** | GPT-4, GPT-3.5 | Industry leader, comprehensive capabilities |
-| **DeepSeek** | DeepSeek-Chat | Excellent value, Chinese optimized |
-| **Anthropic** | Claude 3 | Safe and reliable, great for long texts |
-| **Google Gemini** | Gemini Pro | Multimodal support |
-| **Groq** | Llama, Mixtral | Ultra-fast inference |
-| **Moonshot** | Kimi | Long text processing |
-| **Zhipu AI** | GLM-4 | Chinese large language model |
-| **Ollama** | Local Models | Fully local, privacy-focused |
+| Provider          | Models         | Features                                    |
+| ----------------- | -------------- | ------------------------------------------- |
+| **OpenAI**        | GPT-4, GPT-3.5 | Industry leader, comprehensive capabilities |
+| **DeepSeek**      | DeepSeek-Chat  | Excellent value, Chinese optimized          |
+| **Anthropic**     | Claude 3       | Safe and reliable, great for long texts     |
+| **Google Gemini** | Gemini Pro     | Multimodal support                          |
+| **Groq**          | Llama, Mixtral | Ultra-fast inference                        |
+| **Moonshot**      | Kimi           | Long text processing                        |
+| **Zhipu AI**      | GLM-4          | Chinese large language model                |
+| **Ollama**        | Local Models   | Fully local, privacy-focused                |
 
 ### 🎙️ Voice Features
 
@@ -171,12 +165,12 @@ Supports multiple mainstream AI model providers:
 
 Four core attributes for an immersive experience:
 
-| Attribute | Description | Effect |
-|-----------|-------------|--------|
-| 🍖 **Hunger** | Decreases over time, needs feeding | Triggers special expressions when low |
-| 😊 **Mood** | Increases through interaction | Affects pet reactions |
-| 🛁 **Cleanliness** | Decreases over time | Needs cleaning to maintain |
-| ⚡ **Energy** | Consumed by chase/wander modes | Restored by resting |
+| Attribute          | Description                        | Effect                                |
+| ------------------ | ---------------------------------- | ------------------------------------- |
+| 🍖 **Hunger**      | Decreases over time, needs feeding | Triggers special expressions when low |
+| 😊 **Mood**        | Increases through interaction      | Affects pet reactions                 |
+| 🛁 **Cleanliness** | Decreases over time                | Needs cleaning to maintain            |
+| ⚡ **Energy**       | Consumed by chase/wander modes     | Restored by resting                   |
 
 ### 🔌 Skill System
 
@@ -193,20 +187,20 @@ Built-in practical skills to extend AI capabilities (requires skill runtime conf
 - Online music search and download
 - Auto-play on startup option
 
----
+***
 
 ## 📖 User Guide
 
 ### 🖱️ Pet Interactions
 
-| Action | Effect |
-|--------|--------|
+| Action           | Effect                                                          |
+| ---------------- | --------------------------------------------------------------- |
 | **Single Click** | Triggers interaction, different effects on different body parts |
-| **Double Click** | Opens main interface |
-| **Right Click** | Opens context menu |
-| **Drag** | Move pet position |
-| **Scroll** | Resize pet |
-| **Drag to Edge** | Auto dock and hide |
+| **Double Click** | Opens main interface                                            |
+| **Right Click**  | Opens context menu                                              |
+| **Drag**         | Move pet position                                               |
+| **Scroll**       | Resize pet                                                      |
+| **Drag to Edge** | Auto dock and hide                                              |
 
 ### 📱 Main Interface Navigation
 
@@ -245,11 +239,12 @@ Right-click the tray icon to quickly:
 5. Save and activate
 
 **Get API Keys**:
-- OpenAI: https://platform.openai.com/api-keys
-- DeepSeek: https://platform.deepseek.com/
-- Anthropic: https://console.anthropic.com/
 
----
+- OpenAI: <https://platform.openai.com/api-keys>
+- DeepSeek: <https://platform.deepseek.com/>
+- Anthropic: <https://console.anthropic.com/>
+
+***
 
 ## 🛠️ Development Guide
 
@@ -302,7 +297,7 @@ opendoro/
 3. Add execution scripts (optional)
 4. Restart the application to auto-load
 
----
+***
 
 ## ❓ FAQ
 
@@ -310,46 +305,55 @@ opendoro/
 <summary><b>Q: Environment installation failed?</b></summary>
 
 A: Please check the following:
+
 - **Path Issue**: Ensure the installation path doesn't contain Chinese characters, spaces, or special characters (e.g., `D:\软件\DoroPet` ❌ → `D:\DoroPet` ✅)
 - Check network connection
 - Check if blocked by antivirus or firewall
 - Try running the installation script as administrator
+
 </details>
 
 <details>
 <summary><b>Q: Network error when downloading dependencies?</b></summary>
 
 A: The script has built-in multiple mirror sources. If all fail, please check:
+
 - Network connection status
 - Firewall settings
 - Try using VPN or switch network environment
+
 </details>
 
 <details>
 <summary><b>Q: Live2D model display issues?</b></summary>
 
 A: Please ensure:
+
 - Graphics driver is up to date
 - OpenGL 3.0+ is supported
 - Model files are complete and not corrupted
+
 </details>
 
 <details>
 <summary><b>Q: AI chat not responding?</b></summary>
 
 A: Please check:
+
 - API Key is correctly configured
 - Network can access the corresponding API
 - Check runtime logs for detailed errors
+
 </details>
 
 <details>
 <summary><b>Q: How to add custom Live2D models?</b></summary>
 
 A: Place the model folder in the `models/` directory, ensure it contains a `.model3.json` configuration file, then select and load it from the "Live2D Model" page.
+
 </details>
 
----
+***
 
 ## 🗺️ Roadmap
 
@@ -360,7 +364,7 @@ A: Place the model folder in the `models/` directory, ensure it contains a `.mod
 - [ ] Community model marketplace
 - [ ] More AI capabilities integration
 
----
+***
 
 ## 🤝 Contributing
 
@@ -382,13 +386,13 @@ We welcome all forms of contributions!
 4. Push to the branch (`git push origin feature/AmazingFeature`)
 5. Submit a Pull Request
 
----
+***
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
----
+***
 
 ## 🙏 Acknowledgments
 
@@ -400,7 +404,7 @@ Thanks to the following open source projects:
 - [OpenAI](https://openai.com/) - AI API
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - Speech recognition
 
----
+***
 
 <div align="center">
 

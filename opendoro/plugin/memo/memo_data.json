@@ -6,5 +6,21 @@
     "category": "other",
     "created_at": "2026-02-25 23:27:12",
     "updated_at": "2026-02-25 23:27:12"
+  },
+  {
+    "title": "todo",
+    "content": "吸附，加个使能参数，增加吸附阈值。",
+    "category": "work",
+    "id": 2,
+    "created_at": "2026-03-11 20:06:54",
+    "updated_at": "2026-03-11 20:06:54"
+  },
+  {
+    "title": "快捷方式升级",
+    "content": "快捷方式优化",
+    "category": "work",
+    "id": 3,
+    "created_at": "2026-03-11 20:08:27",
+    "updated_at": "2026-03-11 20:08:27"
   }
 ]
