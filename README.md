@@ -46,22 +46,61 @@
 
 ## 📸 应用截图
 
+### 核心功能
+
 <table>
   <tr>
     <td align="center"><b>🖥️ 桌面宠物</b></td>
-    <td align="center"><b>💬 AI 对话</b></td>
+    <td align="center"><b>💬 智能对话</b></td>
   </tr>
   <tr>
     <td><img src="opendoro/data/resourse/img/doro.png" alt="桌面宠物" width="400"/></td>
-    <td><img src="opendoro/data/resourse/img/ai会话.png" alt="AI对话" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/智能对话.png" alt="智能对话" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>📊 宠物状态</b></td>
     <td align="center"><b>⚙️ 设置界面</b></td>
   </tr>
   <tr>
-    <td><img src="opendoro/data/resourse/img/doro状态.png" alt="宠物状态" width="400"/></td>
-    <td><img src="opendoro/data/resourse/img/api设置.png" alt="设置界面" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/主页.png" alt="宠物状态" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/设置界面.png" alt="设置界面" width="400"/></td>
+  </tr>
+</table>
+
+### 更多界面
+
+<table>
+  <tr>
+    <td align="center"><b>🤖 模型配置</b></td>
+    <td align="center"><b>🎭 Live2D 模型</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/模型配置.png" alt="模型配置" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/live2d.png" alt="Live2D 模型" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>👤 人格提示词</b></td>
+    <td align="center"><b>🔌 插件演示</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/人格提示词.png" alt="人格提示词" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/插件演示.gif" alt="插件演示" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>🎨 Agent 技能</b></td>
+    <td align="center"><b>📋 运行日志</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/agent-skill.png" alt="Agent 技能" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/logpage.png" alt="运行日志" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>🔄 更新界面</b></td>
+    <td align="center"><b>📱 右键菜单</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/更新界面.png" alt="更新界面" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/右键菜单.png" alt="右键菜单" width="400"/></td>
   </tr>
 </table>
 

@@ -46,6 +46,8 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 
 ## 📸 Screenshots
 
+### Core Features
+
 <table>
   <tr>
     <td align="center"><b>🖥️ Desktop Pet</b></td>
@@ -53,15 +55,52 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
   </tr>
   <tr>
     <td><img src="opendoro/data/resourse/img/doro.png" alt="Desktop Pet" width="400"/></td>
-    <td><img src="opendoro/data/resourse/img/ai会话.png" alt="AI Chat" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/智能对话.png" alt="AI Chat" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>📊 Pet Status</b></td>
     <td align="center"><b>⚙️ Settings</b></td>
   </tr>
   <tr>
-    <td><img src="opendoro/data/resourse/img/doro状态.png" alt="Pet Status" width="400"/></td>
-    <td><img src="opendoro/data/resourse/img/api设置.png" alt="Settings" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/主页.png" alt="Pet Status" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/设置界面.png" alt="Settings" width="400"/></td>
+  </tr>
+</table>
+
+### More Interfaces
+
+<table>
+  <tr>
+    <td align="center"><b>🤖 Model Config</b></td>
+    <td align="center"><b>🎭 Live2D Model</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/模型配置.png" alt="Model Config" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/live2d.png" alt="Live2D Model" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>👤 Role Play</b></td>
+    <td align="center"><b>🔌 Plugins Demo</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/人格提示词.png" alt="Role Play" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/插件演示.gif" alt="Plugins Demo" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>🎨 Agent Skills</b></td>
+    <td align="center"><b>📋 Logs</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/agent-skill.png" alt="Agent Skills" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/logpage.png" alt="Logs" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>🔄 Updates</b></td>
+    <td align="center"><b>📱 Context Menu</b></td>
+  </tr>
+  <tr>
+    <td><img src="opendoro/data/resourse/img/更新界面.png" alt="Updates" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/右键菜单.png" alt="Context Menu" width="400"/></td>
   </tr>
 </table>
 
