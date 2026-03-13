@@ -22,3 +22,10 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py[cod]
