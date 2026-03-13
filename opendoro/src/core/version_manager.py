@@ -18,7 +18,7 @@ from bs4 import BeautifulSoup
 from src.core.logger import logger
 
 
-__version__ = "3.2.5"
+__version__ = "3.2.6"
 __app_name__ = "DoroPet"
 
 GITEE_API_BASE = "https://gitee.com/api/v5"

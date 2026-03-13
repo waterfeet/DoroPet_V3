@@ -1,11 +1,13 @@
 import os
 import random
 import live2d.v3 as live2d
+from live2d.v3 import clearBuffer
+from live2d.utils.canvas import Canvas
 try:
     import psutil
 except ImportError:
     psutil = None
-from PyQt5.QtCore import QTimerEvent, Qt, QTimer, QSize, QSettings, QPoint
+from PyQt5.QtCore import QTimerEvent, Qt, QTimer, QSettings, QPoint, QSize
 from PyQt5.QtGui import QMouseEvent, QWheelEvent, QCursor, QPixmap, QPainter, QPainterPath, QColor, QPen, QBrush
 from PyQt5.QtWidgets import QOpenGLWidget, QLabel, QMenu, QAction, QApplication, QStyleOption, QStyle, QProgressBar, QWidget
 from src.ui.main_window import MainWindow
@@ -129,6 +131,10 @@ class Live2DWidget(QOpenGLWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
         self.setMouseTracking(True)
         
+        format = self.format()
+        format.setAlphaBufferSize(8)
+        self.setFormat(format)
+        
         self.bubble = SpeechBubble(self)
         self.main_window = None 
 
@@ -202,9 +208,13 @@ class Live2DWidget(QOpenGLWidget):
         self.cpu_threshold = self.settings.value("cpu_threshold", 70, type=int)
         self.mem_threshold = self.settings.value("mem_threshold", 80, type=int)
         
+        self.model_opacity = self.settings.value("window_opacity", 100, type=int)
+        
         if self.is_locked:
             self.setMouseTracking(False)
             self.setCursor(Qt.ArrowCursor)
+            self.setWindowFlag(Qt.WindowTransparentForInput, True)
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
         else:
             self.init_custom_cursor(resource_path("data/icons/orange.ico"))
 
@@ -217,6 +227,10 @@ class Live2DWidget(QOpenGLWidget):
         self.model = live2d.LAppModel()
         self.model.LoadModelJson(self.path)
         self.model.Resize(self.width(), self.height())
+        
+        self.canvas = Canvas()
+        self.canvas.SetSize(self.width(), self.height())
+        self.canvas.SetOutputOpacity(self.model_opacity / 100.0)
         
         self.expression_ids = self.model.GetExpressionIds()
         self.motion_groups = self.model.GetMotionGroups()
@@ -248,6 +262,10 @@ class Live2DWidget(QOpenGLWidget):
             self.model = live2d.LAppModel()
             self.model.LoadModelJson(model_path)
             self.model.Resize(self.width(), self.height())
+            
+            self.canvas = Canvas()
+            self.canvas.SetSize(self.width(), self.height())
+            self.canvas.SetOutputOpacity(self.model_opacity / 100.0)
             
             self.path = model_path
             
@@ -397,28 +415,56 @@ class Live2DWidget(QOpenGLWidget):
         return False
 
     def paintGL(self) -> None:
-        live2d.clearBuffer()
         self.model.Update()
-        self.model.Draw()
+        
+        def on_draw():
+            clearBuffer()
+            self.model.Draw()
+        
+        # 清除帧缓冲区为透明
+        clearBuffer(0.0, 0.0, 0.0, 0.0)
+        
+        if hasattr(self, 'canvas'):
+            self.canvas.Draw(on_draw)
+        else:
+            on_draw()
 
     def resizeGL(self, w: int, h: int) -> None:
         if hasattr(self, 'model'):
             self.model.Resize(w, h)
+        if hasattr(self, 'canvas'):
+            self.canvas.SetSize(w, h)
+    
+    def set_model_opacity(self, opacity: float) -> None:
+        """设置模型透明度"""
+        if hasattr(self, 'canvas'):
+            self.canvas.SetOutputOpacity(opacity)
 
     def set_locked(self, locked: bool, silent: bool = False):
         """设置锁定状态"""
         self.is_locked = locked
+        
+        was_visible = self.isVisible()
+        
         if locked:
             self.setMouseTracking(False)
-            self.setCursor(Qt.ArrowCursor) 
-            self.update()
+            self.setCursor(Qt.ArrowCursor)
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+            self.setWindowFlag(Qt.WindowTransparentForInput, True)
             if not silent:
                 self.talk("已锁定位置，解除请右键托盘图标~", 3000)
         else:
             self.setMouseTracking(True)
+            self.setAttribute(Qt.WA_TransparentForMouseEvents, False)
+            self.setWindowFlag(Qt.WindowTransparentForInput, False)
             self.init_custom_cursor(resource_path("data/icons/orange.ico"))
             if not silent:
                 self.talk("解锁啦！又可以一起玩了~", 3000)
+        
+        if was_visible:
+            self.hide()
+            self.show()
+            self.activateWindow()
 
     def toggle_mirror(self, checked: bool):
         """切换镜像翻转状态"""

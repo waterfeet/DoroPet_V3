@@ -205,6 +205,7 @@ class DisplaySettingsPage(QWidget):
         card.addWidget(self.check_show_pet_status)
         
         self.add_slider_option(card, "模型缩放", 20, 150, 100, "%")
+        self.add_slider_option(card, "窗口透明度", 10, 100, 100, "%")
         self.add_slider_option(card, "气泡显示时长", 1000, 10000, 3000, " ms")
         
         layout.addWidget(card)
@@ -457,6 +458,7 @@ class SettingsInterface(ScrollArea):
         
         self.display_page.check_show_pet_status.stateChanged.connect(self.on_show_pet_status_changed)
         self.display_page.sliders["模型缩放"].valueChanged.connect(self.on_scale_changed)
+        self.display_page.sliders["窗口透明度"].valueChanged.connect(self.on_window_opacity_changed)
         self.display_page.sliders["气泡显示时长"].valueChanged.connect(self.on_bubble_duration_changed)
         self.display_page.aspect_combo.currentIndexChanged.connect(self.on_aspect_ratio_changed)
         self.display_page.width_spin.valueChanged.connect(self.on_custom_aspect_changed)
@@ -488,6 +490,12 @@ class SettingsInterface(ScrollArea):
             new_h = int(height * scale)
             self.live2d_widget.resize(new_w, new_h)
         self.settings.setValue("scale", value)
+
+    def on_window_opacity_changed(self, value):
+        if self.live2d_widget:
+            self.live2d_widget.model_opacity = value
+            self.live2d_widget.set_model_opacity(value / 100.0)
+        self.settings.setValue("window_opacity", value)
 
     def on_bubble_duration_changed(self, value):
         if self.live2d_widget:
@@ -636,6 +644,8 @@ class SettingsInterface(ScrollArea):
         
         self.display_page.check_show_pet_status.setChecked(show_pet_status)
         self.display_page.sliders["模型缩放"].setValue(scale)
+        window_opacity = self.settings.value("window_opacity", 100, type=int)
+        self.display_page.sliders["窗口透明度"].setValue(window_opacity)
         self.display_page.sliders["气泡显示时长"].setValue(bubble_duration)
         self.display_page.check_system_monitor.setChecked(system_monitor_enabled)
         self.display_page.sliders["CPU 告警阈值"].setValue(cpu_threshold)
