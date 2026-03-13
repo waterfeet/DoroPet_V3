@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="opendoro/data/icons/app.ico" alt="DoroPet Logo" width="120" height="120"/>
+
 # DoroPet
 
 ### ✨ 你的智能桌面伴侣，让工作不再孤单
