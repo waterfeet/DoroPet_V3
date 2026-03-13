@@ -4,7 +4,7 @@
 
 ### ✨ 你的智能桌面伴侣，让工作不再孤单
 
-[!\[Version\](https://img.shields.io/badge/version-3.2.5-blue.svg null)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[!\[Version\](https://img.shields.io/badge/version-3.2.5-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
 [!\[Python\](https://img.shields.io/badge/Python-3.12+-green.svg null)](https://www.python.org/)
 [!\[License\](https://img.shields.io/badge/license-MIT-orange.svg null)](LICENSE)
 [!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](https://www.microsoft.com/windows)
