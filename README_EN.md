@@ -4,11 +4,11 @@
 
 ### ✨ Your Intelligent Desktop Companion
 
-[!\[Version\](https://img.shields.io/badge/version-3.2.5-blue.svg null)](https://gitee.com/waterfeet/DoroPet_V3/releases)
-[!\[Python\](https://img.shields.io/badge/Python-3.12+-green.svg null)](https://www.python.org/)
-[!\[License\](https://img.shields.io/badge/license-MIT-orange.svg null)](LICENSE)
-[!\[Platform\](https://img.shields.io/badge/platform-Windows-lightgrey.svg null)](https://www.microsoft.com/windows)
-[!\[QQ Group\](https://img.shields.io/badge/QQ\_Group-695753609-blue.svg null)](https://qm.qq.com/q/MbaBoCevaC)
+[![Version](https://img.shields.io/badge/version-3.2.5-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
+[![QQ Group](https://img.shields.io/badge/QQ\_Group-695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
 
 **A desktop application featuring Live2D pets, AI chat, voice interaction, and pet simulation system**
 
