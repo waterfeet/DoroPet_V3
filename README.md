@@ -9,7 +9,7 @@
 [![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![QQ Group](https://img.shields.io/badge/QQ 群 -695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
+[![QQ Group](https://img.shields.io/badge/QQ群-695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
 
 **一款集 Live2D 桌宠、AI 对话、语音交互、养成系统于一体的桌面应用**
 
