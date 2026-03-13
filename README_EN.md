@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="opendoro/data/icons/logo.png" alt="DoroPet Logo" width="120" height="120"/>
+<img src="opendoro/data/icons/app.ico" alt="DoroPet Logo" width="120" height="120"/>
 
 # DoroPet
 
