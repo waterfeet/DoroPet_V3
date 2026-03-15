@@ -95,7 +95,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.settings_interface, FIF.SETTING, "通用设置", NavigationItemPosition.BOTTOM)
 
     def init_window(self):
-        icon_path = resource_path("data/icons/logo.png")
+        icon_path = resource_path("data/icons/app.png")
         if os.path.exists(icon_path):
             self.setWindowIcon(QIcon(icon_path))
         
@@ -177,6 +177,10 @@ class MainWindow(FluentWindow):
             self.voice_config_interface.update_theme()
         if hasattr(self, 'live2d_config_interface'):
             self.live2d_config_interface.update_theme()
+        
+        if hasattr(self, 'live2d_widget') and hasattr(self.live2d_widget, 'quick_chat_window'):
+            if self.live2d_widget.quick_chat_window:
+                self.live2d_widget.quick_chat_window.update_theme()
 
     def load_stylesheet(self, path):
         if os.path.exists(path):

@@ -36,9 +36,14 @@ class EdgeTTSWorker(QThread):
             try:
                 import edge_tts
             except ImportError:
-                self.error.emit("edge-tts 未安装，请运行: pip install edge-tts")
+                self.error.emit("edge-tts 未安装，请运行：pip install edge-tts")
                 return
 
+            # 验证音色是否有效
+            if not self.voice:
+                self.error.emit("未指定 TTS 音色，请在配置中选择有效的音色")
+                return
+            
             communicate = edge_tts.Communicate(self.text, self.voice)
             
             import tempfile
@@ -50,6 +55,17 @@ class EdgeTTSWorker(QThread):
             asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(communicate.save(tmp_path))
+            except ValueError as ve:
+                # 音色无效时会抛出 ValueError
+                error_msg = str(ve)
+                if "invalid voice" in error_msg.lower() or "not found" in error_msg.lower():
+                    self.error.emit(f"音色 '{self.voice}' 无效或不存在，请使用 '获取可用语音' 按钮获取最新音色列表")
+                else:
+                    self.error.emit(f"Edge TTS 合成失败：{error_msg}")
+                return
+            except Exception as e:
+                self.error.emit(f"Edge TTS 合成失败：{str(e)}")
+                return
             finally:
                 loop.close()
             
@@ -135,7 +151,7 @@ class GradioTTSWorker(QThread):
             try:
                 from gradio_client import Client, handle_file
             except ImportError:
-                self.error.emit("gradio_client 未安装，请运行: pip install gradio_client")
+                self.error.emit("gradio_client 未安装，请运行：pip install gradio_client")
                 return
 
             client = Client(self.base_url)
@@ -144,13 +160,18 @@ class GradioTTSWorker(QThread):
             
             result = None
             
+            # 准备参考音频和文本
             prompt_audio = self.prompt_audio if (self.prompt_audio and os.path.exists(self.prompt_audio)) else self.DEFAULT_PROMPT_AUDIO
             prompt_text = self.prompt_text if self.prompt_text else self.DEFAULT_PROMPT_TEXT
             
+            logger.info(f"调用 GSV TTS API: {self.base_url}{api_endpoint}")
+            logger.info(f"参考音频：{prompt_audio}, 参考文本：{prompt_text}")
+            
             try:
+                # 根据 GSV TTS WebUI 的 API 要求，传递所有必需参数
                 result = client.predict(
                     multi_spk_files=[handle_file(prompt_audio)],
-                    spk_weights="1.0",
+                    spk_weights=self.voice if self.voice else "1.0",
                     prompt_audio=handle_file(prompt_audio),
                     prompt_text=prompt_text,
                     text=self.text,
@@ -162,14 +183,21 @@ class GradioTTSWorker(QThread):
                     speed=1,
                     enable_enhance=True,
                     is_cut_text=True,
+                    cut_punds='{"。", ".", "?", "？", "!", "！", ",", "，", ":", "：", ";", "；", "、"}',
+                    cut_minlen=10,
+                    cut_mute=0.2,
+                    cut_mute_scale_map='{"。": 1.5, ".": 1.5, "？": 1.5, "?": 1.5, "！": 1.5, "!": 1.5, "，": 0.8, ",": 0.8, "、": 0.6}',
+                    sovits_batch_size=10,
                     api_name=api_endpoint
                 )
+                logger.info("GSV TTS API 调用成功")
+                    
             except Exception as e:
-                logger.warning(f"SoVITS TTS call failed: {e}")
+                logger.warning(f"GSV TTS API 调用失败：{e}，尝试回退到简单调用")
                 try:
                     result = client.predict(self.text, api_name=api_endpoint)
                 except Exception as e2:
-                    self.error.emit(f"Gradio TTS 调用失败: {str(e2)}")
+                    self.error.emit(f"Gradio TTS 调用失败：{str(e2)}\n\n请检查:\n1. API 端点是否正确 (当前：{api_endpoint})\n2. WebUI 是否正常运行\n3. 查看 WebUI 控制台的详细错误信息")
                     return
             
             audio_path = None
@@ -194,7 +222,7 @@ class GradioTTSWorker(QThread):
                 shutil.copy(audio_path, cache_path_with_ext)
                 self.finished.emit(cache_path_with_ext)
             else:
-                self.error.emit(f"Gradio TTS 返回了无效的结果: {type(result)}")
+                self.error.emit(f"Gradio TTS 返回了无效的结果：{type(result)}")
                 
             try:
                 client.close()

@@ -43,7 +43,7 @@ def setup_tray_icon(app, widget):
     tray_icon = QSystemTrayIcon(app)
     
     # 尝试加载图标
-    icon_path = resource_path("data/icons/logo.png")
+    icon_path = resource_path("data/icons/app.png")
     if not os.path.exists(icon_path):
         icon_path = resource_path("data/icons/orange.ico")
         
@@ -55,7 +55,31 @@ def setup_tray_icon(app, widget):
     # 托盘菜单
     tray_menu = QMenu()
     
-    # 1. 显示/隐藏桌宠
+    # === 快捷操作区 ===
+    quick_chat_action = QAction("💬 快捷聊天", app)
+    quick_chat_action.setToolTip("打开快捷聊天窗口，快速与 Doro 对话")
+    def open_quick_chat():
+        from src.ui.quick_chat_window import QuickChatWindow
+        from src.core.database import DatabaseManager
+        if not hasattr(widget, 'quick_chat_window') or not widget.quick_chat_window:
+            db_manager = DatabaseManager()
+            widget.quick_chat_window = QuickChatWindow(
+                db=db_manager.chat,
+                persona_db=db_manager.personas,
+                live2d_widget=widget
+            )
+        widget.quick_chat_window.show()
+        widget.quick_chat_window.raise_()
+        widget.quick_chat_window.activateWindow()
+    quick_chat_action.triggered.connect(open_quick_chat)
+    tray_menu.addAction(quick_chat_action)
+    
+    tray_menu.addSeparator()
+    
+    # === 宠物控制区 ===
+    pet_menu = QMenu("🐾 宠物控制", tray_menu)
+    
+    # 显示/隐藏桌宠
     action_toggle = QAction("显示/隐藏桌宠", app)
     def toggle_pet():
         if widget.isVisible():
@@ -66,14 +90,9 @@ def setup_tray_icon(app, widget):
             widget.show()
             widget.activateWindow()
     action_toggle.triggered.connect(toggle_pet)
-    tray_menu.addAction(action_toggle)
+    pet_menu.addAction(action_toggle)
     
-    # 2. 打开主界面
-    action_settings = QAction("打开主界面", app)
-    action_settings.triggered.connect(widget.open_main_window)
-    tray_menu.addAction(action_settings)
-    
-    # 3. 锁定/解锁
+    # 锁定/解锁
     action_lock = QAction("锁定/解锁", app)
     action_lock.setCheckable(True)
     action_lock.setChecked(False)
@@ -85,12 +104,25 @@ def setup_tray_icon(app, widget):
             action_lock.setText("锁定")
             
     action_lock.triggered.connect(toggle_lock)
-    tray_menu.addAction(action_lock)
-
+    pet_menu.addAction(action_lock)
+    
+    tray_menu.addMenu(pet_menu)
+    
+    # === 界面管理区 ===
+    view_menu = QMenu("🖥️ 界面管理", tray_menu)
+    
+    # 打开主界面
+    action_settings = QAction("打开主界面", app)
+    action_settings.triggered.connect(widget.open_main_window)
+    view_menu.addAction(action_settings)
+    
+    tray_menu.addMenu(view_menu)
+    
     tray_menu.addSeparator()
     
-    # 4. 退出程序
-    action_quit = QAction("退出", app)
+    # === 系统区 ===
+    # 退出程序
+    action_quit = QAction("❌ 退出", app)
     action_quit.triggered.connect(app.quit)
     tray_menu.addAction(action_quit)
     
@@ -172,7 +204,7 @@ def main():
     logger.info("Application started.")
 
     # 设置应用程序图标 (任务栏图标)
-    icon_path = resource_path("data/icons/logo.png")
+    icon_path = resource_path("data/icons/app.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
     

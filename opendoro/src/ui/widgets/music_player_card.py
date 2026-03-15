@@ -971,6 +971,10 @@ class MusicPlayerCard(CardWidget):
         self.player.durationChanged.connect(self._on_duration_changed)
         self.player.positionChanged.connect(self._on_position_changed)
         self.player.stateChanged.connect(self._on_state_changed)
+        self.player.error.connect(self._on_error_occurred)
+        
+        self._retry_count = 0
+        self._max_retry = 3
     
     def _connect_service_signals(self):
         self._music_service.search_completed.connect(self._on_search_completed)
@@ -1303,6 +1307,7 @@ class MusicPlayerCard(CardWidget):
     def _on_online_song_selected(self, song_info: SongInfo):
         self._is_online_mode = True
         self._current_online_song = song_info
+        self._retry_count = 0
         
         track_name = f"{song_info.name} - {song_info.singer}"
         if len(track_name) > 20:
@@ -1326,13 +1331,19 @@ class MusicPlayerCard(CardWidget):
             self.track_label.setText("获取链接失败")
     
     def _play_online_url(self, url: str):
+        from src.core.logger import logger
+        logger.info(f"[MusicPlayer] 播放在线音乐：{url[:50]}...")
+        
         media_content = self._music_service.create_media_content(url)
         self.player.setMedia(media_content)
         self.player.play()
+        
+        self._retry_count = 0
     
     def _on_song_selected(self, index: int):
         if 0 <= index < len(self._music_files):
             self._is_online_mode = False
+            self._retry_count = 0
             self._load_track(index)
             self.player.play()
             self._song_popup.update_current(index)
@@ -1354,6 +1365,9 @@ class MusicPlayerCard(CardWidget):
             
             if hasattr(self, '_song_popup'):
                 self._song_popup.update_current(index)
+            
+            from src.core.logger import logger
+            logger.info(f"[MusicPlayer] 加载本地音乐：{file_path}")
     
     def _toggle_play(self):
         if self.player.state() == QMediaPlayer.PlayingState:
@@ -1409,6 +1423,7 @@ class MusicPlayerCard(CardWidget):
             self.play_btn.setToolTip("暂停")
             self._position_timer.start()
             self.playback_state_changed.emit(True)
+            self._retry_count = 0
         else:
             self.play_btn.setIcon(FIF.PLAY)
             self.play_btn.setToolTip("播放")
@@ -1418,6 +1433,36 @@ class MusicPlayerCard(CardWidget):
             if state == QMediaPlayer.StoppedState and not self._is_online_mode and self._music_files:
                 if self.progress_slider.value() >= self.progress_slider.maximum() - 100:
                     self._handle_track_finished()
+    
+    def _on_error_occurred(self, error):
+        """处理播放器错误"""
+        from src.core.logger import logger
+        
+        error_string = self.player.errorString()
+        logger.warning(f"[MusicPlayer] 播放错误：{error} - {error_string}")
+        
+        if self._retry_count < self._max_retry:
+            self._retry_count += 1
+            logger.info(f"[MusicPlayer] 尝试重新加载 ({self._retry_count}/{self._max_retry})")
+            
+            self.track_label.setText(f"加载失败，重试中... ({self._retry_count}/{self._max_retry})")
+            
+            QTimer.singleShot(1000, self._retry_current_track)
+        else:
+            logger.error(f"[MusicPlayer] 重试失败，停止播放")
+            self.track_label.setText("播放失败")
+            self._retry_count = 0
+    
+    def _retry_current_track(self):
+        """重试当前曲目"""
+        if self._is_online_mode and self._current_online_song:
+            if self._current_online_song.play_url:
+                self._play_online_url(self._current_online_song.play_url)
+            else:
+                self._music_service.get_play_url(self._current_online_song)
+        elif not self._is_online_mode and self._music_files:
+            self._load_track(self._current_index)
+            self.player.play()
     
     def _handle_track_finished(self):
         if self._play_mode == PlayMode.SINGLE_LOOP:

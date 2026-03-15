@@ -750,6 +750,15 @@ class DatabaseManager:
         self.config.close()
         self.personas.close()
         self.cache.close()
+    
+    def get_active_model(self):
+        return self.config.get_active_model()
+    
+    def get_active_tts_model(self):
+        return self.config.get_active_tts_model()
+    
+    def get_active_image_model(self):
+        return self.config.get_active_image_model()
 
 db_manager = DatabaseManager()
 

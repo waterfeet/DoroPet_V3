@@ -2,30 +2,9 @@ import os
 import psutil
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar
-from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QBrush, QFont
+from PyQt5.QtGui import QPixmap, QFont
 
 from qfluentwidgets import CardWidget
-
-
-def create_round_pixmap(pixmap: QPixmap, size: int) -> QPixmap:
-    rounded = QPixmap(size, size)
-    rounded.fill(Qt.transparent)
-    
-    painter = QPainter(rounded)
-    painter.setRenderHint(QPainter.Antialiasing, True)
-    painter.setRenderHint(QPainter.SmoothPixmapTransform, True)
-    
-    path = QPainterPath()
-    path.addEllipse(0, 0, size, size)
-    painter.setClipPath(path)
-    
-    scaled = pixmap.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
-    x = (size - scaled.width()) // 2
-    y = (size - scaled.height()) // 2
-    painter.drawPixmap(x, y, scaled)
-    painter.end()
-    
-    return rounded
 
 
 class PetAvatarCard(CardWidget):
@@ -187,8 +166,9 @@ class PetAvatarCard(CardWidget):
         if self._avatar_path and os.path.exists(self._avatar_path):
             pixmap = QPixmap(self._avatar_path)
             if not pixmap.isNull():
-                rounded = create_round_pixmap(pixmap, 86)
-                self.avatar_label.setPixmap(rounded)
+                # 直接使用原始 pixmap，不加圆角
+                scaled = pixmap.scaled(86, 86, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                self.avatar_label.setPixmap(scaled)
                 self.avatar_label.setStyleSheet("""
                     QLabel {
                         background-color: transparent;
@@ -200,8 +180,6 @@ class PetAvatarCard(CardWidget):
             QLabel {
                 font-size: 48px;
                 background-color: #f0f0f0;
-                border-radius: 45px;
-                border: 3px solid #e0e0e0;
             }
         """)
         self.avatar_label.setText("🐱")
@@ -308,8 +286,6 @@ class PetAvatarCard(CardWidget):
                     QLabel {
                         font-size: 48px;
                         background-color: #2d2d2d;
-                        border-radius: 45px;
-                        border: 3px solid #404040;
                     }
                 """)
             self.name_label.setStyleSheet("""
@@ -351,8 +327,6 @@ class PetAvatarCard(CardWidget):
                     QLabel {
                         font-size: 48px;
                         background-color: #f0f0f0;
-                        border-radius: 45px;
-                        border: 3px solid #e0e0e0;
                     }
                 """)
             self.name_label.setStyleSheet("""

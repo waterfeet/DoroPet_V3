@@ -690,13 +690,33 @@ class Live2DWidget(QOpenGLWidget):
     def show_context_menu(self, global_pos):
         menu = QMenu(self)
 
-        # action_talk = QAction("打个招呼", self)
-        # action_talk.triggered.connect(lambda: self.talk("你好呀！我是你的桌面宠物。", 3000))
-        # menu.addAction(action_talk)
+        # === 快捷操作区 ===
+        quick_chat_action = QAction("💬 快捷聊天", self)
+        quick_chat_action.setToolTip("打开快捷聊天窗口，快速与 Doro 对话")
+        def open_quick_chat():
+            from src.ui.quick_chat_window import QuickChatWindow
+            from src.core.database import DatabaseManager
+            if not hasattr(self, 'quick_chat_window') or not self.quick_chat_window:
+                db_manager = DatabaseManager()
+                self.quick_chat_window = QuickChatWindow(
+                    db=db_manager.chat,
+                    persona_db=db_manager.personas,
+                    live2d_widget=self
+                )
+            self.quick_chat_window.show()
+            self.quick_chat_window.raise_()
+            self.quick_chat_window.activateWindow()
+        quick_chat_action.triggered.connect(open_quick_chat)
+        menu.addAction(quick_chat_action)
         
-        action_exp = QAction("随机表情", self)
+        menu.addSeparator()
+
+        # === 互动区 ===
+        interact_menu = QMenu("🎭 互动", menu)
+        
+        action_exp = QAction("🎲 随机表情", self)
         action_exp.triggered.connect(self.random_expression)
-        menu.addAction(action_exp)
+        interact_menu.addAction(action_exp)
 
         if self.expression_ids:
             exp_menu = QMenu("切换表情", self)
@@ -704,7 +724,7 @@ class Live2DWidget(QOpenGLWidget):
                 action = QAction(str(exp_name), self)
                 action.triggered.connect(lambda checked, name=exp_name: self.model.SetExpression(name))
                 exp_menu.addAction(action)
-            menu.addMenu(exp_menu)
+            interact_menu.addMenu(exp_menu)
 
         if self.motion_groups:
             motion_menu = QMenu("播放动作", self)
@@ -712,51 +732,63 @@ class Live2DWidget(QOpenGLWidget):
                 action = QAction(str(motion_group), self)
                 action.triggered.connect(lambda checked, group=motion_group: self.model.StartRandomMotion(group, live2d.MotionPriority.NORMAL))
                 motion_menu.addAction(action)
-            menu.addMenu(motion_menu)
+            interact_menu.addMenu(motion_menu)
         
-        menu.addSeparator()
-
+        menu.addMenu(interact_menu)
+        
+        # === 行为设置区 ===
+        behavior_menu = QMenu("⚙️ 行为设置", menu)
+        
         action_mirror = QAction("左右镜像", self)
         action_mirror.setCheckable(True)
         action_mirror.setChecked(self.is_mirrored)
         action_mirror.triggered.connect(self.toggle_mirror)
-        menu.addAction(action_mirror)
+        behavior_menu.addAction(action_mirror)
         
         action_chase = QAction("追逐鼠标", self)
         action_chase.setCheckable(True)
         action_chase.setChecked(self.is_mouse_chasing())
         action_chase.triggered.connect(lambda: self.toggle_mouse_chase())
-        menu.addAction(action_chase)
+        behavior_menu.addAction(action_chase)
         
         action_wander = QAction("随机溜达", self)
         action_wander.setCheckable(True)
         action_wander.setChecked(self.is_random_wandering())
         action_wander.triggered.connect(lambda: self.toggle_random_wander())
-        menu.addAction(action_wander)
+        behavior_menu.addAction(action_wander)
         
         action_edge_dock = QAction("边缘吸附", self)
         action_edge_dock.setCheckable(True)
         action_edge_dock.setChecked(self.edge_docking_enabled)
         action_edge_dock.triggered.connect(self.toggle_edge_docking)
-        menu.addAction(action_edge_dock)
+        behavior_menu.addAction(action_edge_dock)
         
-        menu.addSeparator()
-
-        action_reset = QAction("重置大小", self)
+        menu.addMenu(behavior_menu)
+        
+        # === 显示设置区 ===
+        display_menu = QMenu("📺 显示设置", menu)
+        
+        action_reset = QAction("🔄 重置大小", self)
         action_reset.triggered.connect(lambda: self.resize(550, 500))
-        menu.addAction(action_reset)
+        display_menu.addAction(action_reset)
         
         action_show_status = QAction("隐藏属性栏" if self.status_overlay.isVisible() else "显示属性栏", self)
         action_show_status.triggered.connect(self._toggle_status_overlay)
-        menu.addAction(action_show_status)
+        display_menu.addAction(action_show_status)
 
-        action_open_ui = QAction("打开主界面", self)
+        menu.addMenu(display_menu)
+        
+        menu.addSeparator()
+
+        # === 界面管理区 ===
+        action_open_ui = QAction("🖥️ 打开主界面", self)
         action_open_ui.triggered.connect(self.open_main_window)
         menu.addAction(action_open_ui)
 
         menu.addSeparator()
 
-        action_quit = QAction("退出", self)
+        # === 系统区 ===
+        action_quit = QAction("❌ 退出", self)
         action_quit.triggered.connect(QApplication.instance().quit)
         menu.addAction(action_quit)
 

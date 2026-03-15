@@ -82,7 +82,57 @@ class ProviderEdgeTTS(TTSProvider):
         )
     
     def get_voices(self) -> List[Dict]:
-        return self.DEFAULT_VOICES
+        """获取 Edge TTS 所有可用音色"""
+        if not HAS_EDGE_TTS:
+            return self.DEFAULT_VOICES
+        
+        try:
+            import asyncio
+            
+            # 异步获取所有可用音色
+            async def fetch_voices():
+                return await edge_tts.list_voices()
+            
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                all_voices = loop.run_until_complete(fetch_voices())
+            finally:
+                loop.close()
+            
+            # 转换为统一格式
+            voices = []
+            for v in all_voices:
+                locale = v.get('Locale', '')
+                short_name = v.get('ShortName', '')
+                gender = v.get('Gender', '')
+                friendly_name = v.get('FriendlyName', '')
+                
+                # 只显示常用语言
+                if locale.startswith(('zh-', 'en-', 'ja-', 'ko-', 'fr-', 'de-', 'es-', 'ru-')):
+                    # 尝试从 friendly_name 提取更友好的显示名称
+                    display_name = friendly_name if friendly_name else short_name
+                    if not display_name:
+                        display_name = f"{short_name} ({gender})"
+                    
+                    voices.append({
+                        "id": short_name,
+                        "name": display_name,
+                        "language": locale
+                    })
+            
+            # 按语言排序
+            voices.sort(key=lambda x: (x['language'], x['name']))
+            
+            if voices:
+                logger.info(f"Edge TTS 获取到 {len(voices)} 个音色")
+                return voices
+            else:
+                return self.DEFAULT_VOICES
+                
+        except Exception as e:
+            logger.warning(f"Edge TTS 获取音色列表失败：{e}，使用默认列表")
+            return self.DEFAULT_VOICES
     
     def test(self) -> bool:
         try:
