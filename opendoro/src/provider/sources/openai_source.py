@@ -36,8 +36,15 @@ class ProviderOpenAI(LLMProvider):
             http_client_kwargs["proxy"] = self.config.proxy
         
         self._http_client = httpx.Client(**http_client_kwargs)
+        
+        api_key = self.config.api_key
+        if not api_key or api_key.strip() == "":
+            if "ollama" in self.config.base_url.lower() or "localhost:11434" in self.config.base_url:
+                api_key = "ollama"
+                logger.info(f"[ProviderOpenAI] Using placeholder API key for Ollama")
+        
         return OpenAI(
-            api_key=self.config.api_key,
+            api_key=api_key,
             base_url=self.config.base_url,
             http_client=self._http_client
         )

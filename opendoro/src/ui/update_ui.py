@@ -545,6 +545,10 @@ class AboutWidget(CardWidget):
         gitee_btn.clicked.connect(self.open_gitee)
         link_layout.addWidget(gitee_btn)
         
+        official_btn = PushButton(FIF.LINK, "官方网站", self)
+        official_btn.clicked.connect(self.open_official)
+        link_layout.addWidget(official_btn)
+        
         link_layout.addStretch()
         layout.addLayout(link_layout)
     
@@ -552,6 +556,11 @@ class AboutWidget(CardWidget):
         from PyQt5.QtGui import QDesktopServices
         from PyQt5.QtCore import QUrl
         QDesktopServices.openUrl(QUrl("https://gitee.com/waterfeet/DoroPet_V3"))
+    
+    def open_official(self):
+        from PyQt5.QtGui import QDesktopServices
+        from PyQt5.QtCore import QUrl
+        QDesktopServices.openUrl(QUrl("https://www.waterfeetbot.top/"))
 
 class UpdateNotificationDialog(QWidget):
     update_now = pyqtSignal()

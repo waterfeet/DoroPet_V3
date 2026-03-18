@@ -2,6 +2,7 @@ import os
 import sqlite3
 import json
 import shutil
+from src.core.logger import logger
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
 
@@ -180,7 +181,12 @@ class ChatDatabase(BaseDatabase):
                 break
         if not current and roots:
             current = roots[-1]
-            
+        
+        # 如果没有根消息（所有消息都有 parent_id），使用第一条消息作为根
+        if not current and not roots and rows:
+            current = rows[0]
+            logger.info(f"[Database] No root message found for session {session_id}, using first message (id={current[0]})")
+        
         active_path = []
         
         while current:

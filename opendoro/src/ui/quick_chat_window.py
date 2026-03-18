@@ -1,27 +1,22 @@
 import sys
 import re
 import uuid
-import html
 import os
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTextEdit, 
                              QPushButton, QLabel, QComboBox, QFrame, QApplication,
                              QScrollArea, QButtonGroup, QSizePolicy, QTextBrowser,
-                             QGraphicsOpacityEffect, QMenu)
+                             QGraphicsOpacityEffect, QMenu, QAction)
 from PyQt5.QtCore import Qt, pyqtSignal, QSettings, QTimer, QSize
 from PyQt5.QtGui import QFont, QPixmap, QIcon
 from qfluentwidgets import (PushButton, PrimaryPushButton, TransparentToolButton, ToolButton, FluentIcon as FIF,
                             CardWidget, StrongBodyLabel, BodyLabel, setTheme, Theme,
                             isDarkTheme, TransparentTogglePushButton, MessageBox,
-                            LineEdit, ComboBox, TextEdit)
-
-import markdown
-from pygments import highlight
-from pygments.lexers import get_lexer_by_name, guess_lexer
-from pygments.formatters import HtmlFormatter
+                            LineEdit, ComboBox, TextEdit, InfoBar, InfoBarPosition)
 
 from src.core.database import ChatDatabase
 from src.services.llm_service import LLMWorker
 from src.core.memory_manager import MemoryManager, init_memory_database
+from src.core.quick_chat_service import QuickChatService, ImageProcessor
 from datetime import datetime
 from src.resource_utils import resource_path
 
@@ -56,8 +51,9 @@ class QuickMessageBubble(QFrame):
         
         self.container_layout = QVBoxLayout(self.container)
         self.container_layout.setContentsMargins(12, 12, 12, 12)
-        self.container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-        self.container.setMinimumWidth(80)
+        self.container_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
+        self.container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.container.setMinimumWidth(300)
         
         is_dark = isDarkTheme()
         
@@ -70,11 +66,114 @@ class QuickMessageBubble(QFrame):
                 }
             """)
             
-            self.content_label = QLabel(self.content)
-            self.content_label.setWordWrap(True)
-            self.content_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            self.content_label.setStyleSheet("background-color: transparent; color: white;")
-            self.container_layout.addWidget(self.content_label)
+            self.content_widget = QWidget(self.container)
+            self.content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.content_layout = QVBoxLayout(self.content_widget)
+            self.content_layout.setContentsMargins(0, 0, 0, 0)
+            self.content_layout.setSpacing(8)
+            self.content_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
+            
+            if isinstance(self.content, list):
+                text_parts = []
+                image_parts = []
+                
+                for part in self.content:
+                    if isinstance(part, dict):
+                        if part.get('type') == 'text':
+                            text_parts.append(part.get('text', ''))
+                        elif part.get('type') == 'image_url':
+                            image_parts.append(part)
+                
+                if text_parts:
+                    text_label = QLabel('\n'.join(text_parts))
+                    text_label.setWordWrap(True)
+                    text_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                    text_label.setStyleSheet("background-color: transparent; color: white;")
+                    self.content_layout.addWidget(text_label)
+                
+                if image_parts:
+                    try:
+                        if len(image_parts) == 1:
+                            img_path = image_parts[0].get('_file_path')
+                            from src.core.logger import logger
+                            logger.info(f"[QuickChat] 尝试加载单张图片：{img_path}, exists={os.path.exists(img_path) if img_path else False}")
+                            if img_path and os.path.exists(img_path):
+                                img_label = QLabel()
+                                pixmap = QPixmap(img_path)
+                                logger.info(f"[QuickChat] QPixmap 加载结果：isNull={pixmap.isNull()}, size={pixmap.size()}")
+                                if not pixmap.isNull():
+                                    scaled_pixmap = pixmap.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                                    img_label.setPixmap(scaled_pixmap)
+                                    img_label.setAlignment(Qt.AlignLeft)
+                                    img_label.setStyleSheet("background-color: transparent; color: white; border-radius: 5px;")
+                                    self.content_layout.addWidget(img_label)
+                                else:
+                                    logger.warning(f"[QuickChat] 图片加载失败：{img_path}")
+                                    error_label = QLabel(f"[图片加载失败：{os.path.basename(img_path)}]")
+                                    error_label.setStyleSheet("background-color: transparent; color: white;")
+                                    self.content_layout.addWidget(error_label)
+                            else:
+                                logger.warning(f"[QuickChat] 图片路径不存在：{img_path}")
+                                error_label = QLabel(f"[图片不存在]")
+                                error_label.setStyleSheet("background-color: transparent; color: white;")
+                                self.content_layout.addWidget(error_label)
+                        else:
+                            from src.core.logger import logger
+                            logger.info(f"[QuickChat] 尝试加载 {len(image_parts)} 张图片的网格")
+                            image_grid = QWidget()
+                            grid_layout = QGridLayout(image_grid)
+                            grid_layout.setContentsMargins(0, 0, 0, 0)
+                            grid_layout.setSpacing(5)
+                            
+                            cols = 2
+                            valid_count = 0
+                            for idx, img_part in enumerate(image_parts):
+                                img_path = img_part.get('_file_path')
+                                logger.info(f"[QuickChat]   图片 {idx+1}: {img_path}, exists={os.path.exists(img_path) if img_path else False}")
+                                if img_path and os.path.exists(img_path):
+                                    pixmap = QPixmap(img_path)
+                                    if not pixmap.isNull():
+                                        row = valid_count // cols
+                                        col = valid_count % cols
+                                        
+                                        img_label = QLabel()
+                                        scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                                        img_label.setPixmap(scaled_pixmap)
+                                        img_label.setAlignment(Qt.AlignCenter)
+                                        img_label.setStyleSheet("background-color: transparent; border-radius: 5px;")
+                                        img_label.setFixedSize(100, 100)
+                                        
+                                        grid_layout.addWidget(img_label, row, col)
+                                        valid_count += 1
+                                    else:
+                                        logger.warning(f"[QuickChat] 图片加载失败：{img_path}")
+                                else:
+                                    logger.warning(f"[QuickChat] 图片路径不存在：{img_path}")
+                            
+                            if valid_count > 0:
+                                logger.info(f"[QuickChat] 成功加载 {valid_count} 张图片")
+                                self.content_layout.addWidget(image_grid)
+                            else:
+                                logger.error(f"[QuickChat] 没有成功加载任何图片")
+                                error_label = QLabel(f"[图片显示失败]")
+                                error_label.setStyleSheet("background-color: transparent; color: white;")
+                                self.content_layout.addWidget(error_label)
+                    except Exception as e:
+                        from src.core.logger import logger
+                        import traceback
+                        logger.error(f"[QuickChat] 显示图片时出错：{e}")
+                        logger.error(f"[QuickChat] 错误堆栈：{traceback.format_exc()}")
+                        error_label = QLabel(f"[显示错误：{str(e)[:50]}]")
+                        error_label.setStyleSheet("background-color: transparent; color: white;")
+                        self.content_layout.addWidget(error_label)
+            else:
+                self.content_label = QLabel(self.content)
+                self.content_label.setWordWrap(True)
+                self.content_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
+                self.content_label.setStyleSheet("background-color: transparent; color: white;")
+                self.content_layout.addWidget(self.content_label)
+            
+            self.container_layout.addWidget(self.content_widget)
         else:
             if is_dark:
                 self.container.setStyleSheet("""
@@ -96,6 +195,9 @@ class QuickMessageBubble(QFrame):
             self.content_browser = QTextBrowser()
             self.content_browser.setOpenExternalLinks(True)
             self.content_browser.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
+            self.content_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.content_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.content_browser.document().setDocumentMargin(0)
             if is_dark:
                 self.content_browser.setStyleSheet("""
                     QTextBrowser {
@@ -113,8 +215,19 @@ class QuickMessageBubble(QFrame):
                     }
                 """)
             self.content_browser.setHtml(self.parent_window.render_markdown(self.content) if self.parent_window else self.content)
-            self.content_browser.setMinimumWidth(200)
-            self.content_browser.setMaximumWidth(400)
+            self.content_browser.setMinimumWidth(300)
+            self.content_browser.setMaximumWidth(600)
+            self.content_browser.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.content_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            self.content_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            
+            self.content_browser.document().adjustSize()
+            doc_size = self.content_browser.document().size()
+            needed_height = int(doc_size.height()) + 10
+            
+            self.content_browser.setMinimumHeight(max(50, needed_height))
+            self.content_browser.setMaximumHeight(needed_height)
+            
             self.container_layout.addWidget(self.content_browser)
         
         self.action_widget = QWidget(self)
@@ -205,7 +318,15 @@ class QuickMessageBubble(QFrame):
     
     def copy_content(self):
         """复制内容到剪贴板"""
-        QApplication.clipboard().setText(self.content)
+        if isinstance(self.content, list):
+            text_parts = []
+            for part in self.content:
+                if isinstance(part, dict) and part.get('type') == 'text':
+                    text_parts.append(part.get('text', ''))
+            clipboard_text = '\n'.join(text_parts)
+        else:
+            clipboard_text = self.content
+        QApplication.clipboard().setText(clipboard_text)
         self.btn_copy.setIcon(FIF.ACCEPT)
         self.btn_copy.setToolTip("已复制")
         QTimer.singleShot(1500, self.reset_copy_icon)
@@ -221,25 +342,36 @@ class QuickChatWindow(QWidget):
     
     def __init__(self, db=None, persona_db=None, live2d_widget=None):
         super().__init__()
-        self.chat_db = db or ChatDatabase()
-        self.persona_db = persona_db
-        self.live2d_widget = live2d_widget
-        self.current_session_id = None
-        self.current_persona = "默认助手"
-        self.current_system_prompt = "You are a helpful assistant."
-        self._is_generating = False
-        
-        self.selected_images = []
         
         from src.core.database import DatabaseManager
         db_manager = DatabaseManager()
+        
+        self.chat_db = db or db_manager.chat
+        self.persona_db = persona_db or db_manager.personas
+        self.live2d_widget = live2d_widget
+        
         init_memory_database(db_manager)
         self.memory_manager = MemoryManager(db_manager)
         
         from src.core.tts import TTSManager
         self.tts_manager = TTSManager(db_manager)
         
+        self.chat_service = QuickChatService(
+            chat_db=self.chat_db,
+            persona_db=self.persona_db,
+            memory_manager=self.memory_manager,
+            tts_manager=self.tts_manager
+        )
+        
+        self._is_generating = False
+        self._enter_to_send = False
+        
+        self.selected_images = []
+        
         self.message_widgets = {}
+        
+        self.persona_prompts = ["You are a helpful assistant."]
+        self.persona_doro_tools = [False]
         
         icon_path = resource_path("data\\icons\\app.ico")
         if icon_path and os.path.exists(icon_path):
@@ -247,6 +379,7 @@ class QuickChatWindow(QWidget):
         
         self.init_ui()
         self.load_settings()
+        self.load_tool_settings()
         
     def init_ui(self):
         """初始化 UI - 简洁布局设计"""
@@ -359,18 +492,10 @@ class QuickChatWindow(QWidget):
         self.chat_layout.setSpacing(8)
         self.chat_layout.setContentsMargins(5, 5, 5, 5)
         self.chat_layout.addStretch()
+        self.chat_layout.setStretch(0, 1)
         
         self.chat_scroll.setWidget(self.chat_content)
         main_layout.addWidget(self.chat_scroll, stretch=10)
-        
-        separator = QFrame()
-        separator.setFrameShape(QFrame.HLine)
-        if is_dark:
-            separator.setStyleSheet("background-color: rgba(255, 255, 255, 50);")
-        else:
-            separator.setStyleSheet("background-color: rgba(0, 0, 0, 50);")
-        separator.setFixedHeight(1)
-        main_layout.addWidget(separator)
         
         control_panel = QWidget()
         control_layout = QVBoxLayout(control_panel)
@@ -386,8 +511,10 @@ class QuickChatWindow(QWidget):
         
         self.input_text = TextEdit()
         self.input_text.setPlaceholderText("输入想对 Doro 说的话...")
-        self.input_text.setMaximumHeight(60)
+        self.input_text.setMaximumHeight(120)
         self.input_text.setMinimumHeight(50)
+        self.input_text.textChanged.connect(self.update_send_button_state)
+        self.input_text.installEventFilter(self)
         control_layout.addWidget(self.input_text)
         
         self._auto_play_enabled = False
@@ -418,23 +545,17 @@ class QuickChatWindow(QWidget):
         self.quick_phrase_combo.setFixedHeight(30)
         self.quick_phrase_combo.setMinimumWidth(150)
         
-        quick_phrases = [
-            "早上好！",
-            "你好呀~",
-            "陪我聊天~",
-            "记得吃饭哦~",
-            "别太累了",
-            "今天心情怎么样？",
-            "给我讲个故事",
-            "我们来玩游戏吧",
-        ]
-        self.quick_phrase_combo.addItem("选择快捷用语...")
-        self.quick_phrase_combo.setCurrentIndex(0)
-        for phrase in quick_phrases:
-            self.quick_phrase_combo.addItem(phrase)
+        self._init_quick_phrases()
         
         self.quick_phrase_combo.currentIndexChanged.connect(self.on_quick_phrase_selected)
         bottom_row.addWidget(self.quick_phrase_combo)
+        
+        self.tools_btn = TransparentToolButton(FIF.APPLICATION, self)
+        self.tools_btn.setFixedSize(30, 30)
+        self.tools_btn.setToolTip("选择工具插件")
+        self.tools_btn.clicked.connect(self.show_tools_menu)
+        self.update_tools_button_icon()
+        bottom_row.addWidget(self.tools_btn)
         
         self.persona_combo = ComboBox()
         self.persona_combo.setFixedHeight(30)
@@ -445,6 +566,7 @@ class QuickChatWindow(QWidget):
         self.send_btn = ToolButton(FIF.SEND, self)
         self.send_btn.setFixedSize(32, 32)
         self.send_btn.clicked.connect(self.send_message)
+        self.send_btn.setEnabled(False)
         bottom_row.addWidget(self.send_btn)
         
         self.stop_btn = ToolButton(FIF.CANCEL, self)
@@ -458,6 +580,18 @@ class QuickChatWindow(QWidget):
         main_layout.addWidget(control_panel)
         
         self.load_chat_history()
+    
+    def _init_quick_phrases(self):
+        """初始化快捷短语下拉框"""
+        self.quick_phrase_combo.addItem("选择快捷用语...")
+        self.quick_phrase_combo.setCurrentIndex(0)
+        
+        phrases = self.chat_service.get_all_phrases()
+        for phrase in phrases:
+            self.quick_phrase_combo.addItem(phrase)
+        
+        self.quick_phrase_combo.addItem("────────────")
+        self.quick_phrase_combo.addItem("⚙ 管理快捷短语")
     
     def create_title_bar(self):
         """创建标题栏"""
@@ -484,6 +618,34 @@ class QuickChatWindow(QWidget):
                 font-weight: bold;
             """)
         layout.addWidget(self.title_label)
+        
+        self.clear_history_btn = TransparentToolButton(FIF.DELETE, self)
+        self.clear_history_btn.setFixedSize(25, 25)
+        self.clear_history_btn.setToolTip("清空聊天记录")
+        if is_dark:
+            self.clear_history_btn.setStyleSheet("""
+                TransparentToolButton {
+                    border: none;
+                    border-radius: 3px;
+                    background-color: rgba(255, 255, 255, 30);
+                }
+                TransparentToolButton:hover {
+                    background-color: rgba(255, 100, 100, 100);
+                }
+            """)
+        else:
+            self.clear_history_btn.setStyleSheet("""
+                TransparentToolButton {
+                    border: none;
+                    border-radius: 3px;
+                    background-color: rgba(0, 0, 0, 30);
+                }
+                TransparentToolButton:hover {
+                    background-color: rgba(255, 100, 100, 100);
+                }
+            """)
+        self.clear_history_btn.clicked.connect(self.clear_chat_history)
+        layout.addWidget(self.clear_history_btn)
         
         layout.addStretch()
         
@@ -639,6 +801,8 @@ class QuickChatWindow(QWidget):
         """加载聊天历史到 UI"""
         from src.core.logger import logger
         
+        logger.info(f"[QuickChat] 开始加载聊天历史")
+        
         while self.chat_layout.count() > 1:
             item = self.chat_layout.takeAt(0)
             if item.widget():
@@ -646,21 +810,33 @@ class QuickChatWindow(QWidget):
         
         self.message_widgets.clear()
         
-        session_id = self.get_or_create_session()
+        session_id = self.chat_service.get_or_create_session()
+        logger.info(f"[QuickChat] 获取 session_id: {session_id}")
+        
         if not session_id:
+            logger.warning(f"[QuickChat] session_id 为空，无法加载历史")
             return
         
-        db_msgs = self.chat_db.get_messages(session_id)
+        db_msgs = self.chat_service.get_messages()
         
-        logger.info(f"[QuickChat] 加载历史消息：session_id={session_id}, 消息数={len(db_msgs)}")
+        logger.info(f"[QuickChat] 从数据库加载消息：session_id={session_id}, 消息数={len(db_msgs)}")
+        for i, msg in enumerate(db_msgs[:5]):
+            logger.info(f"[QuickChat]   消息 {i+1}: id={msg[0]}, role={msg[1]}, content_len={len(msg[2]) if msg[2] else 0}, images={msg[3] if len(msg) > 3 else None}")
         
+        if len(db_msgs) > 5:
+            logger.info(f"[QuickChat]   ... 还有 {len(db_msgs) - 5} 条消息")
+        
+        loaded_count = 0
         for msg in db_msgs:
             msg_id = msg[0]
             role = msg[1]
             content = msg[2] if msg[2] else ""
+            images = msg[3] if len(msg) > 3 and msg[3] else None
             
-            if content:
-                bubble = QuickMessageBubble(role, content, msg_id, self)
+            if content or images:
+                message_content = self.chat_service.build_history_message(content, images)
+                
+                bubble = QuickMessageBubble(role, message_content, msg_id, self)
                 bubble.delete_requested.connect(self.delete_message)
                 bubble.regenerate_requested.connect(self.regenerate_message)
                 bubble.speak_requested.connect(self.speak_message)
@@ -668,100 +844,13 @@ class QuickChatWindow(QWidget):
                 
                 insert_index = self.chat_layout.count() - 1
                 self.chat_layout.insertWidget(insert_index, bubble)
-                
-                self.memory_manager.short_term_messages.append({
-                    "role": role,
-                    "content": content,
-                    "timestamp": msg[6] if len(msg) > 6 and msg[6] else datetime.now().isoformat()
-                })
+                loaded_count += 1
+        
+        logger.info(f"[QuickChat] 成功加载 {loaded_count} 条消息到 UI")
     
     def render_markdown(self, text):
         """渲染 Markdown 为 HTML"""
-        is_dark = isDarkTheme()
-        
-        if is_dark:
-            style_name = 'one-dark'
-            bg_color = "#282c34"
-            header_bg = "#21252b"
-            border_color = "#181a1f"
-            text_color = "#abb2bf"
-        else:
-            style_name = 'xcode'
-            bg_color = "#f6f8fa"
-            header_bg = "#e1e4e8"
-            border_color = "#d1d5da"
-            text_color = "#24292e"
-        
-        extensions = ['fenced_code', 'tables']
-        
-        try:
-            markdown_html = markdown.markdown(text, extensions=extensions)
-            
-            def replace_block(match):
-                lang = match.group('lang')
-                code_content = match.group('code')
-                clean_code = html.unescape(code_content)
-                
-                try:
-                    if lang:
-                        lexer = get_lexer_by_name(lang)
-                    else:
-                        lexer = guess_lexer(clean_code)
-                except:
-                    from pygments.lexers.special import TextLexer
-                    lexer = TextLexer()
-                
-                formatter = HtmlFormatter(style=style_name, noclasses=True)
-                highlighted_html = highlight(clean_code, lexer, formatter)
-                
-                start_idx = highlighted_html.find('<pre')
-                end_idx = highlighted_html.rfind('</pre>') + 6
-                
-                if start_idx != -1:
-                    pre_content = highlighted_html[start_idx:end_idx]
-                else:
-                    pre_content = f'<pre>{code_content}</pre>'
-                
-                pre_content = re.sub(r'<pre[^>]*>', 
-                    f'<pre style="margin: 0; padding: 8px; background-color: {bg_color}; color: {text_color}; white-space: pre-wrap; font-family: Consolas, monospace; border-radius: 4px;">', 
-                    pre_content, count=1)
-                
-                lang_display = lang if lang else "Code"
-                
-                return (
-                    f'<div style="margin: 8px 0; border: 1px solid {border_color}; border-radius: 6px; overflow: hidden;">'
-                    f'<div style="background-color: {header_bg}; padding: 6px 12px; border-bottom: 1px solid {border_color};">'
-                    f'<span style="color: {text_color}; font-family: sans-serif; font-size: 11px; font-weight: bold;">{lang_display}</span>'
-                    f'</div>'
-                    f'<div style="background-color: {bg_color}; padding: 0;">{pre_content}</div>'
-                    f'</div>'
-                )
-            
-            pattern = r'<pre><code class="language-(?P<lang>\w*)">(?P<code>.*?)</code></pre>'
-            markdown_html = re.sub(pattern, replace_block, markdown_html, flags=re.DOTALL)
-            
-            pattern_no_lang = r'<pre><code>(?P<code>.*?)</code></pre>'
-            markdown_html = re.sub(pattern_no_lang, replace_block, markdown_html, flags=re.DOTALL)
-            
-            custom_css = f"""
-            <style>
-                body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; line-height: 1.5; color: {text_color}; }}
-                p {{ margin: 0.5em 0; }}
-                h1, h2, h3, h4, h5, h6 {{ margin: 0.8em 0 0.4em 0; font-weight: 600; }}
-                ul, ol {{ margin: 0.5em 0; padding-left: 1.5em; }}
-                li {{ margin: 0.2em 0; }}
-                blockquote {{ border-left: 3px solid {border_color}; margin: 0.5em 0; padding-left: 1em; color: #666; }}
-                code {{ background-color: {bg_color}; padding: 2px 6px; border-radius: 3px; font-family: Consolas, monospace; font-size: 12px; }}
-                table {{ border-collapse: collapse; margin: 0.5em 0; }}
-                th, td {{ border: 1px solid {border_color}; padding: 6px 12px; }}
-                th {{ background-color: {header_bg}; }}
-            </style>
-            """
-            
-            return custom_css + markdown_html
-            
-        except Exception as e:
-            return f"<pre>{text}</pre>"
+        return self.chat_service.render_markdown(text)
     
     def add_message_to_ui(self, role, content, msg_id=None):
         """添加消息到 UI"""
@@ -792,7 +881,7 @@ class QuickChatWindow(QWidget):
         """删除消息"""
         from src.core.logger import logger
         
-        self.chat_db.delete_message(msg_id)
+        self.chat_service.delete_message(msg_id)
         
         if msg_id in self.message_widgets:
             bubble = self.message_widgets[msg_id]
@@ -802,34 +891,73 @@ class QuickChatWindow(QWidget):
         
         logger.info(f"[QuickChat] 删除消息：msg_id={msg_id}")
     
+    def clear_chat_history(self):
+        """清空所有聊天记录"""
+        from src.core.logger import logger
+        from qfluentwidgets import MessageBox
+        
+        box = MessageBox(
+            "确认清空",
+            "确定要清空所有聊天记录吗？\n\n此操作不可恢复！",
+            self
+        )
+        box.yesButton.setText("清空")
+        box.cancelButton.setText("取消")
+        
+        if not box.exec_():
+            return
+        
+        logger.info("[QuickChat] 清空聊天记录")
+        
+        session_id = self.chat_service.get_or_create_session()
+        if session_id:
+            self.chat_service.chat_db.delete_session(session_id)
+            logger.info(f"[QuickChat] 已删除会话：session_id={session_id}")
+        
+        while self.chat_layout.count() > 1:
+            item = self.chat_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        
+        self.message_widgets.clear()
+        
+        if self.chat_service.memory_manager:
+            self.chat_service.memory_manager.short_term_messages.clear()
+            logger.info("[QuickChat] 已清空短期记忆")
+        
+        self.chat_service.session_manager.current_session_id = None
+        new_session_id = self.chat_service.get_or_create_session()
+        logger.info(f"[QuickChat] 已创建新会话：session_id={new_session_id}")
+        
+        InfoBar.success(
+            title="已清空",
+            content="聊天记录已清空",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=2000,
+            parent=self
+        )
+    
     def regenerate_message(self, msg_id):
         """重新生成消息"""
         from src.core.logger import logger
         
-        session_id = self.get_or_create_session()
-        msgs = self.chat_db.get_messages(session_id)
+        ids_to_delete = self.chat_service.delete_messages_from(msg_id)
         
-        target_idx = -1
-        for i, m in enumerate(msgs):
-            if m[0] == msg_id:
-                target_idx = i
-                break
-        
-        if target_idx == -1:
+        if not ids_to_delete:
             return
         
         w = MessageBox("确认重新生成", "重新生成将会删除此消息及其之后的所有对话记录，确定要继续吗？", self)
         if w.exec_():
-            ids_to_delete = [m[0] for m in msgs[target_idx:]]
             for mid in ids_to_delete:
-                self.chat_db.delete_message(mid)
                 if mid in self.message_widgets:
                     bubble = self.message_widgets[mid]
                     self.chat_layout.removeWidget(bubble)
                     bubble.deleteLater()
                     del self.message_widgets[mid]
             
-            self.memory_manager.short_term_messages.clear()
+            self.chat_service.clear_memory()
             
             self.load_chat_history()
             
@@ -837,22 +965,13 @@ class QuickChatWindow(QWidget):
     
     def speak_message(self, msg_id, content):
         """朗读消息"""
-        clean_content = re.sub(r'<thinking>.*?</thinking>', '', content, flags=re.DOTALL).strip()
-        if clean_content and hasattr(self, 'tts_manager'):
-            self.tts_manager.speak(str(msg_id), clean_content)
+        self.chat_service.speak(msg_id, content)
     
     def trigger_llm_generation(self):
         """触发 LLM 生成"""
-        session_id = self.get_or_create_session()
+        session_id = self.chat_service.get_or_create_session()
         
-        history = self.memory_manager.get_context(session_id)
-        
-        system_prompt = self.current_system_prompt
-        if len(system_prompt) > 1000:
-            if "你是 Doro" in system_prompt:
-                system_prompt = "你是 Doro，一个可爱的白色小生物。你性格活泼、黏人，喜欢用可爱的语气和表情符号。请用中文回复，保持简短友好。"
-        
-        history.insert(0, {"role": "system", "content": system_prompt})
+        history = self.chat_service.get_context_for_llm(session_id)
         
         from src.core.database import DatabaseManager
         db_manager = DatabaseManager()
@@ -879,30 +998,48 @@ class QuickChatWindow(QWidget):
             model=model_name,
             db=self.chat_db,
             is_thinking=0,
-            enabled_plugins=[]
+            enabled_plugins=self.chat_service.get_enabled_tools()
         )
         self.llm_worker.finished.connect(self.on_response_received)
         self.llm_worker.error.connect(self.on_error_occurred)
         self.llm_worker.start()
     
+    def update_send_button_state(self):
+        """根据输入内容更新发送按钮状态"""
+        has_content = bool(self.input_text.toPlainText().strip()) or bool(self.selected_images)
+        self.send_btn.setEnabled(has_content)
+    
+    def eventFilter(self, obj, event):
+        """事件过滤器 - 处理回车发送"""
+        from PyQt5.QtCore import QEvent
+        from PyQt5.QtGui import QKeyEvent
+        
+        if obj == self.input_text and event.type() == QEvent.KeyPress:
+            key_event = event
+            if key_event.key() == Qt.Key_Return or key_event.key() == Qt.Key_Enter:
+                if key_event.modifiers() == Qt.ControlModifier:
+                    if self.send_btn.isEnabled():
+                        self.send_message()
+                    return True
+                elif not self._enter_to_send:
+                    return True
+                elif self._enter_to_send and self.send_btn.isEnabled():
+                    self.send_message()
+                    return True
+        
+        return super().eventFilter(obj, event)
+    
     def load_personas(self):
         """加载人格列表"""
         current_text = self.persona_combo.currentText()
         self.persona_combo.clear()
-        self.persona_combo.addItem("默认助手")
-        self.persona_prompts = ["You are a helpful assistant."]
-        self.persona_doro_tools = [False]
         
-        if self.persona_db:
-            personas = self.persona_db.get_personas()
-        else:
-            from src.core.database import DatabaseManager
-            db_manager = DatabaseManager()
-            personas = db_manager.personas.get_personas()
-        for p in personas:
-            self.persona_combo.addItem(p[1])
-            self.persona_prompts.append(p[3])
-            self.persona_doro_tools.append(bool(p[5]))
+        names, prompts, doro_tools = self.chat_service.load_personas()
+        self.persona_prompts = prompts
+        self.persona_doro_tools = doro_tools
+        
+        for name in names:
+            self.persona_combo.addItem(name)
         
         settings = QSettings("DoroPet", "QuickChat")
         last_persona = settings.value("last_persona", "")
@@ -926,13 +1063,112 @@ class QuickChatWindow(QWidget):
                 self.persona_combo.setCurrentIndex(index)
                 self.on_persona_changed(index)
     
-    def on_persona_changed(self, index):
-        """人格切换"""
-        self.current_persona = self.persona_combo.currentText()
-        self.current_system_prompt = self.persona_prompts[index]
+    def update_tools_button_icon(self):
+        """更新工具按钮图标样式"""
+        enabled_tools = self.chat_service.tool_manager.get_enabled_tools()
+        enabled_count = len(enabled_tools)
+        
+        if enabled_count > 0:
+            self.tools_btn.setStyleSheet("""
+                TransparentToolButton {
+                    border: 1px solid rgba(0, 120, 215, 200);
+                    border-radius: 5px;
+                    background-color: rgba(0, 120, 215, 50);
+                }
+                TransparentToolButton:hover {
+                    background-color: rgba(0, 120, 215, 80);
+                }
+            """)
+            
+            enabled_names = self.chat_service.tool_manager.get_enabled_tool_names()
+            skill_count = sum(1 for t in enabled_tools if t.startswith("skill:"))
+            
+            tooltip = f"已启用工具：{', '.join(enabled_names)}"
+            if skill_count > 0:
+                tooltip += f"\n已启用技能：{skill_count} 个"
+            tooltip += "\n\n点击切换工具"
+            self.tools_btn.setToolTip(tooltip)
+        else:
+            self.tools_btn.setStyleSheet("")
+            self.tools_btn.setToolTip("选择工具插件\n\n当前未启用任何工具")
+    
+    def show_tools_menu(self):
+        """显示工具选择菜单"""
+        menu = QMenu(self)
+        
+        local_tools_label = QAction("── 本地工具 ──", self)
+        local_tools_label.setEnabled(False)
+        menu.addAction(local_tools_label)
+        
+        tool_manager = self.chat_service.tool_manager
+        
+        action_search = QAction("🔍 联网搜索", self, checkable=True)
+        action_search.setChecked(tool_manager.is_tool_enabled("search"))
+        action_search.triggered.connect(lambda checked: self.toggle_tool("search", checked))
+        menu.addAction(action_search)
+        
+        action_image = QAction("🎨 图片生成", self, checkable=True)
+        action_image.setChecked(tool_manager.is_tool_enabled("image"))
+        action_image.triggered.connect(lambda checked: self.toggle_tool("image", checked))
+        menu.addAction(action_image)
+        
+        action_coding = QAction("💻 代码执行", self, checkable=True)
+        action_coding.setChecked(tool_manager.is_tool_enabled("coding"))
+        action_coding.triggered.connect(lambda checked: self.toggle_tool("coding", checked))
+        menu.addAction(action_coding)
+        
+        action_file = QAction("📁 文件操作", self, checkable=True)
+        action_file.setChecked(tool_manager.is_tool_enabled("file"))
+        action_file.triggered.connect(lambda checked: self.toggle_tool("file", checked))
+        menu.addAction(action_file)
+        
+        try:
+            from src.core.skill_manager import SkillManager
+            skill_mgr = SkillManager()
+            
+            if skill_mgr and hasattr(skill_mgr, 'skills') and skill_mgr.skills:
+                skill_label = QAction("── 技能插件 ──", self)
+                skill_label.setEnabled(False)
+                menu.addAction(skill_label)
+                
+                for skill_name, skill_info in skill_mgr.skills.items():
+                    try:
+                        skill_display = skill_info.get("name", skill_name) if isinstance(skill_info, dict) else skill_name
+                        action = QAction(f"🔌 {skill_display}", self, checkable=True)
+                        is_enabled = tool_manager.is_tool_enabled(f"skill:{skill_name}")
+                        action.setChecked(is_enabled)
+                        action.triggered.connect(lambda checked, name=skill_name: self.toggle_tool(f"skill:{name}", checked))
+                        menu.addAction(action)
+                    except Exception as e:
+                        from src.core.logger import logger
+                        logger.error(f"[QuickChat] 加载技能 {skill_name} 时出错：{e}")
+        except Exception as e:
+            from src.core.logger import logger
+            logger.error(f"[QuickChat] 加载技能管理器时出错：{e}")
+        
+        menu.exec_(self.tools_btn.mapToGlobal(self.tools_btn.rect().bottomLeft()))
+    
+    def toggle_tool(self, tool_name, enabled):
+        """切换工具启用状态"""
+        self.chat_service.toggle_tool(tool_name, enabled)
+        self.update_tools_button_icon()
         
         settings = QSettings("DoroPet", "QuickChat")
-        settings.setValue("last_persona", self.current_persona)
+        settings.setValue(f"tool_{tool_name}_enabled", enabled)
+        
+        from src.core.logger import logger
+        status = "启用" if enabled else "禁用"
+        logger.info(f"[QuickChat] {status}工具：{tool_name}")
+    
+    def on_persona_changed(self, index):
+        """人格切换"""
+        self.chat_service.set_persona(
+            self.persona_combo.currentText(),
+            self.persona_prompts[index]
+        )
+        
+        settings = QSettings("DoroPet", "QuickChat")
+        settings.setValue("last_persona", self.persona_combo.currentText())
     
     def insert_phrase(self, phrase):
         """插入快捷短语"""
@@ -944,15 +1180,111 @@ class QuickChatWindow(QWidget):
     
     def on_quick_phrase_selected(self, index):
         """快捷短语下拉框选择事件"""
-        if index == 0:
+        current_text = self.quick_phrase_combo.itemText(index)
+        
+        if not current_text or current_text == "选择快捷用语..." or current_text.startswith("──"):
+            self.quick_phrase_combo.setCurrentIndex(0)
             return
         
-        phrase = self.quick_phrase_combo.currentText()
-        self.insert_phrase(phrase)
+        if current_text == "⚙ 管理快捷短语":
+            self.show_quick_phrase_manager()
+            self.quick_phrase_combo.setCurrentIndex(0)
+            return
         
-        self.quick_phrase_combo.blockSignals(True)
+        self.insert_phrase(current_text)
         self.quick_phrase_combo.setCurrentIndex(0)
-        self.quick_phrase_combo.blockSignals(False)
+    
+    def show_quick_phrase_manager(self):
+        """显示快捷短语管理对话框"""
+        from qfluentwidgets import MessageBox
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QPushButton
+        from PyQt5.QtCore import Qt
+        
+        settings = QSettings("DoroPet", "QuickChat")
+        saved_phrases = settings.value("custom_quick_phrases", [])
+        if not isinstance(saved_phrases, list):
+            saved_phrases = saved_phrases.split('||') if saved_phrases else []
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("管理快捷短语")
+        dialog.setModal(True)
+        dialog.setMinimumWidth(400)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 20, 20, 20)
+        
+        info_label = QLabel("⚙ 管理快捷短语\n\n每行一个快捷短语，点击确定保存：\n删除某行即可删除该短语")
+        info_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        layout.addWidget(info_label)
+        
+        phrase_edit = QTextEdit()
+        phrase_edit.setPlaceholderText("输入快捷短语，每行一个\n删除某行即可删除该短语")
+        phrase_edit.setPlainText('\n'.join(saved_phrases))
+        phrase_edit.setMinimumHeight(150)
+        phrase_edit.setMaximumHeight(200)
+        layout.addWidget(phrase_edit)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        cancel_btn = QPushButton("取消")
+        cancel_btn.setFixedWidth(80)
+        btn_layout.addWidget(cancel_btn)
+        
+        ok_btn = QPushButton("确定")
+        ok_btn.setFixedWidth(80)
+        ok_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #0078D4;
+                color: white;
+                border-radius: 5px;
+                padding: 5px 15px;
+            }
+            QPushButton:hover {
+                background-color: #106EBE;
+            }
+        """)
+        btn_layout.addWidget(ok_btn)
+        
+        layout.addLayout(btn_layout)
+        
+        def on_ok():
+            new_phrases = [p.strip() for p in phrase_edit.toPlainText().split('\n') if p.strip()]
+            self.chat_service.save_phrases(settings, new_phrases)
+            self.reload_quick_phrases(new_phrases)
+            dialog.accept()
+        
+        def on_cancel():
+            dialog.reject()
+        
+        ok_btn.clicked.connect(on_ok)
+        cancel_btn.clicked.connect(on_cancel)
+        
+        dialog.exec_()
+    
+    def reload_quick_phrases(self, custom_phrases):
+        """重新加载快捷短语列表"""
+        self.quick_phrase_combo.currentIndexChanged.disconnect()
+        
+        current_text = self.quick_phrase_combo.currentText()
+        self.quick_phrase_combo.clear()
+        
+        self.quick_phrase_combo.addItem("选择快捷用语...")
+        
+        all_phrases = self.chat_service.phrase_manager.get_all_phrases()
+        for phrase in all_phrases:
+            self.quick_phrase_combo.addItem(phrase)
+        
+        self.quick_phrase_combo.addItem("────────────")
+        self.quick_phrase_combo.addItem("⚙ 管理快捷短语")
+        
+        if current_text and current_text != "选择快捷用语..." and not current_text.startswith("──"):
+            index = self.quick_phrase_combo.findText(current_text)
+            if index >= 0:
+                self.quick_phrase_combo.setCurrentIndex(index)
+        
+        self.quick_phrase_combo.currentIndexChanged.connect(self.on_quick_phrase_selected)
     
     def _toggle_auto_play(self):
         """切换自动播放语音状态"""
@@ -968,29 +1300,6 @@ class QuickChatWindow(QWidget):
             self.auto_play_btn.setIcon(FIF.MUTE)
             self.auto_play_btn.setToolTip("自动播放语音：关")
     
-    def get_or_create_session(self):
-        """获取或创建快捷聊天专用会话"""
-        if self.current_session_id:
-            return self.current_session_id
-        
-        cursor = self.chat_db.conn.cursor()
-        cursor.execute("""
-            SELECT id, title FROM sessions 
-            WHERE title = ?
-        """, ("快捷聊天",))
-        
-        row = cursor.fetchone()
-        if row:
-            self.current_session_id = row[0]
-            from src.core.logger import logger
-            logger.info(f"[QuickChat] 找到快捷聊天会话：id={self.current_session_id}")
-            return self.current_session_id
-        
-        self.current_session_id = self.chat_db.create_session("快捷聊天", self.current_system_prompt)
-        from src.core.logger import logger
-        logger.info(f"[QuickChat] 创建快捷聊天会话：id={self.current_session_id}")
-        return self.current_session_id
-    
     def send_message(self):
         """发送消息"""
         if self._is_generating:
@@ -1005,12 +1314,11 @@ class QuickChatWindow(QWidget):
         
         from src.core.logger import logger
         
-        session_id = self.get_or_create_session()
+        session_id = self.chat_service.get_or_create_session()
         
-        logger.info(f"[QuickChat] 当前 session_id={session_id}, current_session_id={self.current_session_id}")
+        logger.info(f"[QuickChat] 当前 session_id={session_id}")
         
-        msg_id = self.chat_db.add_message(
-            session_id, 
+        msg_id = self.chat_service.add_message(
             "user", 
             user_input,
             images=images_json
@@ -1018,7 +1326,9 @@ class QuickChatWindow(QWidget):
         
         logger.info(f"[QuickChat] 用户消息已保存：msg_id={msg_id}, session_id={session_id}")
         
-        self.add_message_to_ui("user", user_input, msg_id)
+        api_content, display_content = self.chat_service.build_user_message(user_input, images_json)
+        
+        self.add_message_to_ui("user", display_content, msg_id)
         
         self.input_text.clear()
         self.selected_images.clear()
@@ -1028,26 +1338,23 @@ class QuickChatWindow(QWidget):
         self.send_btn.setEnabled(False)
         self.stop_btn.setEnabled(True)
         
-        from src.core.logger import logger
+        logger.info(f"[QuickChat] 准备发送消息：user_input={user_input[:50] if user_input else 'None'}, images={images_json}")
         
-        self.memory_manager.add_message("user", user_input, session_id)
+        self.chat_service.add_to_memory("user", api_content, session_id)
         
-        history = self.memory_manager.get_context(session_id)
-        
-        system_prompt = self.current_system_prompt
-        if len(system_prompt) > 1000:
-            if "你是 Doro" in system_prompt:
-                system_prompt = "你是 Doro，一个可爱的白色小生物。你性格活泼、黏人，喜欢用可爱的语气和表情符号。请用中文回复，保持简短友好。"
-        
-        history.insert(0, {"role": "system", "content": system_prompt})
+        history = self.chat_service.get_context_for_llm(session_id)
         
         logger.info(f"[QuickChat] 使用智能记忆系统，上下文消息数：{len(history)}")
         
         logger.info(f"[QuickChat] ====== 发送消息给 AI ======")
         logger.info(f"[QuickChat] 消息总数：{len(history)}")
         for i, msg in enumerate(history):
-            content_preview = msg['content'][:300] if len(msg['content']) > 300 else msg['content']
-            content_preview = content_preview.replace('\n', '\\n')
+            content = msg['content']
+            if isinstance(content, list):
+                content_preview = f"[多模态消息] 文本 + {len([c for c in content if isinstance(c, dict) and c.get('type') == 'image_url'])} 张图片"
+            else:
+                content_preview = content[:300] if len(content) > 300 else content
+                content_preview = content_preview.replace('\n', '\\n')
             logger.info(f"[QuickChat]   [{i}] {msg['role']}: {content_preview}...")
         logger.info(f"[QuickChat] ==========================")
         
@@ -1070,11 +1377,22 @@ class QuickChatWindow(QWidget):
         base_url = active_model[4] if len(active_model) > 4 else "https://api.openai.com/v1"
         model_name = active_model[5] if len(active_model) > 5 else ""
         
-        logger.info(f"[QuickChat] 使用模型：{model_name}, base_url: {base_url[:30] if base_url else 'None'}..., api_key: {api_key[:10] if api_key else 'None'}...")
+        is_ollama = "ollama" in base_url.lower() or "localhost:11434" in base_url
         
-        if not api_key or not model_name or not base_url:
-            error_msg = "错误：当前模型配置不完整（缺少 API Key、Base URL 或模型名称），请在【模型配置】页面重新配置！"
-            logger.error(f"[QuickChat] 模型配置不完整：api_key={bool(api_key)}, base_url={bool(base_url)}, model_name={bool(model_name)}")
+        logger.info(f"[QuickChat] 使用模型：{model_name}, base_url: {base_url[:30] if base_url else 'None'}..., api_key: {api_key[:10] if api_key else 'None'}..., is_ollama={is_ollama}")
+        
+        if not model_name or not base_url:
+            error_msg = "错误：当前模型配置不完整（缺少 Base URL 或模型名称），请在【模型配置】页面重新配置！"
+            logger.error(f"[QuickChat] 模型配置不完整：base_url={bool(base_url)}, model_name={bool(model_name)}")
+            self.add_message_to_ui("assistant", f"⚠️ {error_msg}")
+            self._is_generating = False
+            self.send_btn.setEnabled(True)
+            self.stop_btn.setEnabled(False)
+            return
+        
+        if not api_key and not is_ollama:
+            error_msg = "错误：当前模型配置不完整（缺少 API Key），请在【模型配置】页面重新配置！"
+            logger.error(f"[QuickChat] 模型配置不完整：api_key={bool(api_key)}")
             self.add_message_to_ui("assistant", f"⚠️ {error_msg}")
             self._is_generating = False
             self.send_btn.setEnabled(True)
@@ -1107,23 +1425,20 @@ class QuickChatWindow(QWidget):
             self.stop_btn.setEnabled(False)
             return
         
-        session_id = self.get_or_create_session()
+        session_id = self.chat_service.get_or_create_session()
         
-        msg_id = self.chat_db.add_message(
-            session_id,
+        msg_id = self.chat_service.add_message(
             "assistant",
             content,
             images=None
         )
         
-        self.memory_manager.add_message("assistant", content, session_id)
+        self.chat_service.add_to_memory("assistant", content, session_id)
         
         self.add_message_to_ui("assistant", content, msg_id)
         
         if self._auto_play_enabled:
-            clean_content = re.sub(r'<thinking>.*?</thinking>', '', content, flags=re.DOTALL).strip()
-            if clean_content and hasattr(self, 'tts_manager'):
-                self.tts_manager.speak(str(msg_id), clean_content)
+            self.chat_service.speak(msg_id, content)
         
         self._is_generating = False
         self.send_btn.setEnabled(True)
@@ -1160,10 +1475,23 @@ class QuickChatWindow(QWidget):
         auto_play = settings.value("auto_play_voice", False, type=bool)
         self._auto_play_enabled = auto_play
         self._update_auto_play_btn_style()
+        
+        self.load_tool_settings()
+    
+    def load_tool_settings(self):
+        """加载工具设置"""
+        settings = QSettings("DoroPet", "QuickChat")
+        self.chat_service.load_settings(settings)
+        
+        self._enter_to_send = settings.value("enter_to_send", False, type=bool)
+        
+        self.update_tools_button_icon()
     
     def update_theme(self):
         """更新主题"""
         is_dark = isDarkTheme()
+        
+        self.chat_service.set_theme(is_dark)
         
         if is_dark:
             setTheme(Theme.DARK)
@@ -1250,6 +1578,7 @@ class QuickChatWindow(QWidget):
         settings = QSettings("DoroPet", "QuickChat")
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("auto_play_voice", self._auto_play_enabled)
+        settings.setValue("enter_to_send", self._enter_to_send)
         self.hide()
         event.ignore()
 

@@ -1759,6 +1759,9 @@ class ChatInterface(QWidget):
         sessions = self.db.get_sessions()
         for sess in sessions:
             title = sess[1]
+            # 排除快捷聊天会话（内部使用）
+            if title == "快捷聊天":
+                continue
             if len(title) > 12:
                 title = title[:11] + "…"
             item = QListWidgetItem(title, self.session_list) 
@@ -2786,7 +2789,9 @@ class ChatInterface(QWidget):
             base_url = settings.value("base_url", "https://api.openai.com/v1")
             model = settings.value("model", "gpt-3.5-turbo")
 
-        if not api_key:
+        is_ollama = "ollama" in base_url.lower() or "localhost:11434" in base_url
+        
+        if not api_key and not is_ollama:
             w = MessageBox("提示", "请先在【模型配置】页面添加并选择一个有效的模型！", self)
             w.exec_()
             self._is_generating = False

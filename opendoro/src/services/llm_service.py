@@ -315,7 +315,14 @@ class LLMWorker(QThread):
     def _run_legacy(self):
         logger.info(f"[LLMWorker] Using legacy mode: base_url={self.base_url}, model={self.model}")
         self._http_client = httpx.Client()
-        client = OpenAI(api_key=self.api_key, base_url=self.base_url, http_client=self._http_client)
+        
+        api_key_for_client = self.api_key
+        if not api_key_for_client or api_key_for_client.strip() == "":
+            if "ollama" in self.base_url.lower() or "localhost:11434" in self.base_url:
+                api_key_for_client = "ollama"
+                logger.info("[LLMWorker] Using placeholder API key for Ollama")
+        
+        client = OpenAI(api_key=api_key_for_client, base_url=self.base_url, http_client=self._http_client)
         turn_count = 0
         self.state_manager.set_generation_state(GenerationState.PREPARING)
         
