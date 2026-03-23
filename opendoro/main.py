@@ -56,16 +56,16 @@ def setup_tray_icon(app, widget):
     tray_menu = QMenu()
     
     # === 快捷操作区 ===
-    quick_chat_action = QAction("💬 快捷聊天", app)
-    quick_chat_action.setToolTip("打开快捷聊天窗口，快速与 Doro 对话")
+    quick_chat_action = QAction("💬 沉浸聊天", app)
+    quick_chat_action.setToolTip("打开沉浸聊天窗口，快速与 Doro 对话")
     def open_quick_chat():
         from src.ui.quick_chat_window import QuickChatWindow
-        from src.core.database import DatabaseManager
+        from src.core.quick_chat_dependencies import get_quick_chat_deps
         if not hasattr(widget, 'quick_chat_window') or not widget.quick_chat_window:
-            db_manager = DatabaseManager()
+            deps = get_quick_chat_deps()
             widget.quick_chat_window = QuickChatWindow(
-                db=db_manager.chat,
-                persona_db=db_manager.personas,
+                db=deps.chat_db,
+                persona_db=deps.persona_db,
                 live2d_widget=widget
             )
         widget.quick_chat_window.show()

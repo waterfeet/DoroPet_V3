@@ -3,6 +3,7 @@ import sqlite3
 import datetime
 import base64
 import os
+import pathlib
 import tempfile
 import uuid
 import json
@@ -656,6 +657,7 @@ class ChatTextEdit(QTextBrowser):
         extensions = ['fenced_code', 'tables']
         
         try:
+            text = self._preprocess_image_urls(text)
             markdown_html = markdown.markdown(text, extensions=extensions)
             
             # Use Table layout (proven to work better in PyQt)
@@ -747,10 +749,21 @@ class ChatTextEdit(QTextBrowser):
                 color: {text_color};
             }}
             a {{ color: #40a9ff; }}
+            img {{ max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }}
         </style>
         """
         
         return custom_css + markdown_html
+    
+    def _preprocess_image_urls(self, text: str) -> str:
+        """预处理图片URL，将非标准格式转换为标准Markdown格式"""
+        bare_image_pattern = re.compile(r'!\s*`([^`]+)`')
+        text = bare_image_pattern.sub(r'![](\1)', text)
+        
+        http_image_pattern = re.compile(r'(https?://[^\s<>"\']+\.(?:jpg|jpeg|png|gif|webp|bmp)(?:\?[^\s<>"\']*)?)', re.IGNORECASE)
+        text = http_image_pattern.sub(r'![](\1)', text)
+        
+        return text
 
     _theme_update_timer = None
     
@@ -869,6 +882,143 @@ class ClickableImageLabel(QLabel):
                 os.startfile(self.image_path)
             except Exception as e:
                 logger.error(f"Error opening image: {e}")
+        super().mousePressEvent(event)
+
+
+class NetworkImageLabel(QLabel):
+    """支持网络图片URL的图片标签"""
+    loaded = pyqtSignal()
+    
+    def __init__(self, image_url, parent=None, max_width=400):
+        super().__init__(parent)
+        self.image_url = image_url
+        self.max_width = max_width
+        self.local_path = None
+        self.setCursor(Qt.PointingHandCursor)
+        self.setToolTip("点击查看原图")
+        self.setText("加载图片中...")
+        self.setStyleSheet("QLabel { color: #888; padding: 10px; }")
+        
+        from src.core.image_cache_manager import get_image_cache_manager
+        self._cache_manager = get_image_cache_manager()
+        
+        self._load_image_async()
+    
+    def _load_image_async(self):
+        import threading
+        import requests
+        
+        def download():
+            try:
+                logger.info(f"[NetworkImageLabel] 开始加载图片：url={self.image_url[:150]}...")
+                
+                if self.image_url.startswith('file://'):
+                    if self.image_url.startswith('file:///'):  # file:///C:/path
+                        local_file = self.image_url[8:]
+                    else:  # file://C:/path
+                        local_file = self.image_url[7:]
+                    local_file = local_file.replace('/', '\\')
+                    logger.info(f"[NetworkImageLabel] 检测到 file:// URI，检查本地文件：{local_file}")
+                    if os.path.exists(local_file):
+                        logger.info(f"[NetworkImageLabel] ✅ 本地文件存在，直接使用：{local_file}")
+                        self.local_path = local_file
+                        QTimer.singleShot(0, self._display_image)
+                        return
+                    else:
+                        logger.error(f"[NetworkImageLabel] ❌ 本地文件不存在：{local_file}")
+                        QTimer.singleShot(0, lambda: self.setText(f"[图片文件不存在]"))
+                        return
+                
+                if self.image_url.startswith('data:image'):
+                    import re
+                    match = re.match(r'data:image/([^;]+);base64,(.+)', self.image_url)
+                    if match:
+                        ext = match.group(1)
+                        b64_data = match.group(2)
+                        image_data = base64.b64decode(b64_data)
+
+                        logger.info(f"[NetworkImageLabel] base64 图片直接解码显示，不缓存")
+                        import tempfile
+                        import uuid
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"temp_{timestamp}_{uuid.uuid4().hex[:8]}.{ext}"
+                        temp_path = os.path.join(tempfile.gettempdir(), "doropet_images", filename)
+                        temp_dir = os.path.dirname(temp_path)
+                        if not os.path.exists(temp_dir):
+                            os.makedirs(temp_dir)
+                        with open(temp_path, 'wb') as f:
+                            f.write(image_data)
+                        self.local_path = temp_path
+                        logger.info(f"[NetworkImageLabel] 临时文件：{self.local_path}")
+                        QTimer.singleShot(0, self._display_image)
+                        return
+                else:
+                    logger.info(f"[NetworkImageLabel] 检查 HTTP 图片缓存...")
+                    cached_path = self._cache_manager.get_cached_path(self.image_url)
+                    if cached_path and os.path.exists(cached_path):
+                        logger.info(f"[NetworkImageLabel] ✅ 缓存命中：{cached_path}")
+                        self.local_path = cached_path
+                        QTimer.singleShot(0, self._display_image)
+                        return
+
+                    logger.info(f"[NetworkImageLabel] ❌ 缓存未命中，开始下载...")
+
+                    response = requests.get(self.image_url, timeout=15)
+                    response.raise_for_status()
+
+                    image_data = response.content
+
+                    save_dir = self._cache_manager.cache_dir
+                    if not os.path.exists(save_dir):
+                        os.makedirs(save_dir)
+
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    ext = ".jpg"
+                    if ".png" in self.image_url.lower():
+                        ext = ".png"
+                    elif ".gif" in self.image_url.lower():
+                        ext = ".gif"
+                    elif ".webp" in self.image_url.lower():
+                        ext = ".webp"
+
+                    filename = f"cached_{timestamp}_{uuid.uuid4().hex[:8]}{ext}"
+                    self.local_path = os.path.join(save_dir, filename)
+
+                    with open(self.local_path, 'wb') as f:
+                        f.write(image_data)
+
+                    self._cache_manager.add_image(self.image_url, self.local_path)
+                    logger.info(f"[NetworkImageLabel] 保存到：{self.local_path}")
+                    QTimer.singleShot(0, self._display_image)
+
+            except Exception as e:
+                logger.error(f"[NetworkImageLabel] Failed to load image: {e}")
+                QTimer.singleShot(0, lambda: self.setText(f"[图片加载失败]"))
+        
+        thread = threading.Thread(target=download, daemon=True)
+        thread.start()
+    
+    def _display_image(self):
+        if self.local_path and os.path.exists(self.local_path):
+            pixmap = QPixmap(self.local_path)
+            if not pixmap.isNull():
+                if pixmap.width() > self.max_width:
+                    pixmap = pixmap.scaledToWidth(self.max_width, Qt.SmoothTransformation)
+                self.setPixmap(pixmap)
+                self.setStyleSheet("")
+                self.loaded.emit()
+            else:
+                self.setText("[图片无法显示]")
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            if self.local_path and os.path.exists(self.local_path):
+                try:
+                    os.startfile(self.local_path)
+                except Exception as e:
+                    logger.error(f"Error opening image: {e}")
+            elif self.image_url:
+                QDesktopServices.openUrl(QUrl(self.image_url))
         super().mousePressEvent(event)
 
 class BranchContainer(QFrame):
@@ -1158,6 +1308,39 @@ class MessageBubble(QFrame):
                 code_widget = CodeBlockWidget(block.content, block.language or "", self.container)
                 self.container_layout.addWidget(code_widget)
                 self.content_widgets.append(code_widget)
+            elif block.is_image():
+                img_url = block.image_url
+                if img_url:
+                    if img_url.startswith('http://') or img_url.startswith('https://'):
+                        img_label = NetworkImageLabel(img_url, self.container, max_width=400)
+                        self.container_layout.addWidget(img_label)
+                        self.content_widgets.append(img_label)
+                    elif img_url.startswith('file://'):
+                        local_path = img_url[7:]
+                        pixmap = QPixmap(local_path)
+                        if not pixmap.isNull():
+                            if pixmap.width() > 400:
+                                pixmap = pixmap.scaledToWidth(400, Qt.SmoothTransformation)
+                            lbl_img = ClickableImageLabel(local_path, self.container)
+                            lbl_img.setPixmap(pixmap)
+                            self.container_layout.addWidget(lbl_img)
+                            self.content_widgets.append(lbl_img)
+                        else:
+                            err_label = QLabel(f"[图片无法加载]", self.container)
+                            self.container_layout.addWidget(err_label)
+                    else:
+                        pixmap = QPixmap(img_url)
+                        if not pixmap.isNull():
+                            if pixmap.width() > 400:
+                                pixmap = pixmap.scaledToWidth(400, Qt.SmoothTransformation)
+                            lbl_img = ClickableImageLabel(img_url, self.container)
+                            lbl_img.setPixmap(pixmap)
+                            self.container_layout.addWidget(lbl_img)
+                            self.content_widgets.append(lbl_img)
+                        else:
+                            text_widget = ChatTextEdit(block.content, self.container)
+                            self.container_layout.addWidget(text_widget)
+                            self.content_widgets.append(text_widget)
             else:
                 text_widget = ChatTextEdit(block.content, self.container)
                 self.container_layout.addWidget(text_widget)
@@ -1759,8 +1942,8 @@ class ChatInterface(QWidget):
         sessions = self.db.get_sessions()
         for sess in sessions:
             title = sess[1]
-            # 排除快捷聊天会话（内部使用）
-            if title == "快捷聊天":
+            # 排除沉浸聊天会话（内部使用）
+            if title == "沉浸聊天":
                 continue
             if len(title) > 12:
                 title = title[:11] + "…"
@@ -2967,15 +3150,26 @@ class ChatInterface(QWidget):
                 if content:
                     content_list.append({"type": "text", "text": content})
                 for img_path in images:
-                    base64_image = self.encode_image(img_path)
-                    if base64_image:
+                    if img_path and os.path.exists(img_path):
+                        file_uri = pathlib.Path(img_path).as_uri()
                         content_list.append({
                             "type": "image_url",
                             "image_url": {
-                                "url": f"data:image/jpeg;base64,{base64_image}"
+                                "url": file_uri
                             },
                             "_file_path": img_path
                         })
+                        logger.debug(f"[ChatUI] 使用已有图片路径：{img_path}")
+                    else:
+                        base64_image = self.encode_image(img_path)
+                        if base64_image:
+                            content_list.append({
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                },
+                                "_file_path": img_path
+                            })
                 history.append({"role": role, "content": content_list})
 
         # Check if we need vision fallback

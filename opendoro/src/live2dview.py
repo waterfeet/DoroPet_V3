@@ -691,8 +691,8 @@ class Live2DWidget(QOpenGLWidget):
         menu = QMenu(self)
 
         # === 快捷操作区 ===
-        quick_chat_action = QAction("💬 快捷聊天", self)
-        quick_chat_action.setToolTip("打开快捷聊天窗口，快速与 Doro 对话")
+        quick_chat_action = QAction("💬 沉浸聊天", self)
+        quick_chat_action.setToolTip("打开沉浸聊天窗口，快速与 Doro 对话")
         def open_quick_chat():
             from src.ui.quick_chat_window import QuickChatWindow
             from src.core.database import DatabaseManager

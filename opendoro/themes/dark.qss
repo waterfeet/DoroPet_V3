@@ -844,3 +844,182 @@ QListWidget#live2dModelList {
     background-color: transparent;
     border: none;
 }
+
+/* Music Interface */
+QScrollArea#MusicInterface,
+QWidget#musicContainer {
+    background-color: transparent;
+    border: none;
+}
+
+QLabel#musicSongNameLabel {
+    font-size: 14px;
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+QLabel#musicArtistLabel {
+    font-size: 12px;
+    color: #aaaaaa;
+}
+
+QLabel#musicCoverLabel {
+    background-color: #3a3a3a;
+    border-radius: 6px;
+}
+
+QLabel#musicTimeLabel {
+    font-size: 11px;
+    color: #aaaaaa;
+}
+
+QLabel#musicVolumeLabel {
+    font-size: 11px;
+    color: #aaaaaa;
+}
+
+QLabel#musicSourceLabel {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+QLabel#musicLyricLine {
+    font-size: 13px;
+    color: #888888;
+    padding: 8px;
+}
+
+QLabel#musicLyricLineActive {
+    font-size: 15px;
+    font-weight: bold;
+    color: #60a5fa;
+    background: rgba(96, 165, 250, 0.15);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+QListWidget#musicLyricsList {
+    border: none;
+    background: transparent;
+    outline: none;
+}
+
+QListWidget#musicLyricsList::item {
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: #888888;
+    margin: 2px 0px;
+}
+
+QListWidget#musicLyricsList::item:hover {
+    background: rgba(96, 165, 250, 0.15);
+    color: #60a5fa;
+}
+
+QListWidget#musicLyricsList::item:selected {
+    background: rgba(96, 165, 250, 0.2);
+    color: #60a5fa;
+}
+
+CardWidget#musicBottomPlayer {
+    background-color: #353535;
+    border: 1px solid #454545;
+    border-radius: 8px;
+}
+
+CardWidget#musicPlaylistCard,
+CardWidget#musicSongInfoCard {
+    background-color: #353535;
+    border: 1px solid #454545;
+    border-radius: 8px;
+}
+
+CardWidget#musicLyricsCard {
+    background-color: transparent;
+    border: none;
+    border-radius: 8px;
+}
+
+QSlider#musicProgressSlider::groove:horizontal {
+    border: none;
+    height: 4px;
+    background: #3a3a3a;
+    border-radius: 2px;
+}
+
+QSlider#musicProgressSlider::handle:horizontal {
+    background: #60a5fa;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
+    border-radius: 6px;
+}
+
+QSlider#musicProgressSlider::handle:horizontal:hover {
+    background: #93c5fd;
+}
+
+QSlider#musicProgressSlider::sub-page:horizontal {
+    background: #60a5fa;
+    border-radius: 2px;
+}
+
+QSlider#musicVolumeSlider::groove:horizontal {
+    border: none;
+    height: 4px;
+    background: #3a3a3a;
+    border-radius: 2px;
+}
+
+QSlider#musicVolumeSlider::handle:horizontal {
+    background: #aaaaaa;
+    border: none;
+    width: 10px;
+    height: 10px;
+    margin: -3px 0;
+    border-radius: 5px;
+}
+
+QSlider#musicVolumeSlider::sub-page:horizontal {
+    background: #aaaaaa;
+    border-radius: 2px;
+}
+
+QLabel#musicCoverLabel {
+    background-color: #3a3a3a;
+    border-radius: 4px;
+}
+
+QLabel#musicSongNameLabel {
+    font-size: 13px;
+    font-weight: bold;
+    color: #e0e0e0;
+}
+
+QLabel#musicProgressSlider {
+    background: transparent;
+}
+
+QScrollArea#musicPlaylistsScroll {
+    border: none;
+    background: transparent;
+}
+
+QScrollArea#musicPlaylistsScroll QScrollBar:vertical {
+    width: 6px;
+    background: transparent;
+}
+
+QScrollArea#musicPlaylistsScroll QScrollBar::handle:vertical {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    min-height: 20px;
+}
+
+QScrollArea#musicPlaylistsScroll QScrollBar::handle:vertical:hover {
+    background: rgba(255, 255, 255, 0.3);
+}

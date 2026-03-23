@@ -709,14 +709,19 @@ def generate_image(client, prompt, base_url=None, api_key=None, model=None):
         # Download the image
         # Note: If the custom API returns a local path (e.g. file://), handle it?
         # Usually APIs return http URL.
-        
+
         img_data = requests.get(image_url).content
-        
+
         # Ensure a directory exists for generated images
-        save_dir = os.path.join(os.getcwd(), "generated_images")
+        # Use AppData\Local\DoroPet\generated_images for unified storage
+        appdata_local = os.getenv('LOCALAPPDATA')
+        if appdata_local:
+            save_dir = os.path.join(appdata_local, "DoroPet", "generated_images")
+        else:
+            save_dir = os.path.join(os.path.expanduser("~"), "AppData", "Local", "DoroPet", "generated_images")
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
-            
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"gen_{timestamp}.png"
         file_path = os.path.join(save_dir, filename)

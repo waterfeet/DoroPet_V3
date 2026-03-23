@@ -19,29 +19,39 @@ class ContentBlock:
     type: ContentType
     content: str
     language: Optional[str] = None
+    image_url: Optional[str] = None
+    image_alt: Optional[str] = None
     
     def is_code(self) -> bool:
         return self.type == ContentType.CODE
     
     def is_text(self) -> bool:
         return self.type == ContentType.TEXT
-
+    
     def is_thinking(self) -> bool:
         return self.type == ContentType.THINKING
     
     def is_tool_call(self) -> bool:
         return self.type == ContentType.TOOL_CALL
+    
+    def is_image(self) -> bool:
+        return self.type == ContentType.IMAGE
 
 
 class MessageParser:
     THINKING_START = chr(60) + chr(116) + chr(104) + chr(105) + chr(110) + chr(107) + chr(62)
     THINKING_END = chr(60) + chr(47) + chr(116) + chr(104) + chr(105) + chr(110) + chr(107) + chr(62)
     
-    # Also support the "riode" internal tags if they are used for real-time display
     RIODE_THINK_START = "riodeThink>"
     RIODE_THINK_END = "riodeThinkEnd>"
 
     CODE_BLOCK_PATTERN = re.compile(r'```(?:([\w\+\-\.]+))?\n([\s\S]*?)```')
+    
+    MARKDOWN_IMAGE_PATTERN = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')
+    
+    BARE_IMAGE_URL_PATTERN = re.compile(r'!\s*`([^`]+)`')
+    
+    HTTP_IMAGE_URL_PATTERN = re.compile(r'(https?://[^\s<>"\']+\.(?:jpg|jpeg|png|gif|webp|bmp)(?:\?[^\s<>"\']*)?)', re.IGNORECASE)
     
     @classmethod
     def _get_thinking_pattern(cls):
@@ -83,12 +93,76 @@ class MessageParser:
                 if code_block:
                     blocks.append(code_block)
             else:
-                text = part.strip()
-                if text:
+                text_blocks = cls._parse_text_with_images(part)
+                blocks.extend(text_blocks)
+        
+        return blocks
+    
+    @classmethod
+    def _parse_text_with_images(cls, text: str) -> List[ContentBlock]:
+        blocks = []
+        remaining = text
+        
+        while remaining:
+            md_match = cls.MARKDOWN_IMAGE_PATTERN.search(remaining)
+            bare_match = cls.BARE_IMAGE_URL_PATTERN.search(remaining)
+            http_match = cls.HTTP_IMAGE_URL_PATTERN.search(remaining)
+            
+            matches = []
+            if md_match:
+                matches.append(('markdown', md_match.start(), md_match))
+            if bare_match:
+                matches.append(('bare', bare_match.start(), bare_match))
+            if http_match:
+                matches.append(('http', http_match.start(), http_match))
+            
+            if not matches:
+                if remaining.strip():
                     blocks.append(ContentBlock(
                         type=ContentType.TEXT,
-                        content=text
+                        content=remaining.strip()
                     ))
+                break
+            
+            matches.sort(key=lambda x: x[1])
+            earliest_type, earliest_pos, earliest_match = matches[0]
+            
+            if earliest_pos > 0:
+                text_before = remaining[:earliest_pos].strip()
+                if text_before:
+                    blocks.append(ContentBlock(
+                        type=ContentType.TEXT,
+                        content=text_before
+                    ))
+            
+            if earliest_type == 'markdown':
+                alt_text = earliest_match.group(1)
+                image_url = earliest_match.group(2)
+                blocks.append(ContentBlock(
+                    type=ContentType.IMAGE,
+                    content=earliest_match.group(0),
+                    image_url=image_url,
+                    image_alt=alt_text
+                ))
+                remaining = remaining[earliest_match.end():]
+            elif earliest_type == 'bare':
+                image_url = earliest_match.group(1)
+                blocks.append(ContentBlock(
+                    type=ContentType.IMAGE,
+                    content=earliest_match.group(0),
+                    image_url=image_url,
+                    image_alt=""
+                ))
+                remaining = remaining[earliest_match.end():]
+            else:
+                image_url = earliest_match.group(1)
+                blocks.append(ContentBlock(
+                    type=ContentType.IMAGE,
+                    content=earliest_match.group(0),
+                    image_url=image_url,
+                    image_alt=""
+                ))
+                remaining = remaining[earliest_match.end():]
         
         return blocks
     

@@ -1,4 +1,5 @@
 import json
+import base64
 import httpx
 import time
 import copy
@@ -11,6 +12,18 @@ from src.core.stream_processor import StreamProcessor
 from src.core.state_manager import StateManager, GenerationState
 from src.provider.manager import ProviderManager
 from src.provider.entities import LLMResponse, ToolCall
+
+
+def _truncate_content_for_log(content, max_length=500):
+    if not content:
+        return content
+    if len(content) <= max_length:
+        return content
+    if 'data:image' in content:
+        truncated = content[:max_length]
+        truncated += f"\n...[图片数据已省略，原始长度: {len(content)} 字符]..."
+        return truncated
+    return content[:max_length] + "..."
 
 
 class LLMWorker(QThread):
@@ -284,7 +297,7 @@ class LLMWorker(QThread):
 
             if not tool_calls_buffer:
                 logger.info(f"[LLMWorker] Finished. Total length: {len(full_content)}")
-                logger.info(f"[LLMWorker] Response content: {full_content}")
+                logger.info(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
                 self.finished.emit(full_content, self.reasoning_accumulated, self.tool_calls_accumulated, self.generated_images)
                 break
             
@@ -392,7 +405,7 @@ class LLMWorker(QThread):
 
             if not tool_calls_buffer:
                 logger.info(f"[LLMWorker] Finished. Total length: {len(full_content)}")
-                logger.info(f"[LLMWorker] Response content: {full_content}")
+                logger.info(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
                 self.finished.emit(full_content, self.reasoning_accumulated, self.tool_calls_accumulated, self.generated_images)
                 break
             

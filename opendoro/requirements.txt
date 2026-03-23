@@ -18,3 +18,4 @@ packaging
 edge-tts
 musicdl
 gradio_client
+pycryptodomex

@@ -10,6 +10,7 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 from qfluentwidgets import CardWidget, PushButton, TransparentToolButton, FluentIcon as FIF
 
 from src.services.music_service import MusicService, SongInfo
+from src.services.global_music_player import GlobalMusicPlayer
 
 
 class PlayMode(Enum):
@@ -943,44 +944,54 @@ class ClickableSlider(QSlider):
 class MusicPlayerCard(CardWidget):
     playback_state_changed = pyqtSignal(bool)
     play_mode_changed = pyqtSignal(object)
+    switch_to_music_interface = pyqtSignal()
     
     MUSIC_PATH = os.path.join("data", "resourse", "music")
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_user_seeking = False
-        self._is_online_mode = False
-        self._current_online_song = None
         self._play_mode = PlayMode.LIST_LOOP
         self._played_indices = set()
         
+        self.global_player = GlobalMusicPlayer.get_instance(self)
         self._music_service = MusicService(self)
-        self._init_player()
         self._init_ui()
-        self._connect_service_signals()
+        self._connect_signals()
         self._load_music_files()
     
-    def _init_player(self):
-        self.player = QMediaPlayer()
-        self.player.setVolume(50)
-        
-        self._position_timer = QTimer(self)
-        self._position_timer.setInterval(100)
-        self._position_timer.timeout.connect(self._update_position)
-        
-        self.player.durationChanged.connect(self._on_duration_changed)
-        self.player.positionChanged.connect(self._on_position_changed)
-        self.player.stateChanged.connect(self._on_state_changed)
-        self.player.error.connect(self._on_error_occurred)
-        
-        self._retry_count = 0
-        self._max_retry = 3
+    def _connect_signals(self):
+        self.global_player.playback_state_changed.connect(self._on_global_state_changed)
+        self.global_player.position_changed.connect(self._on_global_position_changed)
+        self.global_player.duration_changed.connect(self._on_global_duration_changed)
+        self.global_player.current_song_changed.connect(self._on_global_song_changed)
     
-    def _connect_service_signals(self):
-        self._music_service.search_completed.connect(self._on_search_completed)
-        self._music_service.search_failed.connect(self._on_search_failed)
-        self._music_service.play_url_obtained.connect(self._on_play_url_obtained)
-        self._music_service.play_url_failed.connect(self._on_play_url_failed)
+    def _on_global_state_changed(self, is_playing: bool):
+        if is_playing:
+            self.play_btn.setIcon(FIF.PAUSE)
+            self.play_btn.setToolTip("暂停")
+        else:
+            self.play_btn.setIcon(FIF.PLAY)
+            self.play_btn.setToolTip("播放")
+        self.playback_state_changed.emit(is_playing)
+    
+    def _on_global_position_changed(self, position: int):
+        if not self._is_user_seeking:
+            self.progress_slider.setValue(position)
+            self.current_time_label.setText(self._format_time(position))
+    
+    def _on_global_duration_changed(self, duration: int):
+        self.progress_slider.setRange(0, duration)
+        self.total_time_label.setText(self._format_time(duration))
+    
+    def _on_global_song_changed(self, song):
+        if song:
+            track_name = f"{song.name} - {song.singer}" if song.singer else song.name
+            if len(track_name) > 20:
+                track_name = track_name[:20] + "..."
+            self.track_label.setText(track_name)
+        else:
+            self.track_label.setText("未加载音乐")
     
     def _init_ui(self):
         self.setMinimumHeight(120)
@@ -1004,6 +1015,8 @@ class MusicPlayerCard(CardWidget):
                 color: #333;
             }
         """)
+        self.title_label.setCursor(Qt.PointingHandCursor)
+        self.title_label.mousePressEvent = lambda e: self.switch_to_music_interface.emit()
         
         self.track_label = QLabel("未加载音乐")
         self.track_label.setStyleSheet("font-size: 12px; color: #888;")
@@ -1075,14 +1088,14 @@ class MusicPlayerCard(CardWidget):
         
         self.volume_slider = QSlider(Qt.Horizontal)
         self.volume_slider.setRange(0, 100)
-        self.volume_slider.setValue(50)
+        self.volume_slider.setValue(100)
         self.volume_slider.setFixedWidth(80)
         self.volume_slider.setFixedHeight(20)
         self.volume_slider.setToolTip("音量")
         self.volume_slider.valueChanged.connect(self._on_volume_changed)
         self._apply_volume_slider_style(self.volume_slider)
         
-        self.volume_value_label = QLabel("50%")
+        self.volume_value_label = QLabel("100%")
         self.volume_value_label.setStyleSheet("font-size: 11px; color: #888;")
         self.volume_value_label.setFixedWidth(30)
         
@@ -1106,23 +1119,12 @@ class MusicPlayerCard(CardWidget):
         volume_layout.addWidget(self.mode_btn)
         volume_layout.addWidget(self.song_list_btn)
         
-        self.online_btn = TransparentToolButton(FIF.SEARCH, self)
-        self.online_btn.setFixedSize(16, 16)
-        self.online_btn.setIconSize(self.online_btn.size())
-        self.online_btn.setToolTip("在线搜索")
-        self.online_btn.clicked.connect(self._toggle_online_search)
-        volume_layout.addWidget(self.online_btn)
-        
         controls_layout.addLayout(volume_layout)
         
         main_layout.addLayout(controls_layout)
         
         self._song_popup = SongListPopup(self)
         self._song_popup.song_selected.connect(self._on_song_selected)
-        
-        self._online_popup = OnlineSearchPopup(self)
-        self._online_popup.song_selected.connect(self._on_online_song_selected)
-        self._online_popup.search_requested.connect(self._on_search_requested)
     
     def _apply_slider_style(self, slider, color):
         slider.setStyleSheet(f"""
@@ -1176,6 +1178,7 @@ class MusicPlayerCard(CardWidget):
     
     def _load_music_files(self):
         self._music_files = []
+        self._local_songs = []
         self._current_index = 0
         
         music_dir = self.MUSIC_PATH
@@ -1192,11 +1195,20 @@ class MusicPlayerCard(CardWidget):
                     if f.lower().endswith(supported_formats)
                 ]
                 self._music_files.sort()
+                
+                for file_path in self._music_files:
+                    song = SongInfo(
+                        song_id=f"local_{len(self._local_songs)}",
+                        name=os.path.splitext(os.path.basename(file_path))[0],
+                        singer="",
+                        source="local",
+                        play_url=file_path
+                    )
+                    self._local_songs.append(song)
             except Exception as e:
                 print(f"Error loading music files: {e}")
         
         if self._music_files:
-            self._load_track(0)
             self._update_song_popup()
     
     def _update_song_popup(self):
@@ -1268,9 +1280,6 @@ class MusicPlayerCard(CardWidget):
         self.mode_btn.setToolTip(tooltip)
     
     def _toggle_song_list(self):
-        if self._online_popup.isVisible():
-            self._online_popup.hide()
-        
         if self._song_popup.isVisible():
             self._song_popup.hide()
         else:
@@ -1280,118 +1289,27 @@ class MusicPlayerCard(CardWidget):
             self._song_popup.move(popup_pos)
             self._song_popup.show()
     
-    def _toggle_online_search(self):
-        if self._song_popup.isVisible():
-            self._song_popup.hide()
-        
-        if self._online_popup.isVisible():
-            self._online_popup.hide()
-        else:
-            btn_rect = self.online_btn.rect()
-            popup_pos = self.online_btn.mapToGlobal(QPoint(btn_rect.width() - self._online_popup.width() + 16, btn_rect.height() + 5))
-            self._online_popup.move(popup_pos)
-            self._online_popup.show()
-    
-    def _on_search_requested(self, keyword: str, platforms: list):
-        self._online_popup.set_loading(True)
-        self._music_service.search(keyword, platforms)
-    
-    def _on_search_completed(self, songs: list):
-        self._online_popup.set_loading(False)
-        self._online_popup.set_results(songs)
-    
-    def _on_search_failed(self, error_msg: str):
-        self._online_popup.set_loading(False)
-        self._online_popup.set_error(error_msg)
-    
-    def _on_online_song_selected(self, song_info: SongInfo):
-        self._is_online_mode = True
-        self._current_online_song = song_info
-        self._retry_count = 0
-        
-        track_name = f"{song_info.name} - {song_info.singer}"
-        if len(track_name) > 20:
-            track_name = track_name[:20] + "..."
-        self.track_label.setText(track_name)
-        
-        self._online_popup.hide()
-        
-        if song_info.play_url:
-            self._play_online_url(song_info.play_url)
-        else:
-            self.track_label.setText("获取播放链接...")
-            self._music_service.get_play_url(song_info)
-    
-    def _on_play_url_obtained(self, song_id: str, url: str):
-        if self._current_online_song and self._current_online_song.song_id == song_id:
-            self._play_online_url(url)
-    
-    def _on_play_url_failed(self, song_id: str):
-        if self._current_online_song and self._current_online_song.song_id == song_id:
-            self.track_label.setText("获取链接失败")
-    
-    def _play_online_url(self, url: str):
-        from src.core.logger import logger
-        logger.info(f"[MusicPlayer] 播放在线音乐：{url[:50]}...")
-        
-        media_content = self._music_service.create_media_content(url)
-        self.player.setMedia(media_content)
-        self.player.play()
-        
-        self._retry_count = 0
-    
     def _on_song_selected(self, index: int):
         if 0 <= index < len(self._music_files):
-            self._is_online_mode = False
-            self._retry_count = 0
-            self._load_track(index)
-            self.player.play()
+            file_path = self._music_files[index]
+            song = SongInfo(
+                song_id=f"local_{index}",
+                name=os.path.splitext(os.path.basename(file_path))[0],
+                singer="",
+                source="local",
+                play_url=file_path
+            )
+            self.global_player.play(song, self._local_songs, index)
             self._song_popup.update_current(index)
     
-    def _load_track(self, index):
-        if 0 <= index < len(self._music_files):
-            self._current_index = index
-            file_path = self._music_files[index]
-            track_name = os.path.splitext(os.path.basename(file_path))[0]
-            
-            if len(track_name) > 15:
-                track_name = track_name[:15] + "..."
-            
-            self.track_label.setText(track_name)
-            
-            url = QUrl.fromLocalFile(file_path)
-            content = QMediaContent(url)
-            self.player.setMedia(content)
-            
-            if hasattr(self, '_song_popup'):
-                self._song_popup.update_current(index)
-            
-            from src.core.logger import logger
-            logger.info(f"[MusicPlayer] 加载本地音乐：{file_path}")
-    
     def _toggle_play(self):
-        if self.player.state() == QMediaPlayer.PlayingState:
-            self.player.pause()
-        else:
-            self.player.play()
+        self.global_player.toggle_play()
     
     def _play_previous(self):
-        if self._is_online_mode:
-            return
-        if self._music_files:
-            self._current_index = (self._current_index - 1) % len(self._music_files)
-            self._load_track(self._current_index)
-            self.player.play()
+        self.global_player.play_previous()
     
     def _play_next(self):
-        if self._is_online_mode:
-            return
-        if self._music_files:
-            next_index = self.get_next_index()
-            if next_index >= 0:
-                self._current_index = next_index
-                self._load_track(self._current_index)
-                self.player.play()
+        self.global_player.play_next()
     
     def _on_slider_pressed(self):
         self._is_user_seeking = True
@@ -1399,13 +1317,13 @@ class MusicPlayerCard(CardWidget):
     def _on_slider_released(self):
         self._is_user_seeking = False
         position = self.progress_slider.value()
-        self.player.setPosition(position)
+        self.global_player.set_position(position)
     
     def _on_slider_moved(self, value):
         self.current_time_label.setText(self._format_time(value))
     
     def _on_volume_changed(self, value):
-        self.player.setVolume(value)
+        self.global_player.set_volume(value)
         self.volume_value_label.setText(f"{value}%")
     
     def _on_duration_changed(self, duration):
@@ -1544,14 +1462,12 @@ class MusicPlayerCard(CardWidget):
         if hasattr(self, '_song_popup'):
             self._song_popup.update_theme(is_dark)
         
-        if hasattr(self, '_online_popup'):
-            self._online_popup.update_theme(is_dark)
+        if hasattr(self, '_song_popup'):
+            self._song_popup.update_theme(is_dark)
     
     def closeEvent(self, event):
         self.player.stop()
         self._music_service.stop_workers()
         if hasattr(self, '_song_popup'):
             self._song_popup.hide()
-        if hasattr(self, '_online_popup'):
-            self._online_popup.hide()
         super().closeEvent(event)
