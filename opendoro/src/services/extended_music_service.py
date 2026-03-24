@@ -202,10 +202,11 @@ class SearchWorker(QThread):
     search_failed = pyqtSignal(str)
     search_progress = pyqtSignal(str)
     
-    def __init__(self, keyword: str, sources: list = None, parent=None):
+    def __init__(self, keyword: str, sources: list = None, page: int = 0, parent=None):
         super().__init__(parent)
         self.keyword = keyword
         self.sources = sources or ['NeteaseMusicClient', 'QQMusicClient', 'KuwoMusicClient']
+        self.page = page
     
     def run(self):
         try:
@@ -216,7 +217,9 @@ class SearchWorker(QThread):
             init_music_clients_cfg = {}
             for source in self.sources:
                 init_music_clients_cfg[source] = {
-                    'search_size_per_source': 15,
+                    'search_size_per_source': 20,
+                    'search_size_per_page': 20,
+                    'strict_limit_search_size_per_page': False,
                     'work_dir': musicdl_output_dir
                 }
             
@@ -454,7 +457,7 @@ class ExtendedMusicService(QObject):
     def get_quality_options(self) -> Dict[str, dict]:
         return QUALITY_OPTIONS
     
-    def search(self, keyword: str, sources: list = None):
+    def search(self, keyword: str, sources: list = None, page: int = 0):
         if not keyword.strip():
             self.search_failed.emit("搜索关键词不能为空")
             return
@@ -462,7 +465,7 @@ class ExtendedMusicService(QObject):
         if self._search_worker and self._search_worker.isRunning():
             self._search_worker.terminate()
         
-        self._search_worker = SearchWorker(keyword, sources, self)
+        self._search_worker = SearchWorker(keyword, sources, page, self)
         self._search_worker.search_completed.connect(self._on_search_completed)
         self._search_worker.search_failed.connect(self.search_failed)
         self._search_worker.search_progress.connect(self.search_progress)

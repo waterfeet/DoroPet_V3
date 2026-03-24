@@ -1,7 +1,7 @@
 from PyQt5.QtCore import QObject, pyqtSignal, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 
-from src.services.extended_music_service import SongInfo
+from src.services.extended_music_service import SongInfo, ExtendedMusicService
 from src.core.logger import logger
 
 
@@ -9,9 +9,11 @@ class GlobalMusicPlayer(QObject):
     """全局音乐播放器，用于在多个界面间共享播放状态"""
     
     playback_state_changed = pyqtSignal(bool)
+    playback_finished = pyqtSignal()
     current_song_changed = pyqtSignal(object)
     position_changed = pyqtSignal(int)
     duration_changed = pyqtSignal(int)
+    play_url_refreshed = pyqtSignal(object, str)
     
     _instance = None
     
@@ -32,11 +34,16 @@ class GlobalMusicPlayer(QObject):
         self._current_index = -1
         self._retry_count = 0
         self._max_retry = 3
+        self._music_service: ExtendedMusicService = None
         
         self.player.stateChanged.connect(self._on_state_changed)
         self.player.positionChanged.connect(self._on_position_changed)
         self.player.durationChanged.connect(self._on_duration_changed)
         self.player.error.connect(self._on_error)
+    
+    def set_music_service(self, service: ExtendedMusicService):
+        """设置音乐服务实例"""
+        self._music_service = service
     
     def play(self, song: SongInfo, playlist: list = None, index: int = 0):
         """播放歌曲"""
@@ -145,8 +152,13 @@ class GlobalMusicPlayer(QObject):
     def _on_state_changed(self, state):
         """播放状态变化"""
         is_playing = state == QMediaPlayer.PlayingState
+        
         if is_playing:
             self._retry_count = 0
+        else:
+            if self.player.position() >= self.player.duration() - 100 and self.player.duration() > 0:
+                self.playback_finished.emit()
+        
         self.playback_state_changed.emit(is_playing)
     
     def _on_position_changed(self, position):
@@ -166,8 +178,11 @@ class GlobalMusicPlayer(QObject):
             self._retry_count += 1
             logger.info(f"[GlobalPlayer] 尝试重新加载 ({self._retry_count}/{self._max_retry})")
             
-            from PyQt5.QtCore import QTimer
-            QTimer.singleShot(1000, self._retry_current)
+            if self._retry_count == 1:
+                self._retry_current()
+            else:
+                logger.info(f"[GlobalPlayer] 尝试从平台重新获取播放链接...")
+                self._refresh_play_url()
         else:
             logger.warning(f"[GlobalPlayer] 重试失败，停止播放")
             self._retry_count = 0
@@ -176,6 +191,42 @@ class GlobalMusicPlayer(QObject):
         """重试当前歌曲"""
         if self._current_song and self._current_song.play_url:
             self._play_url(self._current_song.play_url)
+    
+    def _refresh_play_url(self):
+        """从平台重新获取播放链接"""
+        if not self._music_service or not self._current_song:
+            logger.warning("[GlobalPlayer] 无法重新获取播放链接：音乐服务未设置或当前歌曲为空")
+            self._retry_current()
+            return
+        
+        self._music_service.play_url_obtained.connect(self._on_url_refreshed)
+        self._music_service.play_url_failed.connect(self._on_url_refresh_failed)
+        self._music_service.get_play_url(self._current_song, self._current_song.quality)
+    
+    def _on_url_refreshed(self, song_id: str, url: str):
+        """播放链接刷新成功"""
+        try:
+            self._music_service.play_url_obtained.disconnect(self._on_url_refreshed)
+            self._music_service.play_url_failed.disconnect(self._on_url_refresh_failed)
+        except:
+            pass
+        
+        if self._current_song and self._current_song.song_id == song_id:
+            logger.info(f"[GlobalPlayer] 成功重新获取播放链接")
+            self._current_song.play_url = url
+            self._play_url(url)
+            self.play_url_refreshed.emit(self._current_song, url)
+    
+    def _on_url_refresh_failed(self, song_id: str):
+        """播放链接刷新失败"""
+        try:
+            self._music_service.play_url_obtained.disconnect(self._on_url_refreshed)
+            self._music_service.play_url_failed.disconnect(self._on_url_refresh_failed)
+        except:
+            pass
+        
+        logger.warning(f"[GlobalPlayer] 重新获取播放链接失败，尝试使用原链接重试")
+        self._retry_current()
     
     def close(self):
         """关闭播放器"""

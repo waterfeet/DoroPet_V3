@@ -961,6 +961,7 @@ class MusicPlayerCard(CardWidget):
         self._load_music_files()
     
     def _connect_signals(self):
+        self.global_player.set_music_service(self._music_service)
         self.global_player.playback_state_changed.connect(self._on_global_state_changed)
         self.global_player.position_changed.connect(self._on_global_position_changed)
         self.global_player.duration_changed.connect(self._on_global_duration_changed)

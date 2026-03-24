@@ -5,6 +5,7 @@ from PyQt5.QtCore import QObject, pyqtSignal, QUrl, QThread
 from PyQt5.QtMultimedia import QMediaContent
 
 from src.core.logger import logger
+from src.core.cookie_manager import CookieManager
 
 
 def get_user_data_dir():
@@ -63,11 +64,14 @@ class SongInfo:
 class SearchWorker(QThread):
     search_completed = pyqtSignal(list)
     search_failed = pyqtSignal(str)
+    search_progress = pyqtSignal(str)
     
-    def __init__(self, keyword: str, sources: list = None, parent=None):
+    def __init__(self, keyword: str, sources: list = None, page: int = 0, parent=None):
         super().__init__(parent)
         self.keyword = keyword
         self.sources = sources or ['NeteaseMusicClient', 'QQMusicClient', 'KugouMusicClient']
+        self.page = page
+        self.cookie_manager = CookieManager.get_instance()
     
     def run(self):
         try:
@@ -78,15 +82,30 @@ class SearchWorker(QThread):
             
             init_cfg = {}
             for source in self.sources:
+                platform_key = self._get_platform_key(source)
+                cookies = self.cookie_manager.get_cookies(platform_key)
+                
+                logger.info(f"[SearchWorker] Platform: {platform_key}, Cookies loaded: {len(cookies) > 0}, Count: {len(cookies)}")
+                
                 init_cfg[source] = {
-                    'search_size_per_source': 5,
-                    'work_dir': musicdl_output_dir
+                    'search_size_per_source': 20,
+                    'search_size_per_page': 20,
+                    'strict_limit_search_size_per_page': False,
+                    'work_dir': musicdl_output_dir,
+                    'default_search_cookies': cookies,
+                    'default_parse_cookies': cookies,
                 }
             
             music_client = musicdl.MusicClient(
                 music_sources=self.sources,
                 init_music_clients_cfg=init_cfg
             )
+            
+            search_rule = None
+            if self.page > 0:
+                offset = self.page * 20
+                search_rule = {'offset': offset}
+                self.search_progress.emit(f"正在搜索第 {self.page + 1} 页...")
             
             results = music_client.search(keyword=self.keyword)
             
@@ -100,12 +119,23 @@ class SearchWorker(QThread):
                         logger.warning(f"Failed to parse song info: {e}")
                         continue
             
+            logger.info(f"[SearchWorker] Search completed, found {len(song_list)} songs, page {self.page + 1}")
             self.search_completed.emit(song_list)
             
         except ImportError as e:
             self.search_failed.emit(f"musicdl 库未安装: {e}")
         except Exception as e:
             self.search_failed.emit(f"搜索失败: {str(e)}")
+    
+    def _get_platform_key(self, source: str) -> str:
+        platform_map = {
+            'NeteaseMusicClient': 'netease',
+            'QQMusicClient': 'qq',
+            'KugouMusicClient': 'kugou',
+            'KuwoMusicClient': 'kuwo',
+            'MiguMusicClient': 'migu',
+        }
+        return platform_map.get(source, source.lower())
 
 
 class PlayUrlWorker(QThread):
@@ -116,6 +146,7 @@ class PlayUrlWorker(QThread):
         super().__init__(parent)
         self.song_info = song_info
         self.quality = quality
+        self.cookie_manager = CookieManager.get_instance()
     
     def run(self):
         try:
@@ -132,7 +163,17 @@ class PlayUrlWorker(QThread):
             musicdl_output_dir = os.path.join(get_user_data_dir(), "musicdl_outputs")
             os.makedirs(musicdl_output_dir, exist_ok=True)
             
-            init_cfg = {self.song_info.source: {'work_dir': musicdl_output_dir}}
+            platform_key = source_map.get(self.song_info.source, self.song_info.source.lower())
+            cookies = self.cookie_manager.get_cookies(platform_key)
+            
+            logger.info(f"[PlayUrlWorker] Platform: {platform_key}, Cookies loaded: {len(cookies) > 0}, Count: {len(cookies)}")
+            
+            init_cfg = {
+                self.song_info.source: {
+                    'work_dir': musicdl_output_dir,
+                    'default_download_cookies': cookies,
+                }
+            }
             
             music_client = musicdl.MusicClient(
                 music_sources=[self.song_info.source],
@@ -171,6 +212,7 @@ class PlayUrlWorker(QThread):
 class MusicService(QObject):
     search_completed = pyqtSignal(list)
     search_failed = pyqtSignal(str)
+    search_progress = pyqtSignal(str)
     play_url_obtained = pyqtSignal(str, str)
     play_url_failed = pyqtSignal(str)
     
@@ -183,7 +225,7 @@ class MusicService(QObject):
         self._current_songs: List[SongInfo] = []
         self._url_cache: Dict[str, str] = {}
     
-    def search(self, keyword: str, sources: list = None):
+    def search(self, keyword: str, sources: list = None, page: int = 0):
         if not keyword.strip():
             self.search_failed.emit("搜索关键词不能为空")
             return
@@ -191,9 +233,10 @@ class MusicService(QObject):
         if self._search_worker and self._search_worker.isRunning():
             self._search_worker.terminate()
         
-        self._search_worker = SearchWorker(keyword, sources, self)
+        self._search_worker = SearchWorker(keyword, sources, page, self)
         self._search_worker.search_completed.connect(self._on_search_completed)
         self._search_worker.search_failed.connect(self.search_failed)
+        self._search_worker.search_progress.connect(self.search_progress)
         self._search_worker.start()
     
     def _on_search_completed(self, songs: list):
