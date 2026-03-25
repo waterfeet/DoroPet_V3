@@ -20,3 +20,4 @@ musicdl
 gradio_client
 pycryptodomex
 pygame
+dashscope
