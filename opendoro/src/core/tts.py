@@ -3,9 +3,18 @@ import hashlib
 import requests
 import json
 import shutil
-from PyQt5.QtCore import QObject, pyqtSignal, QThread, QUrl
+import threading
+from PyQt5.QtCore import QObject, pyqtSignal, QThread, QUrl, QTimer
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from src.core.logger import logger
+
+try:
+    import pygame
+    pygame.mixer.init()
+    HAS_PYGAME = True
+except ImportError:
+    HAS_PYGAME = False
+    pygame = None
 
 def get_user_data_dir():
     """
@@ -125,6 +134,83 @@ class OpenAITTSWorker(QThread):
             self.error.emit(str(e))
 
 
+class QwenTTSWorker(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, api_key, base_url, model, voice, text, cache_path):
+        super().__init__()
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+        self.voice = voice
+        self.text = text
+        self.cache_path = cache_path
+
+    def run(self):
+        try:
+            if os.path.exists(self.cache_path):
+                self.finished.emit(self.cache_path)
+                return
+
+            try:
+                import dashscope
+                from dashscope import MultiModalConversation
+            except ImportError:
+                self.error.emit("dashscope 未安装，请运行：pip install dashscope")
+                return
+
+            if self.base_url:
+                dashscope.base_http_api_url = self.base_url
+
+            api_key = self.api_key or os.getenv("DASHSCOPE_API_KEY")
+            if not api_key:
+                self.error.emit("请配置阿里云百炼 API Key 或设置环境变量 DASHSCOPE_API_KEY")
+                return
+
+            model = self.model or "qwen3-tts-flash"
+            voice = self.voice or "Cherry"
+
+            response = MultiModalConversation.call(
+                model=model,
+                api_key=api_key,
+                text=self.text,
+                voice=voice
+            )
+
+            if response.status_code != 200:
+                error_msg = response.message if hasattr(response, 'message') else str(response)
+                self.error.emit(f"Qwen TTS API 错误: {error_msg}")
+                return
+
+            audio_url = None
+            if hasattr(response, 'output') and response.output:
+                output = response.output
+                if hasattr(output, 'audio') and output.audio:
+                    audio_info = output.audio
+                    if hasattr(audio_info, 'url') and audio_info.url:
+                        audio_url = audio_info.url
+
+            if not audio_url:
+                self.error.emit("Qwen TTS 未返回有效的音频数据")
+                return
+
+            audio_response = requests.get(audio_url)
+            if audio_response.status_code != 200:
+                self.error.emit(f"下载音频失败: HTTP {audio_response.status_code}")
+                return
+
+            os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+            
+            cache_path_wav = os.path.splitext(self.cache_path)[0] + '.wav'
+            with open(cache_path_wav, 'wb') as f:
+                f.write(audio_response.content)
+            
+            self.finished.emit(cache_path_wav)
+        except Exception as e:
+            self.error.emit(str(e))
+
+
 class GradioTTSWorker(QThread):
     finished = pyqtSignal(str)
     error = pyqtSignal(str)
@@ -240,17 +326,36 @@ class TTSManager(QObject):
     def __init__(self, db):
         super().__init__()
         self.db = db
-        self.player = QMediaPlayer()
-        self.player.stateChanged.connect(self.on_state_changed)
         self.current_msg_id = None
         self.cache_dir = os.path.join(get_user_data_dir(), "cache", "tts")
         os.makedirs(self.cache_dir, exist_ok=True)
         self.worker = None
+        self._use_pygame = HAS_PYGAME
+        self._pygame_playing = False
+        self._playback_timer = QTimer()
+        self._playback_timer.timeout.connect(self._check_pygame_playback)
+        
+        if not self._use_pygame:
+            self.player = QMediaPlayer()
+            self.player.stateChanged.connect(self._on_qm_state_changed)
+            self.player.error.connect(self._on_qm_error)
+            self.player.durationChanged.connect(self._on_qm_duration_changed)
+            self.player.positionChanged.connect(self._on_qm_position_changed)
+            self._is_playing = False
+            self._audio_duration = 0
+            self._has_ended_normally = False
+            self._last_position = 0
+            self._retry_count = 0
+            self._max_retries = 3
         
     def speak(self, msg_id, text):
-        if self.player.state() == QMediaPlayer.PlayingState:
+        if self._use_pygame and pygame.mixer.music.get_busy():
+            pygame.mixer.music.stop()
+            self._pygame_playing = False
+        elif not self._use_pygame and self.player.state() == QMediaPlayer.PlayingState:
             previous_msg_id = self.current_msg_id
             self.player.stop()
+            self._is_playing = False
             if previous_msg_id == msg_id:
                 return
 
@@ -292,6 +397,8 @@ class TTSManager(QObject):
                 self.worker = EdgeTTSWorker(voice or "zh-CN-XiaoxiaoNeural", text, file_path)
             elif provider == "gradio_tts":
                 self.worker = GradioTTSWorker(base_url, voice, api_name, text, file_path, prompt_audio, prompt_text)
+            elif provider == "qwen_tts":
+                self.worker = QwenTTSWorker(api_key, base_url, model_name, voice, text, file_path)
             else:
                 self.worker = OpenAITTSWorker(api_key, base_url, model_name, voice, text, file_path)
             
@@ -302,7 +409,47 @@ class TTSManager(QObject):
     def play_file(self, path):
         if not self.current_msg_id:
             return
-            
+        
+        if not os.path.exists(path):
+            self.playback_error.emit(self.current_msg_id, f"音频文件不存在: {path}")
+            self.current_msg_id = None
+            return
+        
+        logger.info(f"播放音频: {path}, 使用 {'pygame' if self._use_pygame else 'QMediaPlayer'}")
+        
+        if self._use_pygame:
+            self._play_pygame(path)
+        else:
+            self._play_qmediaplayer(path)
+
+    def _play_pygame(self, path):
+        try:
+            pygame.mixer.music.load(path)
+            pygame.mixer.music.play()
+            self._pygame_playing = True
+            self._playback_timer.start(100)
+            self.playback_started.emit(self.current_msg_id)
+        except Exception as e:
+            logger.error(f"pygame 播放失败: {e}")
+            self.playback_error.emit(self.current_msg_id, f"播放失败: {str(e)}")
+            self.current_msg_id = None
+
+    def _check_pygame_playback(self):
+        if not pygame.mixer.music.get_busy() and self._pygame_playing:
+            self._pygame_playing = False
+            self._playback_timer.stop()
+            if self.current_msg_id:
+                msg_id = self.current_msg_id
+                self.current_msg_id = None
+                self.playback_stopped.emit(msg_id)
+
+    def _play_qmediaplayer(self, path):
+        self._is_playing = True
+        self._audio_duration = 0
+        self._has_ended_normally = False
+        self._last_position = 0
+        self._retry_count = 0
+        
         url = QUrl.fromLocalFile(path)
         content = QMediaContent(url)
         self.player.setMedia(content)
@@ -310,16 +457,55 @@ class TTSManager(QObject):
         self.playback_started.emit(self.current_msg_id)
 
     def stop(self):
-        self.player.stop()
+        if self._use_pygame:
+            pygame.mixer.music.stop()
+            self._pygame_playing = False
+            self._playback_timer.stop()
+        else:
+            self._is_playing = False
+            self._has_ended_normally = True
+            self.player.stop()
+        
         if self.current_msg_id:
             self.playback_stopped.emit(self.current_msg_id)
             self.current_msg_id = None
 
-    def on_state_changed(self, state):
-        if state == QMediaPlayer.StoppedState and self.current_msg_id:
-            msg_id = self.current_msg_id
+    def _on_qm_duration_changed(self, duration):
+        self._audio_duration = duration
+        logger.debug(f"Audio duration: {duration}ms")
+
+    def _on_qm_position_changed(self, position):
+        if self._is_playing:
+            self._last_position = position
+
+    def _on_qm_error(self):
+        if self.current_msg_id:
+            error_string = self.player.errorString()
+            logger.error(f"QMediaPlayer error: {error_string}")
+            self.playback_error.emit(self.current_msg_id, f"播放错误: {error_string}")
+            self._is_playing = False
             self.current_msg_id = None
-            self.playback_stopped.emit(msg_id)
+
+    def _on_qm_state_changed(self, state):
+        if state == QMediaPlayer.PlayingState:
+            self._is_playing = True
+        elif state == QMediaPlayer.StoppedState:
+            if self._is_playing and not self._has_ended_normally:
+                duration = self.player.duration()
+                position = self._last_position
+                if duration > 0 and position < duration - 500 and self._retry_count < self._max_retries:
+                    self._retry_count += 1
+                    logger.warning(f"播放提前结束: position={position}, duration={duration}, 重试({self._retry_count}/{self._max_retries})")
+                    self.player.setPosition(position)
+                    self.player.play()
+                    return
+                elif self._retry_count >= self._max_retries:
+                    logger.error(f"播放重试次数已达上限，放弃重试")
+            self._is_playing = False
+            if self.current_msg_id:
+                msg_id = self.current_msg_id
+                self.current_msg_id = None
+                self.playback_stopped.emit(msg_id)
             
     def on_worker_error(self, msg_id, err):
         self.playback_error.emit(msg_id, err)

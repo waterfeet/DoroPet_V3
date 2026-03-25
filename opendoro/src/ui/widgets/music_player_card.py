@@ -10,6 +10,7 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 from qfluentwidgets import CardWidget, PushButton, TransparentToolButton, FluentIcon as FIF
 
 from src.services.music_service import MusicService, SongInfo
+from src.services.extended_music_service import get_music_data_dir
 from src.services.global_music_player import GlobalMusicPlayer
 
 
@@ -510,11 +511,11 @@ class OnlineSearchPopup(QFrame):
         
         self.platform_combo = QComboBox()
         self.platform_combo.addItem("全部平台", ["NeteaseMusicClient", "QQMusicClient", "KuwoMusicClient"])
-        self.platform_combo.addItem("网易云", ["NeteaseMusicClient"])
-        self.platform_combo.addItem("QQ音乐", ["QQMusicClient"])
-        self.platform_combo.addItem("酷我音乐", ["KuwoMusicClient"])
-        self.platform_combo.addItem("酷狗音乐", ["KugouMusicClient"])
-        self.platform_combo.addItem("咪咕音乐", ["MiguMusicClient"])
+        self.platform_combo.addItem("奈缇斯", ["NeteaseMusicClient"])
+        self.platform_combo.addItem("咕嘎", ["QQMusicClient"])
+        self.platform_combo.addItem("酷me", ["KuwoMusicClient"])
+        self.platform_combo.addItem("酷汪", ["KugouMusicClient"])
+        self.platform_combo.addItem("咪咕", ["MiguMusicClient"])
         self.platform_combo.setFixedWidth(90)
         self.platform_combo.setStyleSheet("""
             QComboBox {
@@ -853,10 +854,10 @@ class OnlineSongItem(QFrame):
     
     def _get_source_name(self, source: str) -> str:
         source_names = {
-            'NeteaseMusicClient': '网易云',
-            'QQMusicClient': 'QQ音乐',
-            'KugouMusicClient': '酷狗',
-            'KuwoMusicClient': '酷我',
+            'NeteaseMusicClient': '奈缇斯',
+            'QQMusicClient': '咕嘎',
+            'KugouMusicClient': '酷汪',
+            'KuwoMusicClient': '酷me',
             'MiguMusicClient': '咪咕',
             'local': '本地'
         }
@@ -945,8 +946,6 @@ class MusicPlayerCard(CardWidget):
     playback_state_changed = pyqtSignal(bool)
     play_mode_changed = pyqtSignal(object)
     switch_to_music_interface = pyqtSignal()
-    
-    MUSIC_PATH = os.path.join("data", "resourse", "music")
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -1182,10 +1181,7 @@ class MusicPlayerCard(CardWidget):
         self._local_songs = []
         self._current_index = 0
         
-        music_dir = self.MUSIC_PATH
-        if not os.path.isabs(music_dir):
-            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-            music_dir = os.path.join(base_dir, music_dir)
+        music_dir = get_music_data_dir()
         
         if os.path.exists(music_dir):
             supported_formats = ('.mp3', '.wav', '.m4a', '.flac', '.ogg', '.aac', '.wma')

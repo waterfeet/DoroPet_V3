@@ -253,11 +253,11 @@ class MusicService(QObject):
     
     SOURCE_NAMES = {
         'all': '全部平台',
-        'netease': '网易云音乐',
-        'qq': 'QQ音乐',
-        'kuwo': '酷我音乐',
-        'kugou': '酷狗音乐',
-        'migu': '咪咕音乐',
+        'netease': '奈缇斯',
+        'qq': '咕嘎',
+        'kuwo': '酷me',
+        'kugou': '酷汪',
+        'migu': '咪咕',
     }
     
     def __init__(self, parent=None):

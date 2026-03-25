@@ -349,6 +349,15 @@ class ConfigDatabase(BaseDatabase):
         if 'prompt_text' not in columns:
             cursor.execute("ALTER TABLE tts_models ADD COLUMN prompt_text TEXT DEFAULT ''")
         
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='quick_replies'")
+        if cursor.fetchone() is None:
+            cursor.execute('''CREATE TABLE IF NOT EXISTS quick_replies (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            keyword TEXT NOT NULL,
+                            reply TEXT NOT NULL,
+                            is_enabled INTEGER DEFAULT 1
+                          )''')
+        
         self.conn.commit()
 
     # LLM Model Methods
@@ -479,6 +488,44 @@ class ConfigDatabase(BaseDatabase):
         cursor = self.conn.cursor()
         cursor.execute("SELECT id, name, provider, base_url, api_key, model_name, proxy FROM image_models WHERE is_active=1")
         return cursor.fetchone()
+
+    def add_quick_reply(self, keyword: str, reply: str, is_enabled: bool = True):
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT INTO quick_replies (keyword, reply, is_enabled) VALUES (?, ?, ?)",
+                       (keyword, reply, 1 if is_enabled else 0))
+        self.conn.commit()
+        return cursor.lastrowid
+    
+    def get_quick_replies(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, keyword, reply, is_enabled FROM quick_replies ORDER BY id ASC")
+        return cursor.fetchall()
+    
+    def update_quick_reply(self, reply_id: int, keyword: str = None, reply: str = None, is_enabled: bool = None):
+        cursor = self.conn.cursor()
+        updates = []
+        params = []
+        
+        if keyword is not None:
+            updates.append("keyword=?")
+            params.append(keyword)
+        if reply is not None:
+            updates.append("reply=?")
+            params.append(reply)
+        if is_enabled is not None:
+            updates.append("is_enabled=?")
+            params.append(1 if is_enabled else 0)
+        
+        if updates:
+            params.append(reply_id)
+            sql = f"UPDATE quick_replies SET {', '.join(updates)} WHERE id=?"
+            cursor.execute(sql, params)
+            self.conn.commit()
+    
+    def delete_quick_reply(self, reply_id: int):
+        cursor = self.conn.cursor()
+        cursor.execute("DELETE FROM quick_replies WHERE id=?", (reply_id,))
+        self.conn.commit()
 
 class PersonaDatabase(BaseDatabase):
     DORO_SYSTEM_PROMPT = """【角色设定】
@@ -829,3 +876,5 @@ class ChatDatabase:
     # Cache methods
     def get_image_description(self, *args, **kwargs): return self._cache.get_image_description(*args, **kwargs)
     def save_image_description(self, *args, **kwargs): return self._cache.save_image_description(*args, **kwargs)
+
+    

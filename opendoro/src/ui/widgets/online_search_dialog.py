@@ -77,10 +77,10 @@ class SearchResultItem(CardWidget):
     
     def _get_source_name(self, source: str) -> str:
         source_names = {
-            'NeteaseMusicClient': '网易云',
-            'QQMusicClient': 'QQ音乐',
-            'KugouMusicClient': '酷狗',
-            'KuwoMusicClient': '酷我',
+            'NeteaseMusicClient': '奈缇斯',
+            'QQMusicClient': '咕嘎',
+            'KugouMusicClient': '酷汪',
+            'KuwoMusicClient': '酷me',
             'MiguMusicClient': '咪咕',
             'local': '本地'
         }

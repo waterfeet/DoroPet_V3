@@ -81,6 +81,12 @@ PROVIDER_HELP_INFO = {
         "doc_url": "https://platform.openai.com/docs",
         "desc": "OpenAI 语音合成服务"
     },
+    "qwen_tts": {
+        "name": "千问 TTS",
+        "api_key_url": "https://bailian.console.aliyun.com/",
+        "doc_url": "https://help.aliyun.com/zh/model-studio/developer-reference/tongyi-qianwan-tts",
+        "desc": "阿里云千问语音合成，支持多种音色"
+    },
     "openai_image": {
         "name": "OpenAI Image",
         "api_key_url": "https://platform.openai.com/api-keys",
@@ -442,7 +448,7 @@ class ConfigInterface(QWidget):
                 ProviderOllama, ProviderMoonshot, ProviderGemini,
                 ProviderGroq, ProviderZhipu,
                 ProviderEdgeTTS, ProviderOpenAITTS,
-                ProviderOpenAIImage
+                ProviderOpenAIImage, ProviderQwenTTS
             )
         except ImportError as e:
             print(f"Warning: Some providers could not be imported: {e}")
@@ -943,6 +949,7 @@ class ConfigInterface(QWidget):
                 "openai": "openai_tts",
                 "siliconflow": "openai_tts",
                 "gradio": "gradio_tts",
+                "qwen": "qwen_tts",
             }
         elif self.current_mode == "IMAGE":
             mapping = {
