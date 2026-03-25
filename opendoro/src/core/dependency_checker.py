@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+import subprocess
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass
 
@@ -203,10 +204,10 @@ def format_dependency_error(result: DependencyCheckResult) -> str:
 
 def show_dependency_error_dialog(result: DependencyCheckResult):
     """
-    显示依赖错误的图形界面对话框
+    显示依赖错误的图形界面对话框，并提供自动安装选项
     """
     try:
-        from PyQt5.QtWidgets import QApplication, QMessageBox
+        from PyQt5.QtWidgets import QApplication, QMessageBox, QPushButton
         from PyQt5.QtCore import Qt
         
         app = QApplication.instance()
@@ -219,8 +220,12 @@ def show_dependency_error_dialog(result: DependencyCheckResult):
         msg_box.setIcon(QMessageBox.Critical)
         msg_box.setWindowTitle("依赖库版本检查失败")
         msg_box.setText("应用程序无法启动，检测到依赖库版本不兼容。")
-        msg_box.setInformativeText("请按照下方提示更新依赖库后重新启动应用程序。")
+        msg_box.setInformativeText("是否自动运行安装脚本修复依赖？")
         msg_box.setDetailedText(error_message)
+        
+        install_btn = msg_box.addButton("自动安装", QMessageBox.AcceptRole)
+        exit_btn = msg_box.addButton("退出程序", QMessageBox.RejectRole)
+        
         msg_box.setStyleSheet("""
             QMessageBox {
                 min-width: 500px;
@@ -230,6 +235,27 @@ def show_dependency_error_dialog(result: DependencyCheckResult):
             }
         """)
         msg_box.exec()
+        
+        if msg_box.clickedButton() == install_btn:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            install_script = os.path.join(project_root, "install_env.bat")
+            
+            if os.path.exists(install_script):
+                subprocess.Popen(
+                    ['cmd', '/c', install_script],
+                    cwd=project_root,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+                sys.exit(0)
+            else:
+                QMessageBox.critical(
+                    None,
+                    "错误",
+                    f"找不到安装脚本：{install_script}\n请手动运行 install_env.bat"
+                )
+                sys.exit(1)
+        else:
+            sys.exit(1)
         
     except Exception as e:
         print(format_dependency_error(result))

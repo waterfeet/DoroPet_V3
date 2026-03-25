@@ -761,8 +761,11 @@ class UpdateInstallWorker(QThread):
             self.progress.emit("正在复制文件...", self.STEP_COPY)
             
             python_exe = sys.executable
+            pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
+            if not os.path.exists(pythonw_exe):
+                pythonw_exe = python_exe
             main_script = os.path.join(self.app_dir, "main.py")
-            restart_cmd = f'start "" /b "{python_exe}" "{main_script}"'
+            restart_cmd = f'start "" "{pythonw_exe}" "{main_script}"'
             
             script_content = f'''@echo off
 chcp 65001 >nul
@@ -899,10 +902,14 @@ exit /b 0
             source_dir = self.prepare_installation(zip_path, version)
             
             python_exe = sys.executable
+            pythonw_exe = python_exe.replace('python.exe', 'pythonw.exe')
+            if not os.path.exists(pythonw_exe):
+                pythonw_exe = python_exe
+            
             main_script = os.path.join(self.app_dir, "main.py")
             
             if silent:
-                restart_cmd = f'start "" /b "{python_exe}" "{main_script}"'
+                restart_cmd = f'start "" "{pythonw_exe}" "{main_script}"'
             else:
                 restart_cmd = f'cd /d "{self.app_dir}" & "{python_exe}" "{main_script}"'
             
