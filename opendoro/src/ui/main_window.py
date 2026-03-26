@@ -2,7 +2,7 @@ import os
 import ctypes
 from ctypes import wintypes
 from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt, QUrl
+from PyQt5.QtCore import Qt, QUrl, QSettings
 from PyQt5.QtGui import QIcon, QDesktopServices
 
 from qfluentwidgets import (FluentWindow, NavigationItemPosition, FluentTranslator, 
@@ -26,6 +26,7 @@ from .music_ui import MusicInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
+from src.core.font_scale_utils import apply_font_scale
 
 class MainWindow(FluentWindow):
     def __init__(self, version_manager=None):
@@ -196,7 +197,10 @@ class MainWindow(FluentWindow):
         if os.path.exists(path):
             with open(path, "r", encoding="utf-8") as f:
                 qss = f.read()
-                QApplication.instance().setStyleSheet(qss)
+            settings = QSettings("DoroPet", "Settings")
+            font_scale = settings.value("font_scale", 1.0, type=float)
+            qss = apply_font_scale(qss, font_scale)
+            QApplication.instance().setStyleSheet(qss)
         else:
             logger.warning(f"Stylesheet not found: {path}")
 

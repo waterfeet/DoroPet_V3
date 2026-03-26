@@ -1,6 +1,7 @@
 /* Global Styles */
 QWidget {
     font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+    font-size: @font_size_m@;
     outline: none;
 }
 
@@ -180,16 +181,16 @@ QLabel {
     color: #333333;
 }
 QLabel#titleLabel {
-    font-size: 18px;
+    font-size: @font_size_xl@;
     font-weight: bold;
     color: #000000;
 }
 QLabel#subtitleLabel {
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #666666;
 }
 QLabel#bodyLabel {
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #333333;
 }
 
@@ -247,7 +248,7 @@ QToolButton:pressed {
 /* Thinking Content (Internal thought) */
 QTextEdit#thinkingContent {
     color: #666666;
-    font-size: 12px;
+    font-size: @font_size_s@;
     font-style: italic;
     border-left: 2px solid #e0e0e0;
     padding-left: 10px;
@@ -264,7 +265,7 @@ QPushButton#toolExecutionHeader {
     border-radius: 14px;
     color: #666666;
     padding: 0 12px;
-    font-size: 11px;
+    font-size: @font_size_xs@;
     text-align: center;
     icon-size: 14px;
 }
@@ -290,13 +291,13 @@ QFrame#thinkingContainer {
 QLabel#thinkingTitle {
     color: #666666;
     font-weight: bold;
-    font-size: 11px;
+    font-size: @font_size_xs@;
 }
 
 /* Thinking Label */
 QLabel#thinkingLabel {
     color: #333333;
-    font-size: 12px;
+    font-size: @font_size_s@;
     font-family: 'Segoe UI', 'Microsoft YaHei';
 }
 
@@ -310,7 +311,7 @@ QFrame#toolsContainer {
 QLabel#toolsTitle {
     color: #666666;
     font-weight: bold;
-    font-size: 11px;
+    font-size: @font_size_xs@;
 }
 
 /* Tool Item Frame */
@@ -330,20 +331,20 @@ QFrame#toolItemFrame[toolType="skill"] {
 /* Tool Type Label */
 QLabel#toolTypeLabel {
     color: #666666;
-    font-size: 11px;
+    font-size: @font_size_xs@;
     font-weight: bold;
 }
 
 /* Tool Name Label */
 QLabel#toolNameLabel {
     color: #333333;
-    font-size: 12px;
+    font-size: @font_size_s@;
     font-weight: bold;
 }
 
 /* Tool Status Label */
 QLabel#toolStatusLabel {
-    font-size: 11px;
+    font-size: @font_size_xs@;
 }
 
 /* Tool Status - Running */
@@ -364,13 +365,13 @@ QLabel#toolStatusLabel[error="true"] {
 /* Tool Args Label */
 QLabel#toolArgsLabel {
     color: #666666;
-    font-size: 11px;
+    font-size: @font_size_xs@;
 }
 
 /* Tool Result Label */
 QLabel#toolResultLabel {
     color: #666666;
-    font-size: 11px;
+    font-size: @font_size_xs@;
 }
 
 /* Tool Result Label - Error */
@@ -438,7 +439,7 @@ QLabel#codeLangLabel {
     color: #24292e;
     font-weight: bold;
     font-family: sans-serif;
-    font-size: 12px;
+    font-size: @font_size_s@;
     border: none;
     background: transparent;
 }
@@ -454,7 +455,7 @@ QTextBrowser#codeContent {
 QTextEdit#chatInput {
     border: none;
     background-color: transparent;
-    font-size: 14px;
+    font-size: @font_size_m@;
     padding: 0px;
     color: #000000;
 }
@@ -468,7 +469,7 @@ QFrame#chatToolbar {
 /* Window Title Label */
 QLabel#windowTitleLabel {
     font-weight: bold;
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #000000;
 }
 
@@ -510,7 +511,7 @@ QLineEdit#promptNameInput, QLineEdit#promptDescInput {
 
 QPlainTextEdit#promptContentEdit {
     font-family: 'Consolas', 'Courier New', monospace;
-    font-size: 13px;
+    font-size: @font_size_body@;
     line-height: 1.5;
 }
 
@@ -540,7 +541,7 @@ QLabel#speechBubble {
     border-radius: 10px;
     padding: 10px;
     color: #000000;
-    font-size: 14px;
+    font-size: @font_size_m@;
 }
 
 /* Context Menu */
@@ -567,7 +568,7 @@ QMenu::separator {
 
 /* Log Interface */
 QLabel#logTitleLabel {
-    font-size: 18px;
+    font-size: @font_size_xl@;
     font-weight: bold;
     color: #000000;
 }
@@ -693,13 +694,13 @@ QWidget#updateDialogContainer {
 }
 
 QLabel#updateDialogIcon {
-    font-size: 24px;
+    font-size: @font_size_xxxl@;
     background: transparent;
 }
 
 QLabel#updateDialogTitle {
     color: #000000;
-    font-size: 18px;
+    font-size: @font_size_xl@;
     font-weight: bold;
 }
 
@@ -709,7 +710,7 @@ QWidget#updateVersionInfoWidget {
 }
 
 QLabel#updateArrowLabel {
-    font-size: 18px;
+    font-size: @font_size_xl@;
     color: #999999;
     background: transparent;
 }
@@ -753,19 +754,19 @@ QWidget#petStatusContainer {
 }
 
 QLabel#petAttrNameLabel {
-    font-size: 14px;
+    font-size: @font_size_m@;
     font-weight: bold;
     color: #333333;
     background: transparent;
 }
 
 QLabel#petAttrValueLabel {
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #666666;
 }
 
 QLabel#petStatusGood {
-    font-size: 11px;
+    font-size: @font_size_xs@;
     padding: 2px 10px;
     border-radius: 11px;
     background-color: #e8f5e9;
@@ -773,7 +774,7 @@ QLabel#petStatusGood {
 }
 
 QLabel#petStatusWarning {
-    font-size: 11px;
+    font-size: @font_size_xs@;
     padding: 2px 10px;
     border-radius: 11px;
     background-color: #fff3e0;
@@ -781,7 +782,7 @@ QLabel#petStatusWarning {
 }
 
 QLabel#petStatusCritical {
-    font-size: 11px;
+    font-size: @font_size_xs@;
     padding: 2px 10px;
     border-radius: 11px;
     background-color: #ffebee;
@@ -799,17 +800,17 @@ QProgressBar#petAttrProgressBar::chunk {
 }
 
 QLabel#petSectionTitle {
-    font-size: 16px;
+    font-size: @font_size_l@;
     font-weight: bold;
     color: #333333;
 }
 
 QLabel#petEventIcon {
-    font-size: 20px;
+    font-size: @font_size_xxl@;
 }
 
 QLabel#petEventText {
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #2e7d32;
 }
 
@@ -826,7 +827,7 @@ CardWidget#petEventCardNegative {
 }
 
 QLabel#petEventTextNegative {
-    font-size: 14px;
+    font-size: @font_size_m@;
     color: #e65100;
 }
 
@@ -877,13 +878,13 @@ QWidget#musicContainer {
 }
 
 QLabel#musicSongNameLabel {
-    font-size: 14px;
+    font-size: @font_size_m@;
     font-weight: bold;
     color: #333333;
 }
 
 QLabel#musicArtistLabel {
-    font-size: 12px;
+    font-size: @font_size_s@;
     color: #888888;
 }
 
@@ -893,17 +894,17 @@ QLabel#musicCoverLabel {
 }
 
 QLabel#musicTimeLabel {
-    font-size: 11px;
+    font-size: @font_size_xs@;
     color: #888888;
 }
 
 QLabel#musicVolumeLabel {
-    font-size: 11px;
+    font-size: @font_size_xs@;
     color: #888888;
 }
 
 QLabel#musicSourceLabel {
-    font-size: 10px;
+    font-size: @font_size_xxs@;
     padding: 2px 6px;
     border-radius: 3px;
     background: rgba(0, 120, 212, 0.1);
@@ -911,13 +912,13 @@ QLabel#musicSourceLabel {
 }
 
 QLabel#musicLyricLine {
-    font-size: 13px;
+    font-size: @font_size_body@;
     color: #666666;
     padding: 8px;
 }
 
 QLabel#musicLyricLineActive {
-    font-size: 15px;
+    font-size: @font_size_l@;
     font-weight: bold;
     color: #0078d4;
     background: rgba(0, 120, 212, 0.1);
@@ -1019,7 +1020,7 @@ QLabel#musicCoverLabel {
 }
 
 QLabel#musicSongNameLabel {
-    font-size: 13px;
+    font-size: @font_size_body@;
     font-weight: bold;
     color: #333333;
 }
@@ -1046,4 +1047,122 @@ QScrollArea#musicPlaylistsScroll QScrollBar::handle:vertical {
 
 QScrollArea#musicPlaylistsScroll QScrollBar::handle:vertical:hover {
     background: rgba(0, 0, 0, 0.3);
+}
+
+/* Pet Avatar Card */
+PetAvatarCard {
+    background-color: #ffffff;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+}
+
+QLabel#petAvatarNameLabel {
+    font-size: @font_size_xl@;
+    font-weight: bold;
+    color: #333333;
+}
+
+QWidget#petAvatarQuoteBubble {
+    background-color: #e3f2fd;
+    border-radius: 12px;
+    border: 1px solid #bbdefb;
+}
+
+QLabel#petAvatarQuoteLabel {
+    font-size: @font_size_m@;
+    color: #1565c0;
+    background: transparent;
+}
+
+QLabel#petAvatarStatusLabel {
+    font-size: @font_size_body@;
+    color: #666666;
+}
+
+QLabel#petAvatarCpuLabel,
+QLabel#petAvatarMemLabel {
+    font-size: @font_size_s@;
+    color: #888888;
+}
+
+QLabel#petAvatarCpuValue,
+QLabel#petAvatarMemValue {
+    font-size: @font_size_xs@;
+    color: #888888;
+}
+
+QProgressBar#petAvatarCpuBar {
+    border: none;
+    border-radius: 4px;
+    background-color: #e0e0e0;
+}
+
+QProgressBar#petAvatarCpuBar::chunk {
+    border-radius: 4px;
+}
+
+QProgressBar#petAvatarMemBar {
+    border: none;
+    border-radius: 4px;
+    background-color: #e0e0e0;
+}
+
+QProgressBar#petAvatarMemBar::chunk {
+    border-radius: 4px;
+}
+
+/* Fortune Widget */
+QLabel#fortuneDateLabel {
+    font-size: @font_size_s@;
+    color: #888888;
+}
+
+QLabel#fortuneLuckyLabel {
+    font-size: @font_size_xxxl@;
+}
+
+QLabel#fortuneStarsLabel {
+    font-size: @font_size_l@;
+}
+
+QLabel#fortuneTextLabel {
+    font-size: @font_size_body@;
+    padding: 8px;
+    line-height: 1.5;
+}
+
+QLabel#fortuneLuckyItemsLabel {
+    font-size: @font_size_s@;
+    color: #666666;
+}
+
+/* Weather Widget */
+QLabel#weatherLocationLabel {
+    font-size: @font_size_m@;
+    font-weight: bold;
+}
+
+QLabel#weatherTempLabel {
+    font-size: @font_size_display@;
+    font-weight: bold;
+}
+
+QLabel#weatherIconLabel {
+    font-size: @font_size_headline@;
+}
+
+QLabel#weatherDescLabel {
+    font-size: @font_size_body@;
+}
+
+QLabel#weatherLoadingLabel {
+    font-size: @font_size_m@;
+    color: #888888;
+}
+
+/* Greeting Banner */
+QLabel#greetingLabel {
+    font-size: @font_size_l@;
+    font-weight: bold;
+    color: #333333;
 }

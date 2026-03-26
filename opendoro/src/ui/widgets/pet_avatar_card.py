@@ -14,7 +14,7 @@ class PetAvatarCard(CardWidget):
         self.attr_manager = attr_manager
         self._current_attributes = {}
         self._avatar_path = self._get_avatar_path()
-        
+
         self._init_ui()
         self._connect_signals()
         self._start_system_monitor()
@@ -31,134 +31,114 @@ class PetAvatarCard(CardWidget):
         return ""
 
     def _init_ui(self):
+        self.setObjectName("petAvatarCard")
         self.setMinimumHeight(180)
         self.setMaximumHeight(220)
-        
+
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(20, 15, 20, 15)
         main_layout.setSpacing(20)
-        
+
         avatar_section = QWidget()
         avatar_layout = QVBoxLayout(avatar_section)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
         avatar_layout.setSpacing(8)
         avatar_layout.setAlignment(Qt.AlignCenter)
-        
+
         self.avatar_label = QLabel()
         self.avatar_label.setFixedSize(90, 90)
         self.avatar_label.setAlignment(Qt.AlignCenter)
         self._load_avatar()
-        
+
         self.name_label = QLabel("Doro")
+        self.name_label.setObjectName("petAvatarNameLabel")
         self.name_label.setAlignment(Qt.AlignCenter)
-        self.name_label.setStyleSheet("""
-            QLabel {
-                font-size: 18px;
-                font-weight: bold;
-                color: #333;
-            }
-        """)
-        
+
         avatar_layout.addWidget(self.avatar_label, alignment=Qt.AlignCenter)
         avatar_layout.addWidget(self.name_label, alignment=Qt.AlignCenter)
-        
+
         quote_section = QWidget()
         quote_layout = QVBoxLayout(quote_section)
         quote_layout.setContentsMargins(0, 0, 0, 0)
         quote_layout.setSpacing(12)
-        
+
         self.quote_bubble = QWidget()
-        self.quote_bubble.setStyleSheet("""
-            QWidget {
-                background-color: #e3f2fd;
-                border-radius: 12px;
-                border: 1px solid #bbdefb;
-            }
-        """)
+        self.quote_bubble.setObjectName("petAvatarQuoteBubble")
         bubble_layout = QVBoxLayout(self.quote_bubble)
         bubble_layout.setContentsMargins(15, 12, 15, 12)
-        
+
         self.quote_label = QLabel()
+        self.quote_label.setObjectName("petAvatarQuoteLabel")
         self.quote_label.setWordWrap(True)
         self.quote_label.setAlignment(Qt.AlignCenter)
-        self.quote_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: #1565c0;
-                background: transparent;
-            }
-        """)
         self.quote_label.setText("今天心情怎么样呢？")
-        
+
         bubble_layout.addWidget(self.quote_label)
-        
+
         self.status_label = QLabel()
+        self.status_label.setObjectName("petAvatarStatusLabel")
         self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("""
-            QLabel {
-                font-size: 13px;
-                color: #666;
-            }
-        """)
         self.status_label.setText("状态良好")
-        
+
         system_section = QWidget()
         system_layout = QVBoxLayout(system_section)
         system_layout.setContentsMargins(0, 8, 0, 0)
         system_layout.setSpacing(6)
-        
+
         cpu_row = QWidget()
         cpu_layout = QHBoxLayout(cpu_row)
         cpu_layout.setContentsMargins(0, 0, 0, 0)
         cpu_layout.setSpacing(8)
-        
+
         self.cpu_label = QLabel("CPU")
-        self.cpu_label.setStyleSheet("font-size: 12px; color: #888;")
+        self.cpu_label.setObjectName("petAvatarCpuLabel")
         self.cpu_label.setFixedWidth(35)
-        
+
         self.cpu_bar = QProgressBar()
+        self.cpu_bar.setObjectName("petAvatarCpuBar")
         self.cpu_bar.setFixedHeight(8)
         self.cpu_bar.setTextVisible(False)
         self.cpu_bar.setRange(0, 100)
-        
+
         self.cpu_value = QLabel("0%")
-        self.cpu_value.setStyleSheet("font-size: 11px; color: #888;")
+        self.cpu_value.setObjectName("petAvatarCpuValue")
         self.cpu_value.setFixedWidth(40)
-        
+
         cpu_layout.addWidget(self.cpu_label)
         cpu_layout.addWidget(self.cpu_bar)
         cpu_layout.addWidget(self.cpu_value)
-        
+
         mem_row = QWidget()
         mem_layout = QHBoxLayout(mem_row)
         mem_layout.setContentsMargins(0, 0, 0, 0)
         mem_layout.setSpacing(8)
-        
+
         self.mem_label = QLabel("内存")
-        self.mem_label.setStyleSheet("font-size: 12px; color: #888;")
+        self.mem_label.setObjectName("petAvatarMemLabel")
         self.mem_label.setFixedWidth(35)
-        
+
         self.mem_bar = QProgressBar()
+        self.mem_bar.setObjectName("petAvatarMemBar")
         self.mem_bar.setFixedHeight(8)
         self.mem_bar.setTextVisible(False)
         self.mem_bar.setRange(0, 100)
-        
+
         self.mem_value = QLabel("0%")
-        self.mem_value.setStyleSheet("font-size: 11px; color: #888;")
+        self.mem_value.setObjectName("petAvatarMemValue")
         self.mem_value.setFixedWidth(40)
-        
+
         mem_layout.addWidget(self.mem_label)
         mem_layout.addWidget(self.mem_bar)
         mem_layout.addWidget(self.mem_value)
-        
+
         system_layout.addWidget(cpu_row)
         system_layout.addWidget(mem_row)
-        
+
         quote_layout.addWidget(self.quote_bubble)
         quote_layout.addWidget(self.status_label)
         quote_layout.addWidget(system_section)
         quote_layout.addStretch()
-        
+
         main_layout.addWidget(avatar_section)
         main_layout.addWidget(quote_section, 1)
 
@@ -166,7 +146,6 @@ class PetAvatarCard(CardWidget):
         if self._avatar_path and os.path.exists(self._avatar_path):
             pixmap = QPixmap(self._avatar_path)
             if not pixmap.isNull():
-                # 直接使用原始 pixmap，不加圆角
                 scaled = pixmap.scaled(86, 86, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                 self.avatar_label.setPixmap(scaled)
                 self.avatar_label.setStyleSheet("""
@@ -175,7 +154,7 @@ class PetAvatarCard(CardWidget):
                     }
                 """)
                 return
-        
+
         self.avatar_label.setStyleSheet("""
             QLabel {
                 font-size: 48px;
@@ -199,45 +178,44 @@ class PetAvatarCard(CardWidget):
         cpu_percent = psutil.cpu_percent(interval=None)
         mem = psutil.virtual_memory()
         mem_percent = mem.percent
-        
+
         self.cpu_bar.setValue(int(cpu_percent))
         self.cpu_value.setText(f"{cpu_percent:.1f}%")
-        
+
         self.mem_bar.setValue(int(mem_percent))
         self.mem_value.setText(f"{mem_percent:.1f}%")
-        
-        is_dark = self._is_dark_theme()
+
         if cpu_percent > 80:
             bar_color = "#ef5350"
         elif cpu_percent > 60:
             bar_color = "#ffa726"
         else:
             bar_color = "#66bb6a"
-        
+
         self.cpu_bar.setStyleSheet(f"""
             QProgressBar {{
                 border: none;
                 border-radius: 4px;
-                background-color: {'#3a3a3a' if is_dark else '#e0e0e0'};
+                background-color: {'#3a3a3a' if self._is_dark_theme() else '#e0e0e0'};
             }}
             QProgressBar::chunk {{
                 background-color: {bar_color};
                 border-radius: 4px;
             }}
         """)
-        
+
         if mem_percent > 80:
             bar_color = "#ef5350"
         elif mem_percent > 60:
             bar_color = "#ffa726"
         else:
             bar_color = "#66bb6a"
-        
+
         self.mem_bar.setStyleSheet(f"""
             QProgressBar {{
                 border: none;
                 border-radius: 4px;
-                background-color: {'#3a3a3a' if is_dark else '#e0e0e0'};
+                background-color: {'#3a3a3a' if self._is_dark_theme() else '#e0e0e0'};
             }}
             QProgressBar::chunk {{
                 background-color: {bar_color};
@@ -274,95 +252,4 @@ class PetAvatarCard(CardWidget):
             self.status_label.setText(description)
 
     def update_theme(self, is_dark: bool):
-        if is_dark:
-            if self._avatar_path and os.path.exists(self._avatar_path):
-                self.avatar_label.setStyleSheet("""
-                    QLabel {
-                        background-color: transparent;
-                    }
-                """)
-            else:
-                self.avatar_label.setStyleSheet("""
-                    QLabel {
-                        font-size: 48px;
-                        background-color: #2d2d2d;
-                    }
-                """)
-            self.name_label.setStyleSheet("""
-                QLabel {
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #e0e0e0;
-                }
-            """)
-            self.quote_bubble.setStyleSheet("""
-                QWidget {
-                    background-color: #1e3a5f;
-                    border-radius: 12px;
-                    border: 1px solid #2e5a8f;
-                }
-            """)
-            self.quote_label.setStyleSheet("""
-                QLabel {
-                    font-size: 14px;
-                    color: #90caf9;
-                    background: transparent;
-                }
-            """)
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    font-size: 13px;
-                    color: #aaa;
-                }
-            """)
-        else:
-            if self._avatar_path and os.path.exists(self._avatar_path):
-                self.avatar_label.setStyleSheet("""
-                    QLabel {
-                        background-color: transparent;
-                    }
-                """)
-            else:
-                self.avatar_label.setStyleSheet("""
-                    QLabel {
-                        font-size: 48px;
-                        background-color: #f0f0f0;
-                    }
-                """)
-            self.name_label.setStyleSheet("""
-                QLabel {
-                    font-size: 18px;
-                    font-weight: bold;
-                    color: #333;
-                }
-            """)
-            self.quote_bubble.setStyleSheet("""
-                QWidget {
-                    background-color: #e3f2fd;
-                    border-radius: 12px;
-                    border: 1px solid #bbdefb;
-                }
-            """)
-            self.quote_label.setStyleSheet("""
-                QLabel {
-                    font-size: 14px;
-                    color: #1565c0;
-                    background: transparent;
-                }
-            """)
-            self.status_label.setStyleSheet("""
-                QLabel {
-                    font-size: 13px;
-                    color: #666;
-                }
-            """)
-        
-        self._update_system_labels_theme(is_dark)
         self._update_system_info()
-
-    def _update_system_labels_theme(self, is_dark: bool):
-        label_color = "#888" if not is_dark else "#aaa"
-        self.cpu_label.setStyleSheet(f"font-size: 12px; color: {label_color};")
-        self.cpu_value.setStyleSheet(f"font-size: 11px; color: {label_color};")
-        self.mem_label.setStyleSheet(f"font-size: 12px; color: {label_color};")
-        self.mem_value.setStyleSheet(f"font-size: 11px; color: {label_color};")

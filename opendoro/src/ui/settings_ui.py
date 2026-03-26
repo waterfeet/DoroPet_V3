@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget, QSpacerItem, QSizePolicy
 from PyQt5.QtCore import Qt, QSettings
-from qfluentwidgets import (ScrollArea, CheckBox, Slider, TitleLabel, 
-                            StrongBodyLabel, CaptionLabel, PushButton, FluentIcon, 
+from qfluentwidgets import (ScrollArea, CheckBox, Slider, TitleLabel,
+                            StrongBodyLabel, CaptionLabel, PushButton, FluentIcon,
                             isDarkTheme, LineEdit, Pivot, CardWidget, BodyLabel,
-                            ComboBox, SpinBox, InfoBar)
+                            ComboBox, SpinBox, InfoBar, TransparentToolButton)
 from src.core.logger import logger
 
 
@@ -259,17 +259,119 @@ class DisplaySettingsPage(QWidget):
         layout.addWidget(aspect_card)
         
         monitor_card = SettingCard("系统监控", self)
-        
+
         self.check_system_monitor = CheckBox("启用系统监控 (CPU/内存),占用过高让doro提示,低配置建议调高阈值", self)
         self.check_system_monitor.setChecked(True)
         monitor_card.addWidget(self.check_system_monitor)
-        
+
         self.add_slider_option(monitor_card, "CPU 告警阈值", 50, 100, 70, "%")
         self.add_slider_option(monitor_card, "内存告警阈值", 50, 100, 80, "%")
-        
+
         layout.addWidget(monitor_card)
+
+        font_card = SettingCard("字体大小", self)
+
+        font_label = StrongBodyLabel("选择字体大小", self)
+        font_card.addWidget(font_label)
+
+        font_h_layout = QHBoxLayout()
+        font_h_layout.setSpacing(8)
+
+        self.font_buttons = {}
+        font_options = [
+            ("小", 90),
+            ("中", 100),
+            ("大", 115),
+            ("特大", 135),
+        ]
+
+        for text, value in font_options:
+            btn = PushButton(text, self)
+            btn.setFixedSize(60, 32)
+            btn.setCursor(Qt.PointingHandCursor)
+            self.font_buttons[value] = btn
+            font_h_layout.addWidget(btn)
+
+        font_h_layout.addStretch()
+
+        for value, btn in self.font_buttons.items():
+            btn.clicked.connect(lambda checked, v=value: self._on_font_button_clicked(v))
+
+        font_card.addLayout(font_h_layout)
+
+        layout.addWidget(font_card)
         layout.addStretch()
-    
+
+        self._update_font_buttons_style(100)
+
+    def _on_font_button_clicked(self, value):
+        settings_interface = self._find_settings_interface()
+        if settings_interface:
+            settings_interface._on_font_size_clicked(value)
+
+    def _find_settings_interface(self):
+        widget = self.parent()
+        while widget:
+            if isinstance(widget, SettingsInterface):
+                return widget
+            widget = widget.parent()
+        return None
+
+    def _update_font_buttons_style(self, selected_value):
+        is_dark = isDarkTheme()
+        font_sizes = {90: 12, 100: 14, 115: 16, 135: 18}
+        for value, btn in self.font_buttons.items():
+            font_size = font_sizes.get(value, 14)
+            if value == selected_value:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: rgba(0, 120, 212, 0.2);
+                        border: 1px solid rgba(0, 120, 212, 0.5);
+                        border-radius: 4px;
+                        color: #0078d4;
+                        font-weight: bold;
+                        font-size: {font_size}px;
+                    }}
+                """ if not is_dark else f"""
+                    QPushButton {{
+                        background-color: rgba(96, 165, 250, 0.2);
+                        border: 1px solid rgba(96, 165, 250, 0.5);
+                        border-radius: 4px;
+                        color: #60a5fa;
+                        font-weight: bold;
+                        font-size: {font_size}px;
+                    }}
+                """)
+            else:
+                btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background-color: transparent;
+                        border: none;
+                        border-radius: 4px;
+                        color: #333333;
+                        font-size: {font_size}px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: rgba(0, 0, 0, 0.05);
+                    }}
+                """ if not is_dark else f"""
+                    QPushButton {{
+                        background-color: transparent;
+                        border: none;
+                        border-radius: 4px;
+                        color: #e0e0e0;
+                        font-size: {font_size}px;
+                    }}
+                    QPushButton:hover {{
+                        background-color: rgba(255, 255, 255, 0.05);
+                    }}
+                """)
+
+    def _init_font_buttons_style(self, saved_value=100):
+        if saved_value not in self.font_buttons:
+            saved_value = 100
+        self._update_font_buttons_style(saved_value)
+
     def _on_aspect_preset_changed(self, index):
         is_custom = self.ASPECT_RATIOS[index][1] < 0
         self.width_spin.setEnabled(is_custom)
@@ -310,7 +412,7 @@ class DisplaySettingsPage(QWidget):
         slider.setValue(default_val)
         
         val_label = CaptionLabel(f"{default_val}{unit_suffix}", self)
-        val_label.setFixedWidth(60)
+        val_label.setFixedWidth(150)
         
         slider.valueChanged.connect(lambda v: val_label.setText(f"{v}{unit_suffix}"))
         
@@ -467,7 +569,7 @@ class SettingsInterface(ScrollArea):
         self.display_page.check_system_monitor.stateChanged.connect(self.on_system_monitor_changed)
         self.display_page.sliders["CPU 告警阈值"].valueChanged.connect(self.on_cpu_threshold_changed)
         self.display_page.sliders["内存告警阈值"].valueChanged.connect(self.on_mem_threshold_changed)
-        
+
         self.sound_page.sliders["TTS 音量"].valueChanged.connect(self.on_volume_changed)
         
         self.ai_page.check_inject_time.stateChanged.connect(self.on_inject_time_changed)
@@ -505,8 +607,10 @@ class SettingsInterface(ScrollArea):
     def on_volume_changed(self, value):
         try:
             chat_interface = self.window().chat_interface
-            if hasattr(chat_interface, 'tts_manager'):
-                chat_interface.tts_manager.player.setVolume(value)
+            if hasattr(chat_interface, 'tts_manager') and chat_interface.tts_manager:
+                tts = chat_interface.tts_manager
+                if hasattr(tts, 'player') and tts.player:
+                    tts.player.setVolume(value)
         except Exception as e:
             logger.error(f"Error setting volume: {e}")
         self.settings.setValue("volume", value)
@@ -536,7 +640,21 @@ class SettingsInterface(ScrollArea):
         if self.live2d_widget:
             self.live2d_widget.mem_threshold = value
         self.settings.setValue("mem_threshold", value)
-    
+
+    def _on_font_size_clicked(self, value):
+        font_scale = value / 100.0
+        self.settings.setValue("font_scale", font_scale)
+        self.display_page._update_font_buttons_style(value)
+        main_window = self.window()
+        if main_window and hasattr(main_window, 'load_stylesheet'):
+            from qfluentwidgets import isDarkTheme
+            if isDarkTheme():
+                from src.resource_utils import resource_path
+                main_window.load_stylesheet(resource_path("themes/dark.qss"))
+            else:
+                from src.resource_utils import resource_path
+                main_window.load_stylesheet(resource_path("themes/light.qss"))
+
     def on_aspect_ratio_changed(self, index):
         is_custom = self.display_page.ASPECT_RATIOS[index][1] < 0
         self.display_page.width_spin.setEnabled(is_custom)
@@ -660,3 +778,10 @@ class SettingsInterface(ScrollArea):
         self.ai_page.check_inject_time.setChecked(inject_time)
         self.ai_page.check_expression_response.setChecked(expression_response)
         self.ai_page.sliders["LLM 最大输出长度"].setValue(llm_max_tokens)
+
+        self._init_font_buttons_style()
+
+    def _init_font_buttons_style(self):
+        saved_scale = self.settings.value("font_scale", 1.0, type=float)
+        saved_value = int(saved_scale * 100)
+        self.display_page._init_font_buttons_style(saved_value)

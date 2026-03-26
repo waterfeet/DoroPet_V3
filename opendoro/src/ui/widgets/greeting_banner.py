@@ -11,27 +11,21 @@ class GreetingBanner(CardWidget):
         self.quotes_manager = quotes_manager
         self._init_ui()
         self._update_greeting()
-        
+
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._update_greeting)
         self._refresh_timer.start(60000)
 
     def _init_ui(self):
         self.setFixedHeight(50)
-        
+
         layout = QHBoxLayout(self)
         layout.setContentsMargins(20, 10, 20, 10)
-        
+
         self.greeting_label = QLabel()
+        self.greeting_label.setObjectName("greetingLabel")
         self.greeting_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.greeting_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-            }
-        """)
-        
+
         layout.addWidget(self.greeting_label)
         layout.addStretch()
 
@@ -41,19 +35,4 @@ class GreetingBanner(CardWidget):
             self.greeting_label.setText(greeting)
 
     def update_theme(self, is_dark: bool):
-        if is_dark:
-            self.greeting_label.setStyleSheet("""
-                QLabel {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #e0e0e0;
-                }
-            """)
-        else:
-            self.greeting_label.setStyleSheet("""
-                QLabel {
-                    font-size: 16px;
-                    font-weight: bold;
-                    color: #333;
-                }
-            """)
+        pass
