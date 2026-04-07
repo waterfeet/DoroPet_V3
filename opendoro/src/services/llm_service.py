@@ -121,7 +121,7 @@ class LLMWorker(QThread):
                 continue
             if tool_name == "modify_pet_attribute" and "expression" not in self.enabled_plugins:
                 continue
-            if tool_name == "search" and "search" not in self.enabled_plugins:
+            if tool_name in ["search_baidu", "search_bing", "visit_webpage", "zhipu_web_search", "zhipu_web_read"] and "search" not in self.enabled_plugins:
                 continue
             if tool_name == "generate_image" and "image" not in self.enabled_plugins:
                 continue
@@ -130,6 +130,13 @@ class LLMWorker(QThread):
             if tool_name in ["execute_python_code", "execute_command"] and "coding" not in self.enabled_plugins:
                 continue
             filtered_tools.append(tool)
+        
+        skill_schemas = self.skill_manager.get_tool_schemas()
+        enabled_skill_names = [k.replace("skill:", "") for k in self.enabled_plugins if k.startswith("skill:")]
+        for skill_schema in skill_schemas:
+            skill_name = skill_schema["function"]["name"]
+            if skill_name in enabled_skill_names:
+                filtered_tools.append(skill_schema)
         
         api_params = {
             "model": self.model,
@@ -249,7 +256,7 @@ class LLMWorker(QThread):
                         tc_index = tc.index if tc.index is not None else 0
                         tc_key = f"idx_{tc_index}"
                         
-                        logger.info(f"[LLMWorker] Tool call chunk: key={tc_key}, id={tc.id}, name={tc.name}, args_len={len(tc.arguments) if tc.arguments else 0}")
+                        # logger.info(f"[LLMWorker] Tool call chunk: key={tc_key}, id={tc.id}, name={tc.name}, args_len={len(tc.arguments) if tc.arguments else 0}")
                         
                         if tc_key not in tool_calls_buffer:
                             tool_calls_buffer[tc_key] = {

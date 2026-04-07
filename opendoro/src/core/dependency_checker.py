@@ -243,8 +243,7 @@ def show_dependency_error_dialog(result: DependencyCheckResult):
             if os.path.exists(install_script):
                 subprocess.Popen(
                     ['cmd', '/c', install_script],
-                    cwd=project_root,
-                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                    cwd=project_root
                 )
                 sys.exit(0)
             else:

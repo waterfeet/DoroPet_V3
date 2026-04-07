@@ -1,5 +1,6 @@
 import sys
 import os
+import threading
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -180,21 +181,17 @@ def show_update_dialog(widget, version_info, update_checker):
     dialog.remind_later.connect(on_remind_later)
     dialog.show()
 
+def check_and_create_shortcut_async():
+    """后台线程：按需检查并创建桌面快捷方式"""
+    def _worker():
+        from src.core.shortcut_utils import shortcut_exists, create_desktop_shortcut
+        if not shortcut_exists():
+            success, message = create_desktop_shortcut(replace_existing=False)
+            if success:
+                logger.info(f"Auto-created desktop shortcut: {message}")
+    threading.Thread(target=_worker, daemon=True).start()
+
 def main():
-    import argparse
-    
-    # 解析命令行参数
-    parser = argparse.ArgumentParser(description='DoroPet Desktop Pet')
-    parser.add_argument('--create-shortcut', action='store_true', help='创建桌面快捷方式')
-    args = parser.parse_args()
-    
-    # 如果指定了创建快捷方式参数，执行创建操作
-    if args.create_shortcut:
-        from src.core.shortcut_utils import create_desktop_shortcut
-        success, message = create_desktop_shortcut(replace_existing=False)
-        logger.info(f"Shortcut creation: {message}")
-        # 可以选择在这里退出，或者继续启动程序
-    
     app = QApplication(sys.argv)
     # 显示启动画面（立即显示，让用户知道程序正在启动）
     splash = SplashScreen()
@@ -280,7 +277,10 @@ def main():
     # 关闭启动画面
     splash.close_splash()
     logger.info("Splash screen closed")
-    
+
+    # 后台检查并创建桌面快捷方式（不阻塞主进程）
+    check_and_create_shortcut_async()
+
     update_checker = setup_startup_update_checker(w)
     w._startup_checker = update_checker
     update_checker.start_check(delay_ms=3000)
