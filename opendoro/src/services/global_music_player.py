@@ -1,4 +1,4 @@
-from PyQt5.QtCore import QObject, pyqtSignal, QUrl
+from PyQt5.QtCore import QObject, pyqtSignal, QUrl, QTimer
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 
 from src.services.extended_music_service import SongInfo, ExtendedMusicService
@@ -35,11 +35,19 @@ class GlobalMusicPlayer(QObject):
         self._retry_count = 0
         self._max_retry = 3
         self._music_service: ExtendedMusicService = None
+        self._is_starting_new_song = False
+        self._state_reset_timer = QTimer(self)
+        self._state_reset_timer.setSingleShot(True)
+        self._state_reset_timer.timeout.connect(self._reset_starting_flag)
         
         self.player.stateChanged.connect(self._on_state_changed)
         self.player.positionChanged.connect(self._on_position_changed)
         self.player.durationChanged.connect(self._on_duration_changed)
         self.player.error.connect(self._on_error)
+    
+    def _reset_starting_flag(self):
+        self._is_starting_new_song = False
+        logger.info(f"[GlobalPlayer] _is_starting_new_song reset to False by timer")
     
     def set_music_service(self, service: ExtendedMusicService):
         """设置音乐服务实例"""
@@ -47,11 +55,15 @@ class GlobalMusicPlayer(QObject):
     
     def play(self, song: SongInfo, playlist: list = None, index: int = 0):
         """播放歌曲"""
+        logger.info(f"[GlobalPlayer] play() called for: {song.name}")
         if playlist:
             self._playlist = playlist
             self._current_index = index
         
         self._current_song = song
+        self._state_reset_timer.stop()
+        self._is_starting_new_song = True
+        logger.info(f"[GlobalPlayer] _is_starting_new_song set to True")
         
         if song.play_url:
             self._play_url(song.play_url)
@@ -151,15 +163,35 @@ class GlobalMusicPlayer(QObject):
     
     def _on_state_changed(self, state):
         """播放状态变化"""
+        state_names = {
+            QMediaPlayer.StoppedState: "Stopped",
+            QMediaPlayer.PlayingState: "Playing",
+            QMediaPlayer.PausedState: "Paused"
+        }
+        state_name = state_names.get(state, f"Unknown({state})")
+        logger.info(f"[GlobalPlayer] State changed to: {state_name}, _is_starting_new_song={self._is_starting_new_song}")
+        
         is_playing = state == QMediaPlayer.PlayingState
         
         if is_playing:
             self._retry_count = 0
+            self._state_reset_timer.start(500)
+            logger.info(f"[GlobalPlayer] Emitting playback_state_changed(True)")
+            self.playback_state_changed.emit(True)
         else:
-            if self.player.position() >= self.player.duration() - 100 and self.player.duration() > 0:
-                self.playback_finished.emit()
-        
-        self.playback_state_changed.emit(is_playing)
+            if self._is_starting_new_song:
+                logger.info(f"[GlobalPlayer] Ignoring non-playing state during song start")
+                pass
+            else:
+                if self.player.position() >= self.player.duration() - 100 and self.player.duration() > 0:
+                    self._state_reset_timer.stop()
+                    self._is_starting_new_song = True
+                    logger.info(f"[GlobalPlayer] Setting _is_starting_new_song=True before playback_finished")
+                    self.playback_finished.emit()
+                    logger.info(f"[GlobalPlayer] Not emitting False after playback_finished (auto-play next)")
+                    return
+                logger.info(f"[GlobalPlayer] Emitting playback_state_changed(False)")
+                self.playback_state_changed.emit(False)
     
     def _on_position_changed(self, position):
         """播放位置变化"""

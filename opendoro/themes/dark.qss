@@ -1142,3 +1142,35 @@ QLabel#greetingLabel {
     font-weight: bold;
     color: #e0e0e0;
 }
+
+/* Music Navigation SegmentedWidget */
+QWidget#musicSegmentedWidget {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+QWidget#musicSegmentedWidget QToolButton {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 16px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+}
+
+QWidget#musicSegmentedWidget QToolButton:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+QWidget#musicSegmentedWidget QToolButton:checked {
+    background: rgba(255, 255, 255, 0.15);
+    color: white;
+    font-weight: bold;
+}
+
+QWidget#musicSegmentedWidget QLabel {
+    color: rgba(255, 255, 255, 0.9);
+}

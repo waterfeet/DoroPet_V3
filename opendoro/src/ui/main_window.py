@@ -37,7 +37,7 @@ class MainWindow(FluentWindow):
         
         # 1. 初始化窗口
         self.setWindowTitle("Doro Pet")
-        self.resize(900, 800)
+        self.resize(1024, 800)
         
         # 2. 初始化数据库 (单一实例)
         self.db = ChatDatabase()

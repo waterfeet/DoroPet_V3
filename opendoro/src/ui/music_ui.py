@@ -2,14 +2,16 @@ from qfluentwidgets import CheckBox
 from PyQt5.QtWidgets import QCheckBox
 import os
 import random
+import math
 from enum import Enum
-from PyQt5.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSize, QEvent, QPropertyAnimation, QEasingCurve, QRectF
+from typing import List
+from PyQt5.QtCore import Qt, QTimer, QUrl, pyqtSignal, QSize, QEvent, QPropertyAnimation, QEasingCurve, QRectF, pyqtProperty
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
                              QFrame, QScrollArea, QLineEdit, QPushButton, QComboBox, QSpinBox,
                              QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QAction,
                              QInputDialog, QMessageBox, QStackedWidget, QDialog)
-from PyQt5.QtGui import (QFont, QColor, QPalette, QLinearGradient, QPainter, QBrush, QPen, 
-                         QPixmap, QImage)
+from PyQt5.QtGui import (QFont, QColor, QFontMetrics, QPalette, QLinearGradient, QRadialGradient, QPainter, QPainterPath, QBrush, QPen, 
+                         QPixmap, QImage, QConicalGradient)
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 
@@ -17,6 +19,7 @@ from qfluentwidgets import (CardWidget, PushButton, TransparentToolButton, Scrol
                            LineEdit, ComboBox, SearchLineEdit, PrimaryPushButton,
                            IconWidget, BodyLabel, StrongBodyLabel, isDarkTheme, TabBar, ListWidget, SpinBox,
                            SubtitleLabel, Dialog)
+from qfluentwidgets.common.style_sheet import setCustomStyleSheet
 from qfluentwidgets import FluentIcon as FIF
 
 from src.core.cookie_manager import CookieManager
@@ -122,32 +125,709 @@ class LyricsCardWidget(CardWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         
-        if self._dominant_color:
-            gradient = QLinearGradient(0, 0, 0, self.height())
-            
-            h = self._dominant_color.hue()
-            s = self._dominant_color.saturation()
-            v = self._dominant_color.value()
-            
-            top_color = QColor.fromHsv(h, min(s + 20, 255), max(v - 40, 20))
-            mid_color = QColor.fromHsv(h, s, max(v - 20, 30))
-            bottom_color = QColor.fromHsv(h, min(s + 30, 255), max(v - 60, 10))
-            
-            gradient.setColorAt(0, top_color)
-            gradient.setColorAt(0.5, mid_color)
-            gradient.setColorAt(1, bottom_color)
-            
-            painter.fillRect(self.rect(), gradient)
-            
-            overlay = QLinearGradient(0, 0, 0, self.height())
-            overlay.setColorAt(0, QColor(0, 0, 0, 120))
-            overlay.setColorAt(0.5, QColor(0, 0, 0, 80))
-            overlay.setColorAt(1, QColor(0, 0, 0, 120))
-            painter.fillRect(self.rect(), overlay)
-        else:
-            painter.fillRect(self.rect(), QColor(42, 42, 42))
+        painter.fillRect(self.rect(), Qt.transparent)
         
         painter.end()
+
+
+class VinylRecordWidget(QWidget):
+    clicked = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._cover_pixmap = None
+        self._rotation_angle = 0
+        self._is_playing = False
+        self._is_hovered = False
+        self._needle_angle = -30
+        self._target_needle_angle = -30
+        self._needle_animation = None
+        self._glow_opacity = 0.0
+        self._glow_animation = None
+        self._rotation_timer = QTimer(self)
+        self._rotation_timer.timeout.connect(self._on_rotation_timer)
+        self._rotation_timer.setInterval(25)
+        self.setFixedSize(420, 420)
+        self.setCursor(Qt.PointingHandCursor)
+        self._init_needle_animation()
+        self._init_glow_animation()
+    
+    def _init_needle_animation(self):
+        self._needle_animation = QPropertyAnimation(self, b"needle_angle")
+        self._needle_animation.setDuration(1000)
+        self._needle_animation.setEasingCurve(QEasingCurve.OutElastic)
+    
+    def _init_glow_animation(self):
+        self._glow_animation = QPropertyAnimation(self, b"glow_opacity")
+        self._glow_animation.setDuration(300)
+        self._glow_animation.setEasingCurve(QEasingCurve.OutCubic)
+    
+    def get_glow_opacity(self):
+        return self._glow_opacity
+    
+    def set_glow_opacity(self, opacity):
+        self._glow_opacity = opacity
+        self.update()
+    
+    glow_opacity = pyqtProperty(float, get_glow_opacity, set_glow_opacity)
+    
+    def get_needle_angle(self):
+        return self._needle_angle
+    
+    def set_needle_angle(self, angle):
+        self._needle_angle = angle
+        self.update()
+    
+    needle_angle = pyqtProperty(float, get_needle_angle, set_needle_angle)
+    
+    def _create_round_cover(self, pixmap: QPixmap, size: int) -> QPixmap:
+        if pixmap.isNull():
+            return QPixmap()
+        
+        scaled = pixmap.scaled(size, size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+        
+        result = QPixmap(size, size)
+        result.fill(Qt.transparent)
+        
+        painter = QPainter(result)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        
+        path = QPainterPath()
+        path.addEllipse(0, 0, size, size)
+        painter.setClipPath(path)
+        
+        x_offset = (size - scaled.width()) // 2
+        y_offset = (size - scaled.height()) // 2
+        painter.drawPixmap(x_offset, y_offset, scaled)
+        
+        painter.end()
+        return result
+    
+    def set_cover(self, pixmap: QPixmap):
+        if pixmap.isNull():
+            self._cover_pixmap = None
+        else:
+            self._cover_pixmap = pixmap
+        self.update()
+    
+    def set_playing(self, is_playing: bool):
+        if self._is_playing == is_playing:
+            return
+        
+        self._is_playing = is_playing
+        
+        if is_playing:
+            self._target_needle_angle = 25
+            self._rotation_timer.start()
+        else:
+            self._target_needle_angle = -20
+            self._rotation_timer.stop()
+        
+        self._needle_animation.setStartValue(self._needle_angle)
+        self._needle_animation.setEndValue(self._target_needle_angle)
+        self._needle_animation.start()
+    
+    def _on_rotation_timer(self):
+        self._rotation_angle = (self._rotation_angle + 2.0) % 360
+        self.update()
+    
+    def _draw_turntable_base(self, painter, center_x, center_y):
+        base_radius = 150
+        
+        shadow_gradient = QRadialGradient(center_x, center_y + 5, base_radius + 30)
+        shadow_gradient.setColorAt(0.0, QColor(0, 0, 0, 0))
+        shadow_gradient.setColorAt(0.5, QColor(0, 0, 0, 40))
+        shadow_gradient.setColorAt(0.8, QColor(0, 0, 0, 60))
+        shadow_gradient.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(shadow_gradient))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(center_x - base_radius - 30, center_y - base_radius - 25, 
+                           (base_radius + 30) * 2, (base_radius + 30) * 2)
+        
+        base_gradient = QRadialGradient(center_x - 30, center_y - 30, base_radius + 20)
+        base_gradient.setColorAt(0.0, QColor(60, 60, 65))
+        base_gradient.setColorAt(0.3, QColor(45, 45, 50))
+        base_gradient.setColorAt(0.7, QColor(35, 35, 40))
+        base_gradient.setColorAt(1.0, QColor(25, 25, 30))
+        painter.setBrush(QBrush(base_gradient))
+        painter.setPen(QPen(QColor(20, 20, 25), 2))
+        painter.drawEllipse(center_x - base_radius - 20, center_y - base_radius - 20, 
+                           (base_radius + 20) * 2, (base_radius + 20) * 2)
+        
+        platter_gradient = QRadialGradient(center_x - 20, center_y - 20, base_radius)
+        platter_gradient.setColorAt(0.0, QColor(50, 50, 55))
+        platter_gradient.setColorAt(0.5, QColor(40, 40, 45))
+        platter_gradient.setColorAt(0.9, QColor(35, 35, 40))
+        platter_gradient.setColorAt(1.0, QColor(30, 30, 35))
+        painter.setBrush(QBrush(platter_gradient))
+        painter.setPen(QPen(QColor(25, 25, 30), 1))
+        painter.drawEllipse(center_x - base_radius, center_y - base_radius, 
+                           base_radius * 2, base_radius * 2)
+        
+        for i in range(12):
+            angle = i * 30
+            rad = math.radians(angle)
+            x1 = center_x + (base_radius - 15) * math.cos(rad)
+            y1 = center_y + (base_radius - 15) * math.sin(rad)
+            x2 = center_x + (base_radius - 5) * math.cos(rad)
+            y2 = center_y + (base_radius - 5) * math.sin(rad)
+            painter.setPen(QPen(QColor(60, 60, 65, 100), 2))
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+    
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+        painter.setRenderHint(QPainter.HighQualityAntialiasing)
+        
+        center_x = self.width() // 2
+        center_y = self.height() // 2
+        
+        self._draw_turntable_base(painter, center_x, center_y)
+        
+        painter.translate(center_x, center_y)
+        
+        self._draw_record(painter)
+        
+        self._draw_needle(painter)
+        
+        if self._glow_opacity > 0:
+            self._draw_glow_effect(painter)
+        
+        painter.end()
+    
+    def _draw_record(self, painter):
+        painter.save()
+        painter.rotate(self._rotation_angle)
+        
+        record_radius = 130
+        
+        outer_shadow = QRadialGradient(0, 0, record_radius + 8)
+        outer_shadow.setColorAt(0.85, QColor(0, 0, 0, 0))
+        outer_shadow.setColorAt(0.95, QColor(0, 0, 0, 80))
+        outer_shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(outer_shadow))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(-record_radius - 8, -record_radius - 8, 
+                           (record_radius + 8) * 2, (record_radius + 8) * 2)
+        
+        vinyl_gradient = QRadialGradient(0, 0, record_radius)
+        vinyl_gradient.setColorAt(0.0, QColor(20, 20, 22))
+        vinyl_gradient.setColorAt(0.3, QColor(15, 15, 18))
+        vinyl_gradient.setColorAt(0.6, QColor(18, 18, 20))
+        vinyl_gradient.setColorAt(0.85, QColor(22, 22, 25))
+        vinyl_gradient.setColorAt(0.95, QColor(28, 28, 32))
+        vinyl_gradient.setColorAt(1.0, QColor(18, 18, 20))
+        painter.setBrush(QBrush(vinyl_gradient))
+        painter.setPen(QPen(QColor(8, 8, 10), 1.5))
+        painter.drawEllipse(-record_radius, -record_radius, record_radius * 2, record_radius * 2)
+        
+        for i in range(40):
+            r = record_radius - 5 - i * 3
+            if r < 60:
+                break
+            alpha = 8 + (i % 3) * 4
+            painter.setPen(QPen(QColor(255, 255, 255, alpha), 0.5))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(-r, -r, r * 2, r * 2)
+        
+        highlight = QLinearGradient(-record_radius * 0.8, -record_radius * 0.8,
+                                    record_radius * 0.8, record_radius * 0.8)
+        highlight.setColorAt(0.0, QColor(255, 255, 255, 0))
+        highlight.setColorAt(0.35, QColor(255, 255, 255, 8))
+        highlight.setColorAt(0.45, QColor(255, 255, 255, 45))
+        highlight.setColorAt(0.55, QColor(255, 255, 255, 8))
+        highlight.setColorAt(1.0, QColor(255, 255, 255, 0))
+        painter.setBrush(QBrush(highlight))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(-record_radius, -record_radius, record_radius * 2, record_radius * 2)
+        
+        label_radius = 65
+        
+        label_ring = QRadialGradient(0, 0, label_radius + 5)
+        label_ring.setColorAt(0.0, QColor(100, 80, 60))
+        label_ring.setColorAt(0.5, QColor(120, 100, 75))
+        label_ring.setColorAt(0.8, QColor(90, 70, 50))
+        label_ring.setColorAt(1.0, QColor(70, 55, 40))
+        painter.setBrush(QBrush(label_ring))
+        painter.setPen(QPen(QColor(60, 45, 30), 1.5))
+        painter.drawEllipse(-label_radius - 3, -label_radius - 3, 
+                           (label_radius + 3) * 2, (label_radius + 3) * 2)
+        
+        if self._cover_pixmap and not self._cover_pixmap.isNull():
+            round_cover = self._create_round_cover(self._cover_pixmap, label_radius * 2)
+            painter.drawPixmap(-label_radius, -label_radius, round_cover)
+            
+            painter.setPen(QPen(QColor(255, 255, 255, 60), 1))
+            painter.setBrush(Qt.NoBrush)
+            painter.drawEllipse(-label_radius, -label_radius, label_radius * 2, label_radius * 2)
+            
+            inner_shadow = QRadialGradient(0, 0, label_radius + 5)
+            inner_shadow.setColorAt(0.0, QColor(0, 0, 0, 0))
+            inner_shadow.setColorAt(0.7, QColor(0, 0, 0, 20))
+            inner_shadow.setColorAt(0.9, QColor(0, 0, 0, 50))
+            inner_shadow.setColorAt(1.0, QColor(0, 0, 0, 0))
+            painter.setBrush(QBrush(inner_shadow))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(-label_radius - 3, -label_radius - 3, 
+                               (label_radius + 3) * 2, (label_radius + 3) * 2)
+        else:
+            no_cover_gradient = QRadialGradient(0, 0, label_radius)
+            no_cover_gradient.setColorAt(0.0, QColor(70, 60, 50))
+            no_cover_gradient.setColorAt(1.0, QColor(45, 40, 35))
+            painter.setBrush(QBrush(no_cover_gradient))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(-label_radius, -label_radius, label_radius * 2, label_radius * 2)
+            
+            painter.setPen(QPen(QColor(140, 120, 90), 2.5))
+            painter.setFont(QFont("", 32, QFont.Bold))
+            painter.drawText(QRectF(-label_radius, -label_radius, label_radius * 2, label_radius * 2), 
+                            Qt.AlignCenter, "♪")
+        
+        center_hole_outer = 12
+        center_hole_inner = 6
+        
+        center_outer = QRadialGradient(0, 0, center_hole_outer)
+        center_outer.setColorAt(0.0, QColor(180, 180, 185))
+        center_outer.setColorAt(0.5, QColor(150, 150, 155))
+        center_outer.setColorAt(1.0, QColor(120, 120, 125))
+        painter.setBrush(QBrush(center_outer))
+        painter.setPen(QPen(QColor(100, 100, 105), 1))
+        painter.drawEllipse(-center_hole_outer, -center_hole_outer, 
+                           center_hole_outer * 2, center_hole_outer * 2)
+        
+        painter.setBrush(QBrush(QColor(10, 10, 12)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(-center_hole_inner, -center_hole_inner, 
+                           center_hole_inner * 2, center_hole_inner * 2)
+        
+        painter.setBrush(QBrush(QColor(230, 230, 235)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(-2, -2, 4, 4)
+        
+        painter.restore()
+    
+    def _draw_needle(self, painter):
+        base_x = 135
+        base_y = -130
+        
+        self._draw_tonearm_base(painter, base_x, base_y)
+        
+        painter.save()
+        painter.translate(base_x, base_y)
+        painter.rotate(self._needle_angle)
+        
+        self._draw_counterweight(painter)
+        self._draw_s_shaped_arm(painter)
+        self._draw_headshell(painter)
+        self._draw_stylus(painter)
+        
+        painter.restore()
+    
+    def _draw_tonearm_base(self, painter, base_x, base_y):
+        shadow_offset = 6
+        painter.setBrush(QBrush(QColor(0, 0, 0, 50)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(base_x - 24 + shadow_offset, base_y - 24 + shadow_offset, 48, 48)
+        
+        outer_ring = QRadialGradient(base_x - 5, base_y - 5, 24)
+        outer_ring.setColorAt(0.0, QColor(180, 165, 145))
+        outer_ring.setColorAt(0.5, QColor(160, 145, 125))
+        outer_ring.setColorAt(0.8, QColor(140, 125, 105))
+        outer_ring.setColorAt(1.0, QColor(120, 105, 85))
+        painter.setBrush(QBrush(outer_ring))
+        painter.setPen(QPen(QColor(90, 75, 55), 2))
+        painter.drawEllipse(base_x - 24, base_y - 24, 48, 48)
+        
+        inner_base = QRadialGradient(base_x - 3, base_y - 3, 18)
+        inner_base.setColorAt(0.0, QColor(200, 185, 165))
+        inner_base.setColorAt(0.4, QColor(180, 165, 145))
+        inner_base.setColorAt(0.7, QColor(160, 145, 125))
+        inner_base.setColorAt(1.0, QColor(140, 125, 105))
+        painter.setBrush(QBrush(inner_base))
+        painter.setPen(QPen(QColor(110, 95, 75), 1.5))
+        painter.drawEllipse(base_x - 18, base_y - 18, 36, 36)
+        
+        painter.setPen(QPen(QColor(100, 85, 65, 120), 1))
+        for i in range(12):
+            angle = i * 30
+            rad = math.radians(angle)
+            x1 = base_x + 14 * math.cos(rad)
+            y1 = base_y + 14 * math.sin(rad)
+            x2 = base_x + 17 * math.cos(rad)
+            y2 = base_y + 17 * math.sin(rad)
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+        
+        center_hub = QRadialGradient(base_x, base_y, 8)
+        center_hub.setColorAt(0.0, QColor(220, 205, 185))
+        center_hub.setColorAt(0.5, QColor(190, 175, 155))
+        center_hub.setColorAt(1.0, QColor(150, 135, 115))
+        painter.setBrush(QBrush(center_hub))
+        painter.setPen(QPen(QColor(120, 105, 85), 1))
+        painter.drawEllipse(base_x - 8, base_y - 8, 16, 16)
+        
+        painter.setBrush(QBrush(QColor(80, 70, 60)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(base_x - 3, base_y - 3, 6, 6)
+        
+        painter.setBrush(QBrush(QColor(60, 50, 40)))
+        painter.drawEllipse(base_x - 1, base_y - 1, 2, 2)
+    
+    def _draw_counterweight(self, painter):
+        cw_x = 50
+        cw_y = -15
+        cw_radius = 16
+        
+        painter.setBrush(QBrush(QColor(0, 0, 0, 40)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(cw_x - cw_radius + 3, cw_y - cw_radius + 3, cw_radius * 2, cw_radius * 2)
+        
+        cw_gradient = QRadialGradient(cw_x - 4, cw_y - 4, cw_radius)
+        cw_gradient.setColorAt(0.0, QColor(180, 165, 145))
+        cw_gradient.setColorAt(0.3, QColor(160, 145, 125))
+        cw_gradient.setColorAt(0.6, QColor(140, 125, 105))
+        cw_gradient.setColorAt(1.0, QColor(100, 85, 65))
+        painter.setBrush(QBrush(cw_gradient))
+        painter.setPen(QPen(QColor(80, 65, 45), 1.5))
+        painter.drawEllipse(cw_x - cw_radius, cw_y - cw_radius, cw_radius * 2, cw_radius * 2)
+        
+        ring_gradient = QRadialGradient(cw_x, cw_y, cw_radius - 3)
+        ring_gradient.setColorAt(0.0, QColor(150, 135, 115))
+        ring_gradient.setColorAt(0.7, QColor(130, 115, 95))
+        ring_gradient.setColorAt(1.0, QColor(110, 95, 75))
+        painter.setBrush(QBrush(ring_gradient))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(cw_x - cw_radius + 3, cw_y - cw_radius + 3, (cw_radius - 3) * 2, (cw_radius - 3) * 2)
+        
+        painter.setPen(QPen(QColor(90, 75, 55, 150), 1))
+        for i in range(8):
+            angle = i * 45
+            rad = math.radians(angle)
+            x1 = cw_x + (cw_radius - 6) * math.cos(rad)
+            y1 = cw_y + (cw_radius - 6) * math.sin(rad)
+            x2 = cw_x + (cw_radius - 2) * math.cos(rad)
+            y2 = cw_y + (cw_radius - 2) * math.sin(rad)
+            painter.drawLine(int(x1), int(y1), int(x2), int(y2))
+    
+    def _draw_s_shaped_arm(self, painter):
+        arm_path = QPainterPath()
+        
+        arm_path.moveTo(8, -3)
+        arm_path.lineTo(8, 3)
+        
+        arm_path.cubicTo(8, 3, -5, 20, -20, 25)
+        arm_path.cubicTo(-35, 30, -55, 20, -75, 35)
+        arm_path.cubicTo(-95, 50, -110, 70, -115, 85)
+        arm_path.lineTo(-120, 85)
+        
+        arm_path.cubicTo(-115, 70, -100, 55, -80, 40)
+        arm_path.cubicTo(-60, 25, -40, 35, -25, 30)
+        arm_path.cubicTo(-10, 25, 5, 10, 8, -3)
+        arm_path.closeSubpath()
+        
+        arm_gradient = QLinearGradient(50, -15, -120, 85)
+        arm_gradient.setColorAt(0.0, QColor(200, 185, 165))
+        arm_gradient.setColorAt(0.2, QColor(220, 205, 185))
+        arm_gradient.setColorAt(0.4, QColor(240, 225, 205))
+        arm_gradient.setColorAt(0.6, QColor(220, 205, 185))
+        arm_gradient.setColorAt(0.8, QColor(190, 175, 155))
+        arm_gradient.setColorAt(1.0, QColor(170, 155, 135))
+        
+        painter.setBrush(QBrush(arm_gradient))
+        painter.setPen(QPen(QColor(130, 115, 95), 1.2))
+        painter.drawPath(arm_path)
+        
+        highlight_path = QPainterPath()
+        highlight_path.moveTo(6, -1)
+        highlight_path.cubicTo(6, 2, -8, 18, -22, 23)
+        highlight_path.cubicTo(-36, 28, -55, 22, -73, 36)
+        highlight_path.lineTo(-75, 34)
+        highlight_path.cubicTo(-58, 20, -38, 26, -24, 21)
+        highlight_path.cubicTo(-10, 16, 4, 1, 6, -1)
+        highlight_path.closeSubpath()
+        
+        painter.setBrush(QBrush(QColor(255, 250, 240, 60)))
+        painter.setPen(Qt.NoPen)
+        painter.drawPath(highlight_path)
+        
+        self._draw_arm_details(painter)
+    
+    def _draw_arm_details(self, painter):
+        painter.setPen(QPen(QColor(100, 85, 65, 100), 0.8))
+        painter.drawLine(-30, 27, -32, 29)
+        painter.drawLine(-60, 30, -62, 32)
+        painter.drawLine(-90, 55, -92, 57)
+        
+        wire_path = QPainterPath()
+        wire_path.moveTo(5, 5)
+        wire_path.cubicTo(-10, 15, -30, 25, -50, 35)
+        wire_path.cubicTo(-70, 45, -90, 60, -105, 75)
+        painter.setPen(QPen(QColor(80, 70, 60, 80), 1.5))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(wire_path)
+    
+    def _draw_headshell(self, painter):
+        hs_x = -118
+        hs_y = 88
+        
+        headshell_path = QPainterPath()
+        headshell_path.moveTo(hs_x + 8, hs_y - 6)
+        headshell_path.lineTo(hs_x + 15, hs_y + 5)
+        headshell_path.lineTo(hs_x + 12, hs_y + 18)
+        headshell_path.lineTo(hs_x - 2, hs_y + 22)
+        headshell_path.lineTo(hs_x - 8, hs_y + 15)
+        headshell_path.lineTo(hs_x - 6, hs_y + 2)
+        headshell_path.lineTo(hs_x + 8, hs_y - 6)
+        headshell_path.closeSubpath()
+        
+        hs_gradient = QLinearGradient(hs_x - 8, hs_y, hs_x + 15, hs_y + 22)
+        hs_gradient.setColorAt(0.0, QColor(180, 165, 145))
+        hs_gradient.setColorAt(0.3, QColor(200, 185, 165))
+        hs_gradient.setColorAt(0.5, QColor(220, 205, 185))
+        hs_gradient.setColorAt(0.7, QColor(190, 175, 155))
+        hs_gradient.setColorAt(1.0, QColor(160, 145, 125))
+        
+        painter.setBrush(QBrush(hs_gradient))
+        painter.setPen(QPen(QColor(120, 105, 85), 1.2))
+        painter.drawPath(headshell_path)
+        
+        painter.setBrush(QBrush(QColor(255, 250, 240, 50)))
+        painter.setPen(Qt.NoPen)
+        highlight_rect = QPainterPath()
+        highlight_rect.moveTo(hs_x + 6, hs_y - 4)
+        highlight_rect.lineTo(hs_x + 10, hs_y + 2)
+        highlight_rect.lineTo(hs_x + 8, hs_y + 8)
+        highlight_rect.lineTo(hs_x + 4, hs_y + 2)
+        highlight_rect.closeSubpath()
+        painter.drawPath(highlight_rect)
+        
+        cart_x = hs_x + 3
+        cart_y = hs_y + 8
+        cart_width = 12
+        cart_height = 10
+        
+        cart_gradient = QLinearGradient(cart_x, cart_y, cart_x + cart_width, cart_y + cart_height)
+        cart_gradient.setColorAt(0.0, QColor(60, 55, 50))
+        cart_gradient.setColorAt(0.3, QColor(80, 75, 70))
+        cart_gradient.setColorAt(0.5, QColor(100, 95, 90))
+        cart_gradient.setColorAt(0.7, QColor(80, 75, 70))
+        cart_gradient.setColorAt(1.0, QColor(60, 55, 50))
+        
+        painter.setBrush(QBrush(cart_gradient))
+        painter.setPen(QPen(QColor(40, 35, 30), 0.8))
+        painter.drawRoundedRect(int(cart_x), int(cart_y), cart_width, cart_height, 2, 2)
+        
+        painter.setBrush(QBrush(QColor(140, 130, 120)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(int(cart_x + 2), int(cart_y + 3), 2, 2)
+        painter.drawEllipse(int(cart_x + 7), int(cart_y + 3), 2, 2)
+    
+    def _draw_stylus(self, painter):
+        stylus_x = -112
+        stylus_y = 110
+        
+        painter.setPen(QPen(QColor(180, 170, 160), 1.5))
+        painter.drawLine(int(stylus_x), int(stylus_y), int(stylus_x - 2), int(stylus_y + 8))
+        
+        needle_path = QPainterPath()
+        needle_path.moveTo(stylus_x - 2, stylus_y + 8)
+        needle_path.lineTo(stylus_x - 4, stylus_y + 14)
+        needle_path.lineTo(stylus_x - 2, stylus_y + 16)
+        needle_path.lineTo(stylus_x, stylus_y + 14)
+        needle_path.lineTo(stylus_x - 1, stylus_y + 10)
+        needle_path.closeSubpath()
+        
+        needle_gradient = QLinearGradient(stylus_x - 4, stylus_y + 8, stylus_x, stylus_y + 16)
+        needle_gradient.setColorAt(0.0, QColor(200, 190, 180))
+        needle_gradient.setColorAt(0.5, QColor(240, 235, 230))
+        needle_gradient.setColorAt(1.0, QColor(180, 170, 160))
+        
+        painter.setBrush(QBrush(needle_gradient))
+        painter.setPen(QPen(QColor(120, 110, 100), 0.6))
+        painter.drawPath(needle_path)
+        
+        painter.setBrush(QBrush(QColor(255, 255, 255, 180)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(int(stylus_x - 2), int(stylus_y + 13), 2, 2)
+    
+    def _draw_glow_effect(self, painter):
+        record_radius = 130
+        glow_color = QColor(100, 150, 255, int(self._glow_opacity * 80))
+        
+        glow_gradient = QRadialGradient(0, 0, record_radius + 15)
+        glow_gradient.setColorAt(0.0, QColor(100, 150, 255, 0))
+        glow_gradient.setColorAt(0.7, QColor(100, 150, 255, int(self._glow_opacity * 40)))
+        glow_gradient.setColorAt(0.9, QColor(100, 150, 255, int(self._glow_opacity * 80)))
+        glow_gradient.setColorAt(1.0, QColor(100, 150, 255, 0))
+        
+        painter.setBrush(QBrush(glow_gradient))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(-record_radius - 15, -record_radius - 15, 
+                           (record_radius + 15) * 2, (record_radius + 15) * 2)
+    
+    def enterEvent(self, event):
+        self._is_hovered = True
+        if self._glow_animation:
+            self._glow_animation.setStartValue(self._glow_opacity)
+            self._glow_animation.setEndValue(1.0)
+            self._glow_animation.start()
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        self._is_hovered = False
+        if self._glow_animation:
+            self._glow_animation.setStartValue(self._glow_opacity)
+            self._glow_animation.setEndValue(0.0)
+            self._glow_animation.start()
+        super().leaveEvent(event)
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
+        super().mousePressEvent(event)
+
+
+class DockablePlaylistWidget(QWidget):
+    song_double_clicked = pyqtSignal(int)
+    song_remove_clicked = pyqtSignal(int)
+    song_download_clicked = pyqtSignal(int)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._is_visible = False
+        self._animation = None
+        self._init_ui()
+        self._init_animation()
+    
+    def _init_ui(self):
+        self.setFixedWidth(350)
+        
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        self._container = QWidget()
+        self._container.setObjectName("playlistDockContainer")
+        self._update_theme()
+        container_layout = QVBoxLayout(self._container)
+        container_layout.setContentsMargins(16, 16, 16, 16)
+        container_layout.setSpacing(12)
+        
+        header_layout = QHBoxLayout()
+        
+        title_label = StrongBodyLabel("播放列表")
+        header_layout.addWidget(title_label)
+        
+        header_layout.addStretch()
+        
+        self._count_label = QLabel("0 首")
+        self._count_label.setObjectName("musicTimeLabel")
+        header_layout.addWidget(self._count_label)
+        
+        close_btn = TransparentToolButton(FIF.CLOSE, self)
+        close_btn.setFixedSize(28, 28)
+        close_btn.setToolTip("关闭")
+        close_btn.clicked.connect(self.hide_dock)
+        header_layout.addWidget(close_btn)
+        
+        container_layout.addLayout(header_layout)
+        
+        self._playlist_list = ListWidget()
+        self._playlist_list.setSpacing(2)
+        self._playlist_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
+        container_layout.addWidget(self._playlist_list)
+        
+        main_layout.addWidget(self._container)
+    
+    def _update_theme(self):
+        is_dark = isDarkTheme()
+        if is_dark:
+            bg_color = "rgba(32, 32, 40, 0.9)"
+        else:
+            bg_color = "rgba(243, 243, 255, 0.9)"
+        
+        self._container.setStyleSheet(f"""
+            #playlistDockContainer {{
+                background: {bg_color};
+                border: none;
+            }}
+        """)
+    
+    def _init_animation(self):
+        self._animation = QPropertyAnimation(self, b"geometry")
+        self._animation.setDuration(300)
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+    
+    def set_playlist(self, songs: list, current_index: int):
+        self._playlist_list.clear()
+        self._count_label.setText(f"{len(songs)} 首")
+        
+        for i, song in enumerate(songs):
+            item = QListWidgetItem()
+            widget = SongListItemWidget(song, i, i == current_index, show_playqueue_actions=True)
+            widget.update_theme(isDarkTheme())
+            widget.double_clicked.connect(self.song_double_clicked.emit)
+            widget.remove_from_playqueue_clicked.connect(self.song_remove_clicked.emit)
+            widget.download_clicked.connect(self.song_download_clicked.emit)
+            item.setSizeHint(widget.sizeHint())
+            self._playlist_list.addItem(item)
+            self._playlist_list.setItemWidget(item, widget)
+    
+    def show_dock(self):
+        if self._is_visible:
+            return
+        
+        self._update_theme()
+        
+        parent_rect = self.parent().rect()
+        target_x = parent_rect.width() - 350
+        target_y = 0
+        
+        bottom_player_height = 70
+        bottom_player_margin = 24
+        target_height = parent_rect.height() - bottom_player_height - bottom_player_margin
+        
+        start_rect = QRectF(parent_rect.width(), target_y, 350, target_height)
+        end_rect = QRectF(target_x, target_y, 350, target_height)
+        
+        self.setGeometry(start_rect.toRect())
+        self.show()
+        self.raise_()
+        
+        self._animation.setStartValue(start_rect)
+        self._animation.setEndValue(end_rect)
+        self._animation.start()
+        
+        self._is_visible = True
+    
+    def hide_dock(self):
+        if not self._is_visible:
+            return
+        
+        current_rect = self.geometry()
+        parent_rect = self.parent().rect()
+        end_rect = QRectF(parent_rect.width(), current_rect.top(), 350, current_rect.height())
+        
+        self._animation.finished.connect(self._on_hide_finished)
+        self._animation.setStartValue(QRectF(current_rect))
+        self._animation.setEndValue(end_rect)
+        self._animation.start()
+        
+        self._is_visible = False
+    
+    def _on_hide_finished(self):
+        self.hide()
+        self._animation.finished.disconnect(self._on_hide_finished)
+    
+    def toggle_dock(self):
+        if self._is_visible:
+            self.hide_dock()
+        else:
+            self.show_dock()
+    
+    def is_visible(self):
+        return self._is_visible
 
 
 class ClickableSlider(QSlider):
@@ -160,6 +840,173 @@ class ClickableSlider(QSlider):
                 value = int((event.x() / self.width()) * self.maximum())
                 self.setValue(value)
                 self.sliderMoved.emit(value)
+        super().mousePressEvent(event)
+
+
+class SlidingPlayerPanel(QWidget):
+    expanded = pyqtSignal()
+    collapsed = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._is_expanded = False
+        self._animation = None
+        self._drag_start_y = 0
+        self._is_dragging = False
+        self._drag_threshold = 50
+        
+        self._content_widget = None
+        self._handle_widget = None
+        self._background_widget = None
+        
+        self.hide()
+        
+    def setup_ui(self):
+        if self._handle_widget:
+            return
+            
+        self._background_widget = QWidget(self)
+        self._background_widget.setStyleSheet("""
+            QWidget {
+                background: qradialgradient(
+                    cx: 0.5, cy: 0.5, radius: 0.8,
+                    fx: 0.5, fy: 0.5,
+                    stop: 0 rgb(60, 60, 80),
+                    stop: 1 rgb(30, 30, 50)
+                );
+            }
+        """)
+        self._background_widget.lower()
+            
+        self._handle_widget = QWidget(self)
+        self._handle_widget.setFixedHeight(40)
+        self._handle_widget.setStyleSheet("""
+            QWidget {
+                background: rgba(0, 0, 0, 0.9);
+                border-top-left-radius: 16px;
+                border-top-right-radius: 16px;
+            }
+        """)
+        
+        handle_indicator = QWidget(self._handle_widget)
+        handle_indicator.setFixedSize(40, 5)
+        handle_indicator.setStyleSheet("""
+            QWidget {
+                background: rgba(255, 255, 255, 0.4);
+                border-radius: 2px;
+            }
+        """)
+        handle_indicator.move((self._handle_widget.width() - 40) // 2, 12)
+        
+        self._handle_widget.installEventFilter(self)
+        
+    def set_content(self, widget):
+        self._content_widget = widget
+        widget.setParent(self)
+        
+    def set_background_style(self, style_sheet):
+        if self._background_widget:
+            self._background_widget.setStyleSheet(style_sheet)
+        
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self._background_widget:
+            self._background_widget.setGeometry(0, 0, self.width(), self.height())
+        if self._handle_widget:
+            self._handle_widget.setGeometry(0, 0, self.width(), 40)
+            handle_indicator = self._handle_widget.findChild(QWidget)
+            if handle_indicator:
+                handle_indicator.move((self.width() - 40) // 2, 12)
+        if self._content_widget:
+            self._content_widget.setGeometry(0, 40, self.width(), self.height() - 40)
+            
+    def eventFilter(self, obj, event):
+        if obj == self._handle_widget:
+            if event.type() == QEvent.MouseButtonPress:
+                self._drag_start_y = event.globalY()
+                self._is_dragging = True
+                return True
+            elif event.type() == QEvent.MouseMove and self._is_dragging:
+                delta = event.globalY() - self._drag_start_y
+                if self._is_expanded and delta > self._drag_threshold:
+                    self.collapse()
+                    self._is_dragging = False
+                    return True
+                elif not self._is_expanded and delta < -self._drag_threshold:
+                    self.expand()
+                    self._is_dragging = False
+                    return True
+            elif event.type() == QEvent.MouseButtonRelease:
+                self._is_dragging = False
+                return True
+            elif event.type() == QEvent.MouseButtonDblClick:
+                if self._is_expanded:
+                    self.collapse()
+                else:
+                    self.expand()
+                return True
+        return super().eventFilter(obj, event)
+        
+    def expand(self):
+        if self._is_expanded:
+            return
+        self._is_expanded = True
+        self.show()
+        
+        if self._animation:
+            self._animation.stop()
+        
+        self._animation = QPropertyAnimation(self, b"geometry")
+        self._animation.setDuration(300)
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        parent_rect = self.parent().rect()
+        start_rect = QRectF(0, parent_rect.height(), parent_rect.width(), parent_rect.height())
+        end_rect = QRectF(0, 0, parent_rect.width(), parent_rect.height())
+        
+        self._animation.setStartValue(start_rect)
+        self._animation.setEndValue(end_rect)
+        self._animation.start()
+        
+        self.expanded.emit()
+        
+    def collapse(self):
+        if not self._is_expanded:
+            return
+        self._is_expanded = False
+        
+        if self._animation:
+            self._animation.stop()
+        
+        self._animation = QPropertyAnimation(self, b"geometry")
+        self._animation.setDuration(300)
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+        
+        parent_rect = self.parent().rect()
+        start_rect = QRectF(0, 0, parent_rect.width(), parent_rect.height())
+        end_rect = QRectF(0, parent_rect.height(), parent_rect.width(), parent_rect.height())
+        
+        self._animation.setStartValue(start_rect)
+        self._animation.setEndValue(end_rect)
+        self._animation.start()
+        
+        self._animation.finished.connect(self.hide)
+        self.collapsed.emit()
+        
+    def is_expanded(self):
+        return self._is_expanded
+
+
+class ClickableLabel(QLabel):
+    clicked = pyqtSignal()
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor)
+    
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
         super().mousePressEvent(event)
 
 
@@ -265,7 +1112,7 @@ class SongListItemWidget(QFrame):
         self.show_download = show_download
         self._is_selected = False
         
-        self.setFixedHeight(60)
+        self.setFixedHeight(50 if self.show_playqueue_actions else 60)
         self.setCursor(Qt.PointingHandCursor)
         self._init_ui()
         self._load_cover()
@@ -291,8 +1138,8 @@ class SongListItemWidget(QFrame):
     
     def _init_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-        layout.setSpacing(12)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(8)
         
         if self.show_checkbox:
             self.checkbox = QCheckBox()
@@ -300,16 +1147,16 @@ class SongListItemWidget(QFrame):
             self.checkbox.stateChanged.connect(self._on_checkbox_changed)
             layout.addWidget(self.checkbox)
         
-        self.index_label = QLabel(f"{self.index + 1}")
-        self.index_label.setFixedWidth(30)
-        self.index_label.setAlignment(Qt.AlignCenter)
-        
-        cover_layout = QVBoxLayout()
-        cover_layout.setSpacing(0)
+        if not self.show_playqueue_actions:
+            self.index_label = QLabel(f"{self.index + 1}")
+            self.index_label.setFixedWidth(24)
+            self.index_label.setAlignment(Qt.AlignCenter)
+            layout.addWidget(self.index_label)
         
         self.cover_label = QLabel()
         self.cover_label.setObjectName("musicCoverLabel")
-        self.cover_label.setFixedSize(44, 44)
+        cover_size = 36 if self.show_playqueue_actions else 44
+        self.cover_label.setFixedSize(cover_size, cover_size)
         
         if self.song_info.img_url:
             self.cover_label.setText("🎵")
@@ -318,79 +1165,97 @@ class SongListItemWidget(QFrame):
             self.cover_label.setText("🎵")
             self.cover_label.setAlignment(Qt.AlignCenter)
         
+        layout.addWidget(self.cover_label)
+        
         self.info_layout = QVBoxLayout()
         self.info_layout.setSpacing(2)
         
-        self.name_label = QLabel(self.song_info.name)
+        self.name_label = QLabel(self._truncate_text(self.song_info.name, 100))
         self.name_label.setObjectName("musicSongNameLabel")
+        self.name_label.setWordWrap(False)
+        self.name_label.setToolTip(self.song_info.name)
         
-        singer_album = self.song_info.singer
-        if self.song_info.album:
-            singer_album += f" - {self.song_info.album}"
+        singer_text = self.song_info.singer
+        if self.song_info.album and not self.show_playqueue_actions:
+            singer_text += f" - {self.song_info.album}"
         
-        self.singer_label = QLabel(singer_album)
+        self.singer_label = QLabel(singer_text)
         self.singer_label.setObjectName("musicArtistLabel")
+        self.singer_label.setWordWrap(False)
         
         self.info_layout.addWidget(self.name_label)
         self.info_layout.addWidget(self.singer_label)
         
+        layout.addLayout(self.info_layout, 1)
+        
         self.duration_label = QLabel(self._format_duration(self.song_info.duration))
         self.duration_label.setObjectName("musicTimeLabel")
+        self.duration_label.setFixedWidth(40)
+        layout.addWidget(self.duration_label)
         
-        self.source_label = QLabel(self._get_source_name())
-        self.source_label.setObjectName("musicSourceLabel")
+        if not self.show_playqueue_actions:
+            self.source_label = QLabel(self._get_source_name())
+            self.source_label.setObjectName("musicSourceLabel")
+            self.source_label.setFixedWidth(50)
+            layout.addWidget(self.source_label)
         
         self.actions_layout = QHBoxLayout()
-        self.actions_layout.setSpacing(4)
+        self.actions_layout.setSpacing(2)
         
         self.play_btn = TransparentToolButton(FIF.PLAY, self)
-        self.play_btn.setFixedSize(28, 28)
+        self.play_btn.setFixedSize(24, 24)
         self.play_btn.setToolTip("播放")
         self.play_btn.clicked.connect(lambda: self.double_clicked.emit(self.index))
         
         if self.show_playqueue_actions:
             self.remove_queue_btn = TransparentToolButton(FIF.DELETE, self)
-            self.remove_queue_btn.setFixedSize(28, 28)
+            self.remove_queue_btn.setFixedSize(24, 24)
             self.remove_queue_btn.setToolTip("从播放列表移除")
             self.remove_queue_btn.clicked.connect(lambda: self.remove_from_playqueue_clicked.emit(self.index))
             self.actions_layout.addWidget(self.remove_queue_btn)
         else:
             self.add_queue_btn = TransparentToolButton(FIF.ADD, self)
-            self.add_queue_btn.setFixedSize(28, 28)
+            self.add_queue_btn.setFixedSize(24, 24)
             self.add_queue_btn.setToolTip("添加到播放列表")
             self.add_queue_btn.clicked.connect(lambda: self.add_to_playqueue_clicked.emit(self.index))
             self.actions_layout.addWidget(self.add_queue_btn)
         
         if self.show_remove:
             self.remove_btn = TransparentToolButton(FIF.DELETE, self)
-            self.remove_btn.setFixedSize(28, 28)
+            self.remove_btn.setFixedSize(24, 24)
             self.remove_btn.setToolTip("移除")
             self.remove_btn.clicked.connect(lambda: self.remove_from_playlist_clicked.emit(self.index))
             self.actions_layout.addWidget(self.remove_btn)
-        else:
+        elif not self.show_playqueue_actions:
             self.add_btn = TransparentToolButton(FIF.FOLDER_ADD, self)
-            self.add_btn.setFixedSize(28, 28)
+            self.add_btn.setFixedSize(24, 24)
             self.add_btn.setToolTip("添加到歌单")
             self.add_btn.clicked.connect(lambda: self.add_to_playlist_clicked.emit(self.index))
             self.actions_layout.addWidget(self.add_btn)
         
         if self.show_download and self.song_info.source != "local":
             self.download_btn = TransparentToolButton(FIF.DOWNLOAD, self)
-            self.download_btn.setFixedSize(28, 28)
+            self.download_btn.setFixedSize(24, 24)
             self.download_btn.setToolTip("下载到本地")
             self.download_btn.clicked.connect(lambda: self.download_clicked.emit(self.index))
             self.actions_layout.addWidget(self.download_btn)
         
         self.actions_layout.addWidget(self.play_btn)
         
-        layout.addWidget(self.index_label)
-        layout.addWidget(self.cover_label)
-        layout.addLayout(self.info_layout, 1)
-        layout.addWidget(self.duration_label)
-        layout.addWidget(self.source_label)
         layout.addLayout(self.actions_layout)
         
         self._update_style()
+    
+    def _truncate_text(self, text: str, max_width: int, font=None) -> str:
+        if font is None:
+            font = self.font()
+        font_metrics = QFontMetrics(font)
+        if font_metrics.width(text) <= max_width:
+            return text
+        truncated = text
+        while font_metrics.width(truncated + "...") > max_width and len(truncated) > 1:
+            truncated = truncated[:-1]
+        return truncated + "..." if truncated else text
     
     def _format_duration(self, seconds: int) -> str:
         try:
@@ -483,7 +1348,8 @@ class SongListItemWidget(QFrame):
         name_color = "#0078d4" if self.is_playing else ("#e0e0e0" if is_dark else "#333")
         bg_color = "#2b2b2b" if is_dark else "#f9f9f9"
         
-        self.index_label.setStyleSheet(f"font-size: 12px; color: {index_color};")
+        if hasattr(self, 'index_label'):
+            self.index_label.setStyleSheet(f"font-size: 12px; color: {index_color};")
         self.singer_label.setStyleSheet(f"font-size: 11px; color: {singer_color};")
         self.name_label.setStyleSheet(f"font-size: 13px; font-weight: bold; color: {name_color};")
         self.setStyleSheet(f"""
@@ -683,6 +1549,7 @@ class MusicInterface(ScrollArea):
         super().__init__(parent)
         self.setObjectName("MusicInterface")
         self.setWidgetResizable(True)
+        self.setMinimumSize(900, 650)
         
         self._music_service = ExtendedMusicService(self)
         self.global_player = GlobalMusicPlayer.get_instance(self)
@@ -698,8 +1565,12 @@ class MusicInterface(ScrollArea):
         self._search_results = []
         self._playlist_songs = []
         self._original_cover_pixmap: QPixmap = None
+        self._dominant_color: QColor = None
         
         self._selected_indices = {"search": set(), "local": set(), "playlist": set()}
+        
+        self._vinyl_record = None
+        self._dockable_playlist = None
         
         self._init_ui()
         self._connect_signals()
@@ -749,83 +1620,238 @@ class MusicInterface(ScrollArea):
         
         self._content_widget = QWidget()
         self._content_layout = QVBoxLayout(self._content_widget)
-        self._content_layout.setContentsMargins(20, 20, 20, 100)
+        self._content_layout.setContentsMargins(20, 20, 20, 20)
         self._content_layout.setSpacing(20)
         
         self._init_content_area()
         
         main_layout.addWidget(self._content_widget)
         
+        self._sliding_panel = SlidingPlayerPanel(self._container)
+        self._init_home_view()
+        self._sliding_panel.set_content(self.home_widget)
+        self._sliding_panel.setup_ui()
+        self._sliding_panel.expanded.connect(self._on_panel_expanded)
+        self._sliding_panel.collapsed.connect(self._on_panel_collapsed)
+        
         self._init_bottom_player()
+        main_layout.addWidget(self.bottom_player)
+        
+        self._dockable_playlist = DockablePlaylistWidget(self._container)
+        self._dockable_playlist.song_double_clicked.connect(self._on_playqueue_song_double_clicked)
+        self._dockable_playlist.song_remove_clicked.connect(self._remove_from_playqueue)
+        self._dockable_playlist.song_download_clicked.connect(self._on_download_from_playqueue)
+        self._dockable_playlist.hide()
     
     def _init_content_area(self):
-        from qfluentwidgets import Pivot
+        from qfluentwidgets import SegmentedWidget
         from PyQt5.QtWidgets import QStackedWidget
         
-        self.content_pivot = Pivot(self._content_widget)
+        self._nav_container = QWidget(self._content_widget)
+        self._nav_container.setObjectName("navContainer")
+        nav_layout = QHBoxLayout(self._nav_container)
+        nav_layout.setContentsMargins(0, 0, 0, 16)
+        nav_layout.setSpacing(0)
+        
+        self.content_pivot = SegmentedWidget(self._nav_container)
+        self.content_pivot.setObjectName("musicSegmentedWidget")
+        self.content_pivot.lightIndicatorColor = QColor("#0078d4")
+
         self.content_stack = QStackedWidget(self._content_widget)
         
-        self._init_home_view()
         self._init_search_view()
         self._init_local_music_view()
         self._init_playlist_songs_view()
         
-        self.content_stack.addWidget(self.home_widget)
         self.content_stack.addWidget(self.search_widget)
         self.content_stack.addWidget(self.local_music_widget)
         self.content_stack.addWidget(self.playlist_songs_widget)
         
-        self.content_pivot.addItem(routeKey="home", text="🏠 首页",
-                                   onClick=lambda: self._switch_to_home())
-        self.content_pivot.addItem(routeKey="search", text="🔍 搜索",
+        self.content_pivot.addItem(routeKey="search", text="搜索", icon=FIF.SEARCH,
                                    onClick=lambda: self._switch_to_search())
-        self.content_pivot.addItem(routeKey="local", text="📁 本地",
+        self.content_pivot.addItem(routeKey="local", text="本地", icon=FIF.FOLDER,
                                    onClick=lambda: self._switch_to_local())
-        self.content_pivot.addItem(routeKey="playlist", text="🎵 歌单",
+        self.content_pivot.addItem(routeKey="playlist", text="歌单", icon=FIF.ALBUM,
                                    onClick=lambda: self._switch_to_playlist())
         
-        self.content_pivot.setCurrentItem("home")
+        self.content_pivot.setCurrentItem("search")
         
-        self._content_layout.addWidget(self.content_pivot)
+        self._is_home_visible = False
+        self._previous_widget = self.search_widget
+        
+        nav_layout.addWidget(self.content_pivot)
+        nav_layout.addStretch()
+        
+        self._content_layout.addWidget(self._nav_container)
         self._content_layout.addWidget(self.content_stack, 1)
+        
+        self.content_stack.setCurrentWidget(self.search_widget)
+        
+        from PyQt5.QtCore import QTimer
+        QTimer.singleShot(100, self._update_nav_style)
+    
+    def _toggle_home_view(self):
+        """切换首页的显示/隐藏"""
+        if self._sliding_panel.is_expanded():
+            self._sliding_panel.collapse()
+        else:
+            self._sliding_panel.expand()
+    
+    def _on_panel_expanded(self):
+        """滑动面板展开时的回调"""
+        self._previous_widget = self.content_stack.currentWidget()
+        self._is_home_visible = True
+        self._apply_theme_to_container()
+        self.progress_bar_widget.raise_()
+        self.bottom_player.raise_()
+    
+    def _on_panel_collapsed(self):
+        """滑动面板收起时的回调"""
+        self._is_home_visible = False
+        self._update_nav_style_for_widget(self._previous_widget)
+    
+    def _update_nav_style_for_widget(self, widget):
+        """根据当前widget更新导航栏样式"""
+        if widget == self.search_widget:
+            self._reset_container_style()
+            self.content_pivot.setCurrentItem("search")
+        elif widget == self.local_music_widget:
+            self._reset_container_style()
+            self.content_pivot.setCurrentItem("local")
+        elif widget == self.playlist_songs_widget:
+            self._reset_container_style()
+            self.content_pivot.setCurrentItem("playlist")
+        self._update_nav_style()
     
     def _switch_to_home(self):
         """切换到首页"""
-        self.content_stack.setCurrentWidget(self.home_widget)
+        self._sliding_panel.expand()
     
     def _switch_to_search(self):
         """切换到搜索页面"""
+        self._is_home_visible = False
+        self._nav_container.show()
         self.content_stack.setCurrentWidget(self.search_widget)
+        self._reset_container_style()
+        self._update_nav_style()
     
     def _switch_to_local(self):
         """切换到本地音乐页面"""
+        self._is_home_visible = False
+        self._nav_container.show()
         self._update_local_music_view()
         self.content_stack.setCurrentWidget(self.local_music_widget)
+        self._reset_container_style()
+        self._update_nav_style()
     
     def _switch_to_playlist(self):
         """切换到歌单页面"""
+        self._is_home_visible = False
+        self._nav_container.show()
         if self._playlists:
             index = self.playlist_combo.currentIndex()
             if 0 <= index < len(self._playlists):
                 playlist = self._playlists[index]
                 self._update_playlist_view(playlist)
         self.content_stack.setCurrentWidget(self.playlist_songs_widget)
+        self._reset_container_style()
+        self._update_nav_style()
+    
+    def eventFilter(self, obj, event):
+        if obj == self.bottom_player:
+            if event.type() == QEvent.MouseButtonPress:
+                self._bottom_player_drag_start_y = event.globalY()
+                self._bottom_player_is_dragging = True
+            elif event.type() == QEvent.MouseMove and self._bottom_player_is_dragging:
+                delta = event.globalY() - self._bottom_player_drag_start_y
+                if delta < -50:
+                    self._sliding_panel.expand()
+                    self._bottom_player_is_dragging = False
+            elif event.type() == QEvent.MouseButtonRelease:
+                self._bottom_player_is_dragging = False
+        return super().eventFilter(obj, event)
     
     def _init_home_view(self):
         self.home_widget = QWidget()
         home_layout = QHBoxLayout(self.home_widget)
-        home_layout.setContentsMargins(20, 20, 20, 20)
-        home_layout.setSpacing(20)
+        home_layout.setContentsMargins(30, 30, 30, 124)
+        home_layout.setSpacing(30)
+        
+        left_widget = QWidget()
+        left_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+            }
+        """)
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(20)
+        
+        vinyl_container = QWidget()
+        vinyl_container.setStyleSheet("""
+            QWidget {
+                background: transparent;
+            }
+        """)
+        vinyl_layout = QVBoxLayout(vinyl_container)
+        vinyl_layout.setContentsMargins(0, 0, 0, 0)
+        vinyl_layout.setSpacing(20)
+        
+        self._vinyl_record = VinylRecordWidget()
+        self._vinyl_record.clicked.connect(self._toggle_play)
+        vinyl_layout.addWidget(self._vinyl_record, 0, Qt.AlignCenter)
+        
+        song_info_widget = QWidget()
+        song_info_widget.setStyleSheet("""
+            QWidget {
+                background: transparent;
+            }
+        """)
+        song_info_layout = QVBoxLayout(song_info_widget)
+        song_info_layout.setContentsMargins(0, 0, 0, 0)
+        song_info_layout.setSpacing(8)
+        
+        self.home_song_name = QLabel("未播放歌曲")
+        self.home_song_name.setAlignment(Qt.AlignCenter)
+        self.home_song_name.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: #ffffff;
+                background: transparent;
+                padding: 6px 16px;
+            }
+        """)
+        
+        self.home_song_artist = QLabel("")
+        self.home_song_artist.setAlignment(Qt.AlignCenter)
+        self.home_song_artist.setStyleSheet("""
+            QLabel {
+                font-size: 15px;
+                color: rgba(255, 255, 255, 200);
+                background: transparent;
+                padding: 3px 10px;
+            }
+        """)
+        
+        song_info_layout.addWidget(self.home_song_name)
+        song_info_layout.addWidget(self.home_song_artist)
+        
+        vinyl_layout.addWidget(song_info_widget)
+        
+        left_layout.addWidget(vinyl_container)
+        
+        home_layout.addWidget(left_widget, 5)
         
         self.lyrics_card = LyricsCardWidget()
         self.lyrics_card.textColorChanged.connect(self._update_lyrics_text_color)
         lyrics_card_layout = QVBoxLayout(self.lyrics_card)
-        lyrics_card_layout.setContentsMargins(16, 16, 16, 16)
+        lyrics_card_layout.setContentsMargins(24, 24, 24, 24)
         
         self.home_lyrics_list = QListWidget()
         self.home_lyrics_list.setObjectName("musicLyricsList")
         self.home_lyrics_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        self.home_lyrics_list.setSpacing(8)
+        self.home_lyrics_list.setSpacing(10)
         self.home_lyrics_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.home_lyrics_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._lyrics_normal_color = "rgba(255, 255, 255, 0.6)"
@@ -833,73 +1859,7 @@ class MusicInterface(ScrollArea):
         self._lyrics_selected_color = "white"
         lyrics_card_layout.addWidget(self.home_lyrics_list)
         
-        home_layout.addWidget(self.lyrics_card, 3)
-        
-        right_widget = QWidget()
-        right_layout = QVBoxLayout(right_widget)
-        right_layout.setContentsMargins(0, 0, 0, 0)
-        right_layout.setSpacing(20)
-        
-        song_info_card = CardWidget()
-        song_info_card.setObjectName("musicSongInfoCard")
-        song_info_layout = QVBoxLayout(song_info_card)
-        song_info_layout.setContentsMargins(16, 16, 16, 16)
-        song_info_layout.setSpacing(12)
-        
-        self.home_cover_label = QLabel()
-        self.home_cover_label.setObjectName("musicCoverLabel")
-        self.home_cover_label.setFixedSize(120, 120)
-        self.home_cover_label.setAlignment(Qt.AlignCenter)
-        self.home_cover_label.setText("🎵")
-        
-        self.home_song_name = QLabel("未播放歌曲")
-        self.home_song_name.setObjectName("musicSongNameLabel")
-        self.home_song_name.setAlignment(Qt.AlignCenter)
-        
-        self.home_song_artist = QLabel("")
-        self.home_song_artist.setObjectName("musicArtistLabel")
-        self.home_song_artist.setAlignment(Qt.AlignCenter)
-        
-        song_info_layout.addWidget(self.home_cover_label, 0, Qt.AlignCenter)
-        song_info_layout.addWidget(self.home_song_name)
-        song_info_layout.addWidget(self.home_song_artist)
-        song_info_layout.addStretch()
-        
-        right_layout.addWidget(song_info_card, 2)
-        
-        playqueue_card = CardWidget()
-        playqueue_card.setObjectName("musicPlayqueueCard")
-        playqueue_layout = QVBoxLayout(playqueue_card)
-        playqueue_layout.setContentsMargins(16, 16, 16, 16)
-        
-        playqueue_header = QHBoxLayout()
-        playqueue_title = StrongBodyLabel("🎵 播放列表")
-        playqueue_header.addWidget(playqueue_title)
-        
-        self.playqueue_count_label = QLabel("0 首")
-        self.playqueue_count_label.setObjectName("musicTimeLabel")
-        playqueue_header.addWidget(self.playqueue_count_label)
-        
-        playqueue_header.addStretch()
-        
-        clear_queue_btn = TransparentToolButton(FIF.DELETE, self)
-        clear_queue_btn.setFixedSize(28, 28)
-        clear_queue_btn.setToolTip("清空播放列表")
-        clear_queue_btn.clicked.connect(self._clear_play_queue)
-        playqueue_header.addWidget(clear_queue_btn)
-        
-        playqueue_layout.addLayout(playqueue_header)
-        
-        self.playqueue_list = QListWidget()
-        self.playqueue_list.setDragDropMode(QAbstractItemView.InternalMove)
-        self.playqueue_list.setDefaultDropAction(Qt.MoveAction)
-        self.playqueue_list.setSpacing(2)
-        self.playqueue_list.model().rowsMoved.connect(self._on_playqueue_reordered)
-        playqueue_layout.addWidget(self.playqueue_list)
-        
-        right_layout.addWidget(playqueue_card, 3)
-        
-        home_layout.addWidget(right_widget, 2)
+        home_layout.addWidget(self.lyrics_card, 5)
         
         self._lyric_lines: List[LyricLine] = []
         self._current_lyric_index = -1
@@ -1002,7 +1962,7 @@ class MusicInterface(ScrollArea):
         search_layout.addWidget(self.batch_toolbar)
         self.batch_toolbar.setVisible(False)
         
-        self.results_list = QListWidget()
+        self.results_list = ListWidget()
         self.results_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.results_list.setSpacing(2)
         self.results_list.itemDoubleClicked.connect(lambda item: self._on_result_double_clicked(self.results_list.row(item)))
@@ -1047,7 +2007,7 @@ class MusicInterface(ScrollArea):
         
         local_layout.addLayout(local_header)
         
-        self.local_music_list = QListWidget()
+        self.local_music_list = ListWidget()
         self.local_music_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.local_music_list.setSpacing(2)
         self.local_music_list.itemDoubleClicked.connect(lambda item: self._on_local_music_double_clicked(self.local_music_list.row(item)))
@@ -1092,7 +2052,7 @@ class MusicInterface(ScrollArea):
         
         playlist_songs_layout.addLayout(playlist_songs_header)
         
-        self.playlist_songs_list = QListWidget()
+        self.playlist_songs_list = ListWidget()
         self.playlist_songs_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.playlist_songs_list.setSpacing(2)
         self.playlist_songs_list.itemDoubleClicked.connect(lambda item: self._on_playlist_song_double_clicked(self.playlist_songs_list.row(item)))
@@ -1141,23 +2101,36 @@ class MusicInterface(ScrollArea):
         progress_layout.addWidget(self.progress_slider, 1)
         progress_layout.addWidget(self.total_time_label)
         
-        self.bottom_player = CardWidget(self)
+        self.bottom_player = CardWidget()
         self.bottom_player.setObjectName("musicBottomPlayer")
         self.bottom_player.setFixedHeight(70)
-        self.bottom_player.move(0, self.height() - 94)
+        
+        self.bottom_player.setStyleSheet("""
+            #musicBottomPlayer {
+                background: transparent;
+                border: none;
+            }
+        """)
         
         player_layout = QHBoxLayout(self.bottom_player)
         player_layout.setContentsMargins(20, 10, 20, 10)
         player_layout.setSpacing(20)
         
-        self.cover_label = QLabel()
+        self.cover_label = ClickableLabel()
         self.cover_label.setObjectName("musicCoverLabel")
         self.cover_label.setFixedSize(50, 50)
         self.cover_label.setAlignment(Qt.AlignCenter)
         self.cover_label.setText("🎵")
+        self.cover_label.clicked.connect(self._toggle_home_view)
         
-        song_info_layout = QVBoxLayout()
-        song_info_layout.setSpacing(2)
+        song_info_container = QWidget()
+        song_info_container.setCursor(Qt.PointingHandCursor)
+        song_info_layout = QHBoxLayout(song_info_container)
+        song_info_layout.setContentsMargins(0, 0, 0, 0)
+        song_info_layout.setSpacing(8)
+        
+        song_text_layout = QVBoxLayout()
+        song_text_layout.setSpacing(2)
         
         self.now_playing_label = QLabel("未选择歌曲")
         self.now_playing_label.setObjectName("musicSongNameLabel")
@@ -1165,11 +2138,19 @@ class MusicInterface(ScrollArea):
         self.now_artist_label = QLabel("")
         self.now_artist_label.setObjectName("musicArtistLabel")
         
-        song_info_layout.addWidget(self.now_playing_label)
-        song_info_layout.addWidget(self.now_artist_label)
+        song_text_layout.addWidget(self.now_playing_label)
+        song_text_layout.addWidget(self.now_artist_label)
+        
+        song_info_layout.addLayout(song_text_layout, 1)
+        
+        song_info_container.mousePressEvent = lambda e: self._toggle_home_view() if e.button() == Qt.LeftButton else None
         
         player_layout.addWidget(self.cover_label, 0, Qt.AlignLeft)
-        player_layout.addLayout(song_info_layout, 2)
+        player_layout.addWidget(song_info_container, 2)
+        
+        self._bottom_player_drag_start_y = 0
+        self._bottom_player_is_dragging = False
+        self.bottom_player.installEventFilter(self)
         
         controls_layout = QHBoxLayout()
         controls_layout.setSpacing(12)
@@ -1209,6 +2190,11 @@ class MusicInterface(ScrollArea):
         volume_layout = QHBoxLayout()
         volume_layout.setSpacing(8)
         
+        self.playlist_toggle_btn = TransparentToolButton(FIF.MENU, self)
+        self.playlist_toggle_btn.setFixedSize(28, 28)
+        self.playlist_toggle_btn.setToolTip("播放列表")
+        self.playlist_toggle_btn.clicked.connect(self._toggle_playlist_dock)
+        
         self.volume_icon = TransparentToolButton(FIF.VOLUME, self)
         self.volume_icon.setFixedSize(28, 28)
         self.volume_icon.setToolTip("音量")
@@ -1225,6 +2211,7 @@ class MusicInterface(ScrollArea):
         self.volume_label.setObjectName("musicVolumeLabel")
         self.volume_label.setFixedWidth(35)
         
+        volume_layout.addWidget(self.playlist_toggle_btn)
         volume_layout.addWidget(self.volume_icon)
         volume_layout.addWidget(self.volume_slider)
         volume_layout.addWidget(self.volume_label)
@@ -1244,6 +2231,8 @@ class MusicInterface(ScrollArea):
         self.progress_bar_widget.move(0, self.height() - 70 - 24)
         self.bottom_player.setFixedWidth(self.width())
         self.bottom_player.move(0, self.height() - 70)
+        if hasattr(self, '_sliding_panel') and self._sliding_panel:
+            self._sliding_panel.setGeometry(0, 0, self.width(), self.height())
     
     def _connect_signals(self):
         self._music_service.search_completed.connect(self._on_search_completed)
@@ -1325,9 +2314,6 @@ class MusicInterface(ScrollArea):
             item.setSizeHint(widget.sizeHint())
             self.playlist_songs_list.addItem(item)
             self.playlist_songs_list.setItemWidget(item, widget)
-        
-        self.content_pivot.setCurrentItem("playlist")
-        self.content_stack.setCurrentWidget(self.playlist_songs_widget)
     
     def _remove_from_playlist(self, index: int, playlist: Playlist):
         if 0 <= index < len(playlist.songs):
@@ -1336,19 +2322,7 @@ class MusicInterface(ScrollArea):
             self._open_playlist(playlist)
     
     def _update_playqueue_view(self):
-        self.playqueue_list.clear()
-        self.playqueue_count_label.setText(f"{len(self._play_queue)} 首")
-        
-        for i, song in enumerate(self._play_queue):
-            item = QListWidgetItem()
-            widget = SongListItemWidget(song, i, i == self._current_index, show_playqueue_actions=True)
-            widget.double_clicked.connect(self._on_playqueue_song_double_clicked)
-            widget.remove_from_playqueue_clicked.connect(self._remove_from_playqueue)
-            widget.download_clicked.connect(self._on_download_from_playqueue)
-            widget.update_theme(isDarkTheme())
-            item.setSizeHint(widget.sizeHint())
-            self.playqueue_list.addItem(item)
-            self.playqueue_list.setItemWidget(item, widget)
+        self._update_dockable_playlist()
     
     def _on_playqueue_song_double_clicked(self, index: int):
         if 0 <= index < len(self._play_queue):
@@ -1372,6 +2346,10 @@ class MusicInterface(ScrollArea):
         
         if song.play_url:
             self.global_player.play(song, self._play_queue, index)
+            self.play_btn.setIcon(FIF.PAUSE)
+            self.play_btn.setToolTip("暂停")
+            if self._vinyl_record:
+                self._vinyl_record.set_playing(True)
         else:
             self._music_service.get_play_url(song)
         
@@ -1386,6 +2364,19 @@ class MusicInterface(ScrollArea):
             self._update_playqueue_view()
             self.playqueue_changed.emit()
             logger.info(f"[Music] 添加到播放列表: {song.name}")
+    
+    def _play_song_or_add_to_queue(self, song: SongInfo):
+        for i, s in enumerate(self._play_queue):
+            if s.song_id == song.song_id:
+                self._current_index = i
+                self._play_song_from_queue(i)
+                return
+        self._play_queue.append(song)
+        self._current_index = len(self._play_queue) - 1
+        self._update_playqueue_view()
+        self.playqueue_changed.emit()
+        self._play_song_from_queue(self._current_index)
+        logger.info(f"[Music] 添加到播放列表: {song.name}")
     
     def _clear_play_queue(self):
         self._play_queue.clear()
@@ -1404,14 +2395,7 @@ class MusicInterface(ScrollArea):
             self.playqueue_changed.emit()
     
     def _on_playqueue_reordered(self):
-        new_queue = []
-        for i in range(self.playqueue_list.count()):
-            item = self.playqueue_list.item(i)
-            widget = self.playqueue_list.itemWidget(item)
-            if widget:
-                new_queue.append(widget.song_info)
-        self._play_queue = new_queue
-        self.playqueue_changed.emit()
+        pass
     
     def _on_add_to_playqueue_from_playlist(self, index: int):
         if 0 <= index < len(self._playlist_songs):
@@ -1761,23 +2745,17 @@ class MusicInterface(ScrollArea):
     def _on_playlist_double_clicked(self, index: int):
         if 0 <= index < len(self._playlist_songs):
             song = self._playlist_songs[index]
-            self._add_to_play_queue(song)
-            self._current_index = len(self._play_queue) - 1
-            self._play_song_from_queue(self._current_index)
+            self._play_song_or_add_to_queue(song)
     
     def _on_result_double_clicked(self, index: int):
         if 0 <= index < len(self._search_results):
             song = self._search_results[index]
-            self._add_to_play_queue(song)
-            self._current_index = len(self._play_queue) - 1
-            self._play_song_from_queue(self._current_index)
+            self._play_song_or_add_to_queue(song)
     
     def _on_playlist_song_double_clicked(self, index: int):
         if 0 <= index < len(self._playlist_songs):
             song = self._playlist_songs[index]
-            self._add_to_play_queue(song)
-            self._current_index = len(self._play_queue) - 1
-            self._play_song_from_queue(self._current_index)
+            self._play_song_or_add_to_queue(song)
     
     def _play_url(self, url: str):
         logger.info(f"[Music] Playing: {url[:50]}...")
@@ -1786,12 +2764,17 @@ class MusicInterface(ScrollArea):
         self._retry_count = 0
     
     def _on_global_playback_state_changed(self, is_playing: bool):
+        logger.info(f"[MusicUI] _on_global_playback_state_changed: is_playing={is_playing}")
         if is_playing:
             self.play_btn.setIcon(FIF.PAUSE)
             self.play_btn.setToolTip("暂停")
+            if self._vinyl_record:
+                self._vinyl_record.set_playing(True)
         else:
             self.play_btn.setIcon(FIF.PLAY)
             self.play_btn.setToolTip("播放")
+            if self._vinyl_record:
+                self._vinyl_record.set_playing(False)
     
     def _on_global_song_changed(self, song: SongInfo):
         self._update_now_playing(song)
@@ -1816,7 +2799,8 @@ class MusicInterface(ScrollArea):
         if self._current_index >= 0 and self._play_queue:
             current_song = self._play_queue[self._current_index]
             if current_song.song_id == song_id:
-                self._play_url(url)
+                current_song.play_url = url
+                self.global_player.play(current_song, self._play_queue, self._current_index)
     
     def _on_play_url_failed(self, song_id: str):
         if self._current_index >= 0 and self._play_queue:
@@ -1866,12 +2850,12 @@ class MusicInterface(ScrollArea):
     
     def _update_lyric(self, song: SongInfo):
         if song.lyric:
-            logger.info(f"[Lyric] 原始歌词长度: {len(song.lyric)}")
-            logger.info(f"[Lyric] 原始歌词前200字符: {song.lyric[:200]}")
+            # logger.info(f"[Lyric] 原始歌词长度: {len(song.lyric)}")
+            # logger.info(f"[Lyric] 原始歌词前200字符: {song.lyric[:200]}")
             self._lyric_lines = LyricParser.parse(song.lyric)
-            logger.info(f"[Lyric] 解析歌词成功，共 {len(self._lyric_lines)} 行")
-            if self._lyric_lines:
-                logger.info(f"[Lyric] 前5行: {[(l.time_ms, l.text) for l in self._lyric_lines[:5]]}")
+            # logger.info(f"[Lyric] 解析歌词成功，共 {len(self._lyric_lines)} 行")
+            # if self._lyric_lines:
+            #     logger.info(f"[Lyric] 前5行: {[(l.time_ms, l.text) for l in self._lyric_lines[:5]]}")
             self._display_lyrics()
             self._update_lyric_info(song)
         else:
@@ -1890,17 +2874,20 @@ class MusicInterface(ScrollArea):
         if song.img_url:
             self._load_lyric_cover(song.img_url)
         else:
-            self.home_cover_label.setText("🎵")
             self._reset_lyrics_card_style()
     
     def _reset_lyrics_card_style(self):
         self._original_cover_pixmap = None
+        self._dominant_color = None
         self.lyrics_card.set_dominant_color(None)
+        if self._vinyl_record:
+            self._vinyl_record.set_cover(QPixmap())
         self._update_lyrics_text_color(
             "rgba(255, 255, 255, 0.6)",
             "rgba(255, 255, 255, 0.9)",
             "white"
         )
+        self._apply_theme_color_to_window(None)
     
     def _load_lyric_cover(self, img_url: str):
         if not img_url:
@@ -1915,8 +2902,6 @@ class MusicInterface(ScrollArea):
                 data = self._home_cover_reply.readAll()
                 pixmap = QPixmap()
                 if pixmap.loadFromData(data):
-                    scaled = pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-                    self.home_cover_label.setPixmap(scaled)
                     self._set_lyrics_card_background(pixmap)
             self._home_cover_reply.deleteLater()
         
@@ -1925,11 +2910,79 @@ class MusicInterface(ScrollArea):
     def _set_lyrics_card_background(self, pixmap: QPixmap):
         if pixmap.isNull():
             self._original_cover_pixmap = None
+            self._dominant_color = None
             self.lyrics_card.set_dominant_color(None)
+            if self._vinyl_record:
+                self._vinyl_record.set_cover(QPixmap())
+            self._apply_theme_color_to_window(None)
             return
         
         self._original_cover_pixmap = pixmap
         self.lyrics_card.set_background_from_pixmap(pixmap)
+        
+        if self._vinyl_record:
+            self._vinyl_record.set_cover(pixmap)
+        
+        self._apply_theme_color_to_window(pixmap)
+    
+    def _apply_theme_color_to_window(self, pixmap: QPixmap):
+        if pixmap.isNull():
+            self._dominant_color = None
+            self._sliding_panel.set_background_style("""
+                QWidget {
+                    background: qradialgradient(
+                        cx: 0.5, cy: 0.5, radius: 0.8,
+                        fx: 0.5, fy: 0.5,
+                        stop: 0 rgb(60, 60, 80),
+                        stop: 1 rgb(30, 30, 50)
+                    );
+                }
+            """)
+            return
+        
+        dominant_color = self.lyrics_card._extract_dominant_color(pixmap)
+        self._dominant_color = dominant_color
+        
+        h = dominant_color.hue()
+        s = dominant_color.saturation()
+        v = dominant_color.value()
+        
+        is_dark = isDarkTheme()
+        
+        if is_dark:
+            center_color = QColor.fromHsv(h, min(s + 10, 255), max(v - 30, 20))
+            edge_color = QColor.fromHsv(h, min(s + 10, 255), max(v - 80, 10))
+            text_color = QColor.fromHsv(h, min(s + 20, 255), max(v + 20, 180))
+        else:
+            center_color = QColor.fromHsv(h, min(s + 30, 255), max(v - 10, 40))
+            edge_color = QColor.fromHsv(h, min(s + 30, 255), max(v - 60, 20))
+            text_color = QColor.fromHsv(h, min(s + 40, 255), max(v - 40, 60))
+        
+        center_css = f"rgb({center_color.red()}, {center_color.green()}, {center_color.blue()})"
+        edge_css = f"rgb({edge_color.red()}, {edge_color.green()}, {edge_color.blue()})"
+        
+        self._sliding_panel.set_background_style(f"""
+            QWidget {{
+                background: qradialgradient(
+                    cx: 0.5, cy: 0.5, radius: 0.8,
+                    fx: 0.5, fy: 0.5,
+                    stop: 0 {center_css},
+                    stop: 1 {edge_css}
+                );
+            }}
+        """)
+        
+        self._update_nav_style()
+    
+    def _apply_theme_to_container(self):
+        """应用主题色到容器（仅在首页）"""
+        if self._dominant_color and self._original_cover_pixmap:
+            self._apply_theme_color_to_window(self._original_cover_pixmap)
+    
+    def _reset_container_style(self):
+        """重置容器样式为默认（非首页）"""
+        self._container.setStyleSheet("")
+        self._update_nav_style()
     
     def _display_lyrics(self):
         self.home_lyrics_list.clear()
@@ -1943,9 +2996,9 @@ class MusicInterface(ScrollArea):
             item.setText(line.text)
             item.setTextAlignment(Qt.AlignCenter)
             font = QFont()
-            font.setPointSize(11)
+            font.setPointSize(12)
             item.setFont(font)
-            item.setSizeHint(QSize(0, 45))
+            item.setSizeHint(QSize(0, 50))
             self.home_lyrics_list.addItem(item)
     
     def _update_lyric_highlight(self, current_time_ms: int):
@@ -1965,10 +3018,10 @@ class MusicInterface(ScrollArea):
                 item.setSelected(i == current_index)
                 font = QFont()
                 if i == current_index:
-                    font.setPointSize(15)
+                    font.setPointSize(16)
                     font.setBold(True)
                 else:
-                    font.setPointSize(11)
+                    font.setPointSize(12)
                     font.setBold(False)
                 item.setFont(font)
         
@@ -1979,11 +3032,7 @@ class MusicInterface(ScrollArea):
             )
     
     def _update_list_highlight(self):
-        for i in range(self.playqueue_list.count()):
-            item = self.playqueue_list.item(i)
-            widget = self.playqueue_list.itemWidget(item)
-            if widget:
-                widget.set_playing(i == self._current_index)
+        pass
     
     def _toggle_play(self):
         self.global_player.toggle_play()
@@ -2148,6 +3197,7 @@ class MusicInterface(ScrollArea):
                 widget.update_theme(is_dark)
         
         self._update_lyrics_theme(is_dark)
+        self._update_nav_style()
     
     def _update_lyrics_text_color(self, normal_color: str, hover_color: str, selected_color: str):
         self._lyrics_normal_color = normal_color
@@ -2161,17 +3211,17 @@ class MusicInterface(ScrollArea):
                 outline: none;
             }}
             QListWidget::item{{
-                padding: 10px 16px;
-                border-radius: 8px;
+                padding: 12px 20px;
+                border-radius: 10px;
                 color: {normal_color};
-                margin: 2px 0px;
+                margin: 3px 0px;
             }}
             QListWidget::item:hover{{
-                background: rgba(128, 128, 128, 0.2);
+                background: rgba(128, 128, 128, 0.25);
                 color: {hover_color};
             }}
             QListWidget::item:selected{{
-                background: rgba(128, 128, 128, 0.3);
+                background: rgba(128, 128, 128, 0.35);
                 color: {selected_color};
             }}
         """)
@@ -2183,12 +3233,95 @@ class MusicInterface(ScrollArea):
                 item.setSelected(i == self._current_lyric_index)
                 font = QFont()
                 if i == self._current_lyric_index:
-                    font.setPointSize(15)
+                    font.setPointSize(16)
                     font.setBold(True)
                 else:
-                    font.setPointSize(11)
+                    font.setPointSize(12)
                     font.setBold(False)
                 item.setFont(font)
+    
+    def _update_nav_style(self):
+        current_widget = self.content_stack.currentWidget()
+        is_home = (current_widget is None) or (current_widget == self.home_widget)
+        is_dark = isDarkTheme()
+        
+        if is_home:
+            text_color = "rgba(255, 255, 255, 0.85) !important"
+            text_color_hover = "rgba(255, 255, 255, 0.95) !important"
+            text_color_selected = "white !important"
+        else:
+            if is_dark:
+                text_color = "rgba(255, 255, 255, 0.85) !important"
+                text_color_hover = "rgba(255, 255, 255, 0.95) !important"
+                text_color_selected = "white !important"
+            else:
+                text_color = "rgba(0, 0, 0, 0.75) !important"
+                text_color_hover = "rgba(0, 0, 0, 0.95) !important"
+                text_color_selected = "black !important"
+        
+        style_sheet = f"""
+            SegmentedWidget,
+            SegmentedWidget * {{
+                background: transparent;
+            }}
+            
+            SegmentedWidget QPushButton,
+            SegmentedWidget QPushButton * {{
+                color: {text_color};
+                background: transparent;
+                border: none;
+            }}
+            
+            SegmentedWidget QPushButton:hover,
+            SegmentedWidget QPushButton:hover * {{
+                color: {text_color_hover};
+                background: rgba(128, 128, 128, 0.15);
+            }}
+            
+            SegmentedWidget QPushButton:checked,
+            SegmentedWidget QPushButton:checked * {{
+                color: {text_color_selected};
+                background: transparent;
+            }}
+            
+            SegmentedWidget QLabel {{
+                color: {text_color};
+                background: transparent;
+            }}
+            
+            SegmentedWidget QPushButton:hover QLabel {{
+                color: {text_color_hover};
+            }}
+            
+            SegmentedWidget QPushButton:checked QLabel {{
+                color: {text_color_selected};
+            }}
+            
+            SegmentedWidget QToolButton,
+            SegmentedWidget QToolButton * {{
+                color: {text_color};
+                background: transparent;
+            }}
+            
+            SegmentedWidget QToolButton:hover,
+            SegmentedWidget QToolButton:hover * {{
+                color: {text_color_hover};
+            }}
+            
+            SegmentedWidget QToolButton:checked,
+            SegmentedWidget QToolButton:checked * {{
+                color: {text_color_selected};
+            }}
+        """
+        
+        self.content_pivot.setStyleSheet(style_sheet)
+        
+        self.content_pivot.style().unpolish(self.content_pivot)
+        self.content_pivot.style().polish(self.content_pivot)
+        
+        for child in self.content_pivot.findChildren(QWidget):
+            child.style().unpolish(child)
+            child.style().polish(child)
     
     def _on_download_from_search(self, index: int):
         if 0 <= index < len(self._search_results):
@@ -2234,6 +3367,17 @@ class MusicInterface(ScrollArea):
     
     def _on_download_progress(self, song_id: str, progress: int):
         pass
+    
+    def _toggle_playlist_dock(self):
+        if not self._dockable_playlist:
+            return
+        
+        self._dockable_playlist.toggle_dock()
+        self._update_dockable_playlist()
+    
+    def _update_dockable_playlist(self):
+        if self._dockable_playlist and self._dockable_playlist.is_visible():
+            self._dockable_playlist.set_playlist(self._play_queue, self._current_index)
     
     def closeEvent(self, event):
         self.global_player.close()
