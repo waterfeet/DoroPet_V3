@@ -91,6 +91,7 @@ class VLCMusicPlayer:
         self.player = self.instance.media_player_new()
         
         self._volume = 100
+        self._is_playing = False
         
         self._update_timer = QTimer()
         self._update_timer.timeout.connect(self._check_position)
@@ -119,6 +120,7 @@ class VLCMusicPlayer:
         self.player.play()
         
         self._playback_end_detected = False
+        self._is_playing = True
         
         time.sleep(0.1)
         
@@ -131,22 +133,27 @@ class VLCMusicPlayer:
     def pause(self):
         """暂停"""
         self.player.pause()
+        self._is_playing = False
     
     def resume(self):
         """继续播放"""
         self.player.play()
+        self._is_playing = True
     
     def stop(self):
         """停止"""
         self._update_timer.stop()
         self.player.stop()
+        self._is_playing = False
     
     def toggle_play(self):
         """切换播放/暂停"""
-        if self.player.is_playing():
+        if self._is_playing:
             self.player.pause()
+            self._is_playing = False
         else:
             self.player.play()
+            self._is_playing = True
     
     def set_position(self, position: int):
         """设置播放位置（毫秒）"""
@@ -162,7 +169,7 @@ class VLCMusicPlayer:
     
     def is_playing(self) -> bool:
         """是否正在播放"""
-        return self.player.is_playing() == 1
+        return self._is_playing
     
     def get_state(self):
         """获取播放状态"""
@@ -177,6 +184,7 @@ class VLCMusicPlayer:
             if duration > 0 and current_pos > 0:
                 if duration - current_pos < 500:
                     self._playback_end_detected = True
+                    self._is_playing = False
                     self._update_timer.stop()
                     if self._on_playback_finished:
                         self._on_playback_finished()
@@ -189,6 +197,7 @@ class VLCMusicPlayer:
         """关闭播放器"""
         self._update_timer.stop()
         self.player.stop()
+        self._is_playing = False
         self.player.release()
         self.instance.release()
 
