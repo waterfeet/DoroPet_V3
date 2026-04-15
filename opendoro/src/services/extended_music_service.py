@@ -492,19 +492,21 @@ class LyricWorker(QThread):
     
     def run(self):
         try:
+            song_id_str = str(self.song_info.song_id)
+            
             if self.song_info.lyric:
-                self.lyric_completed.emit(self.song_info.song_id, self.song_info.lyric)
+                self.lyric_completed.emit(song_id_str, self.song_info.lyric)
                 return
             
             if self.song_info.raw_data and self.song_info.raw_data.get('lyric'):
-                self.lyric_completed.emit(self.song_info.song_id, self.song_info.raw_data['lyric'])
+                self.lyric_completed.emit(song_id_str, self.song_info.raw_data['lyric'])
                 return
             
-            self.lyric_failed.emit(self.song_info.song_id)
+            self.lyric_failed.emit(song_id_str)
             
         except Exception as e:
             logger.error(f"Lyric fetch error: {e}")
-            self.lyric_failed.emit(self.song_info.song_id)
+            self.lyric_failed.emit(str(self.song_info.song_id))
 
 
 class PlayUrlWorker(QThread):
@@ -517,13 +519,15 @@ class PlayUrlWorker(QThread):
     
     def run(self):
         try:
+            song_id_str = str(self.song_info.song_id)
+            
             if self.song_info.play_url:
-                self.url_obtained.emit(self.song_info.song_id, self.song_info.play_url)
+                self.url_obtained.emit(song_id_str, self.song_info.play_url)
                 return
             
             raw_url = self.song_info.raw_data.get('url', '') if self.song_info.raw_data else ''
             if raw_url and raw_url.startswith('http'):
-                self.url_obtained.emit(self.song_info.song_id, raw_url)
+                self.url_obtained.emit(song_id_str, raw_url)
                 return
             
             from musicdl import musicdl
@@ -552,30 +556,30 @@ class PlayUrlWorker(QThread):
                         url = result.get('url', '')
                         file_path = result.get('savedpath', '')
                         if file_path and os.path.exists(file_path):
-                            self.url_obtained.emit(self.song_info.song_id, file_path)
+                            self.url_obtained.emit(song_id_str, file_path)
                             return
                         if url:
-                            self.url_obtained.emit(self.song_info.song_id, url)
+                            self.url_obtained.emit(song_id_str, url)
                             return
                     elif isinstance(result, str) and result:
                         if os.path.exists(result):
-                            self.url_obtained.emit(self.song_info.song_id, result)
+                            self.url_obtained.emit(song_id_str, result)
                             return
                         elif result.startswith('http'):
-                            self.url_obtained.emit(self.song_info.song_id, result)
+                            self.url_obtained.emit(song_id_str, result)
                             return
             
             for f in os.listdir(download_dir):
                 if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.ogg')):
                     file_path = os.path.join(download_dir, f)
-                    self.url_obtained.emit(self.song_info.song_id, file_path)
+                    self.url_obtained.emit(song_id_str, file_path)
                     return
             
-            self.url_failed.emit(self.song_info.song_id)
+            self.url_failed.emit(song_id_str)
             
         except Exception as e:
             logger.error(f"Play URL fetch error: {e}")
-            self.url_failed.emit(self.song_info.song_id)
+            self.url_failed.emit(str(self.song_info.song_id))
 
 
 class ExtendedMusicService(QObject):

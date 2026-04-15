@@ -1,8 +1,269 @@
-from PyQt5.QtCore import QObject, pyqtSignal, QUrl, QTimer
+import os
+import sys
+import time
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 
 from src.services.extended_music_service import SongInfo, ExtendedMusicService
 from src.core.logger import logger
+
+VLC_AVAILABLE = False
+vlc = None
+
+def _get_vlc_paths():
+    """获取 VLC 可能的路径列表"""
+    paths = []
+    
+    src_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    paths.append(os.path.join(src_dir, 'vlc'))
+    
+    if getattr(sys, 'frozen', False):
+        application_path = os.path.dirname(sys.executable)
+        paths.append(os.path.join(application_path, 'vlc'))
+        paths.append(os.path.join(application_path, 'src', 'vlc'))
+        
+        if hasattr(sys, '_MEIPASS'):
+            paths.append(os.path.join(sys._MEIPASS, 'vlc'))
+            paths.append(os.path.join(sys._MEIPASS, 'src', 'vlc'))
+    
+    project_root = os.path.dirname(src_dir)
+    paths.append(os.path.join(project_root, 'vlc'))
+    
+    if sys.platform == 'win32':
+        paths.extend([
+            r'C:\Program Files\VideoLAN\VLC',
+            r'C:\Program Files (x86)\VideoLAN\VLC',
+            os.path.join(os.environ.get('PROGRAMFILES', ''), 'VideoLAN', 'VLC'),
+            os.path.join(os.environ.get('PROGRAMFILES(X86)', ''), 'VideoLAN', 'VLC'),
+        ])
+    
+    return paths
+
+def _setup_vlc_path():
+    """设置 VLC DLL 路径（必须在 import vlc 之前调用）"""
+    if sys.platform != 'win32':
+        return None
+    
+    vlc_paths = _get_vlc_paths()
+    
+    for vlc_path in vlc_paths:
+        if os.path.exists(vlc_path):
+            libvlc = os.path.join(vlc_path, 'libvlc.dll')
+            if os.path.exists(libvlc):
+                os.environ['PYTHON_VLC_MODULE_PATH'] = vlc_path
+                if vlc_path not in os.environ.get('PATH', ''):
+                    try:
+                        os.add_dll_directory(vlc_path)
+                    except (OSError, AttributeError):
+                        pass
+                logger.info(f"[VLC] Found VLC at: {vlc_path}")
+                return vlc_path
+    
+    logger.warning("[VLC] VLC not found in any path")
+    return None
+
+_vlc_path = _setup_vlc_path()
+
+try:
+    import vlc as vlc_module
+    vlc = vlc_module
+    
+    test_instance = vlc.Instance()
+    if test_instance:
+        test_instance.release()
+        VLC_AVAILABLE = True
+        logger.info("[VLC] VLC initialized successfully")
+    
+except Exception as e:
+    logger.warning(f"[VLC] VLC not available: {e}")
+    VLC_AVAILABLE = False
+    vlc = None
+
+
+class VLCMusicPlayer:
+    """基于 VLC 的音乐播放器"""
+    
+    def __init__(self):
+        if not VLC_AVAILABLE:
+            raise RuntimeError("VLC not available")
+        
+        self.instance = vlc.Instance()
+        self.player = self.instance.media_player_new()
+        
+        self._volume = 100
+        
+        self._update_timer = QTimer()
+        self._update_timer.timeout.connect(self._check_position)
+        
+        self._duration = 0
+        self._last_position = 0
+        self._playback_end_detected = False
+        self._on_playback_finished = None
+    
+    def set_volume(self, volume: int):
+        """设置音量"""
+        self._volume = volume
+        self.player.audio_set_volume(volume)
+    
+    def get_volume(self) -> int:
+        """获取音量"""
+        vol = self.player.audio_get_volume()
+        if vol < 0:
+            return self._volume
+        return vol
+    
+    def play(self, url: str):
+        """播放 URL 或本地文件"""
+        media = self.instance.media_new(url)
+        self.player.set_media(media)
+        self.player.play()
+        
+        self._playback_end_detected = False
+        
+        time.sleep(0.1)
+        
+        self.player.audio_set_volume(self._volume)
+        
+        self._duration = self.player.get_length()
+        
+        self._update_timer.start(100)
+    
+    def pause(self):
+        """暂停"""
+        self.player.pause()
+    
+    def resume(self):
+        """继续播放"""
+        self.player.play()
+    
+    def stop(self):
+        """停止"""
+        self._update_timer.stop()
+        self.player.stop()
+    
+    def toggle_play(self):
+        """切换播放/暂停"""
+        if self.player.is_playing():
+            self.player.pause()
+        else:
+            self.player.play()
+    
+    def set_position(self, position: int):
+        """设置播放位置（毫秒）"""
+        self.player.set_time(position)
+    
+    def get_position(self) -> int:
+        """获取播放位置（毫秒）"""
+        return self.player.get_time()
+    
+    def get_duration(self) -> int:
+        """获取时长（毫秒）"""
+        return self.player.get_length()
+    
+    def is_playing(self) -> bool:
+        """是否正在播放"""
+        return self.player.is_playing() == 1
+    
+    def get_state(self):
+        """获取播放状态"""
+        return self.player.get_state()
+    
+    def _check_position(self):
+        """检查播放位置，用于检测播放结束"""
+        if not self._playback_end_detected:
+            current_pos = self.player.get_time()
+            duration = self.player.get_length()
+            
+            if duration > 0 and current_pos > 0:
+                if duration - current_pos < 500:
+                    self._playback_end_detected = True
+                    self._update_timer.stop()
+                    if self._on_playback_finished:
+                        self._on_playback_finished()
+    
+    def set_on_finished(self, callback):
+        """设置播放结束回调"""
+        self._on_playback_finished = callback
+    
+    def close(self):
+        """关闭播放器"""
+        self._update_timer.stop()
+        self.player.stop()
+        self.player.release()
+        self.instance.release()
+
+
+class QtMusicPlayer:
+    """基于 Qt Multimedia 的音乐播放器（后备方案）"""
+    
+    def __init__(self):
+        self.player = QMediaPlayer()
+        self.player.setVolume(100)
+        
+        self._on_playback_finished = None
+        self._duration = 0
+        
+        self.player.stateChanged.connect(self._on_state_changed)
+        self.player.durationChanged.connect(self._on_duration_changed)
+    
+    def _on_state_changed(self, state):
+        if state == QMediaPlayer.StoppedState:
+            if self._on_playback_finished:
+                self._on_playback_finished()
+    
+    def _on_duration_changed(self, duration):
+        self._duration = duration
+    
+    def set_volume(self, volume: int):
+        self.player.setVolume(volume)
+    
+    def get_volume(self) -> int:
+        return self.player.volume()
+    
+    def play(self, url: str):
+        if url.startswith('http'):
+            media_content = QMediaContent(QUrl(url))
+        else:
+            media_content = QMediaContent(QUrl.fromLocalFile(url))
+        
+        self.player.setMedia(media_content)
+        self.player.play()
+    
+    def pause(self):
+        self.player.pause()
+    
+    def resume(self):
+        self.player.play()
+    
+    def stop(self):
+        self.player.stop()
+    
+    def toggle_play(self):
+        if self.player.state() == QMediaPlayer.PlayingState:
+            self.player.pause()
+        else:
+            self.player.play()
+    
+    def set_position(self, position: int):
+        self.player.setPosition(position)
+    
+    def get_position(self) -> int:
+        return self.player.position()
+    
+    def get_duration(self) -> int:
+        return self.player.duration()
+    
+    def is_playing(self) -> bool:
+        return self.player.state() == QMediaPlayer.PlayingState
+    
+    def get_state(self):
+        return self.player.state()
+    
+    def set_on_finished(self, callback):
+        self._on_playback_finished = callback
+    
+    def close(self):
+        self.player.stop()
 
 
 class GlobalMusicPlayer(QObject):
@@ -26,8 +287,25 @@ class GlobalMusicPlayer(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         
-        self.player = QMediaPlayer()
-        self.player.setVolume(50)
+        if VLC_AVAILABLE:
+            try:
+                self.player = VLCMusicPlayer()
+                self._backend = "VLC"
+                logger.info("[GlobalPlayer] Using VLC backend")
+            except Exception as e:
+                logger.warning(f"[GlobalPlayer] VLC init failed, falling back to Qt: {e}")
+                self.player = QtMusicPlayer()
+                self._backend = "Qt"
+        else:
+            self.player = QtMusicPlayer()
+            self._backend = "Qt"
+            logger.info("[GlobalPlayer] Using Qt Multimedia backend (VLC not available)")
+        
+        self.player.set_volume(100)
+        self.player.set_on_finished(self._on_playback_finished)
+        
+        self._position_timer = QTimer(self)
+        self._position_timer.timeout.connect(self._emit_position)
         
         self._current_song: SongInfo = None
         self._playlist = []
@@ -40,14 +318,32 @@ class GlobalMusicPlayer(QObject):
         self._state_reset_timer.setSingleShot(True)
         self._state_reset_timer.timeout.connect(self._reset_starting_flag)
         
-        self.player.stateChanged.connect(self._on_state_changed)
-        self.player.positionChanged.connect(self._on_position_changed)
-        self.player.durationChanged.connect(self._on_duration_changed)
-        self.player.error.connect(self._on_error)
+        self._position_timer.start(200)
+    
+    def get_backend(self) -> str:
+        """获取当前使用的播放后端"""
+        return self._backend
     
     def _reset_starting_flag(self):
         self._is_starting_new_song = False
         logger.info(f"[GlobalPlayer] _is_starting_new_song reset to False by timer")
+    
+    def _emit_position(self):
+        """发射位置变化信号"""
+        if self.player.is_playing():
+            position = self.player.get_position()
+            self.position_changed.emit(position)
+            
+            duration = self.player.get_duration()
+            if duration > 0:
+                self.duration_changed.emit(duration)
+    
+    def _on_playback_finished(self):
+        """播放结束回调"""
+        logger.info(f"[GlobalPlayer] Playback finished")
+        self._position_timer.stop()
+        self.playback_finished.emit()
+        self._position_timer.start(200)
     
     def set_music_service(self, service: ExtendedMusicService):
         """设置音乐服务实例"""
@@ -74,14 +370,12 @@ class GlobalMusicPlayer(QObject):
     
     def _play_url(self, url: str):
         """播放 URL"""
-        if url.startswith('http'):
-            media_content = QMediaContent(QUrl(url))
-        else:
-            media_content = QMediaContent(QUrl.fromLocalFile(url))
-        
-        self.player.setMedia(media_content)
-        self.player.play()
+        self.player.play(url)
         logger.info(f"[GlobalPlayer] Playing: {url[:50]}...")
+        
+        self._retry_count = 0
+        self._state_reset_timer.start(500)
+        self.playback_state_changed.emit(True)
     
     def pause(self):
         """暂停"""
@@ -89,7 +383,7 @@ class GlobalMusicPlayer(QObject):
     
     def resume(self):
         """继续播放"""
-        self.player.play()
+        self.player.resume()
     
     def stop(self):
         """停止"""
@@ -97,10 +391,8 @@ class GlobalMusicPlayer(QObject):
     
     def toggle_play(self):
         """切换播放/暂停"""
-        if self.player.state() == QMediaPlayer.PlayingState:
-            self.player.pause()
-        else:
-            self.player.play()
+        self.player.toggle_play()
+        self.playback_state_changed.emit(self.player.is_playing())
     
     def play_next(self):
         """播放下一首"""
@@ -120,27 +412,27 @@ class GlobalMusicPlayer(QObject):
     
     def set_volume(self, volume: int):
         """设置音量"""
-        self.player.setVolume(volume)
+        self.player.set_volume(volume)
     
     def get_volume(self) -> int:
         """获取音量"""
-        return self.player.volume()
+        return self.player.get_volume()
     
     def set_position(self, position: int):
         """设置播放位置"""
-        self.player.setPosition(position)
+        self.player.set_position(position)
     
     def get_position(self) -> int:
         """获取播放位置"""
-        return self.player.position()
+        return self.player.get_position()
     
     def get_duration(self) -> int:
         """获取歌曲时长"""
-        return self.player.duration()
+        return self.player.get_duration()
     
     def is_playing(self) -> bool:
         """是否正在播放"""
-        return self.player.state() == QMediaPlayer.PlayingState
+        return self.player.is_playing()
     
     def get_current_song(self) -> SongInfo:
         """获取当前歌曲"""
@@ -160,64 +452,6 @@ class GlobalMusicPlayer(QObject):
         self._current_index = index
         if playlist and 0 <= index < len(playlist):
             self.play(playlist[index], playlist, index)
-    
-    def _on_state_changed(self, state):
-        """播放状态变化"""
-        state_names = {
-            QMediaPlayer.StoppedState: "Stopped",
-            QMediaPlayer.PlayingState: "Playing",
-            QMediaPlayer.PausedState: "Paused"
-        }
-        state_name = state_names.get(state, f"Unknown({state})")
-        logger.info(f"[GlobalPlayer] State changed to: {state_name}, _is_starting_new_song={self._is_starting_new_song}")
-        
-        is_playing = state == QMediaPlayer.PlayingState
-        
-        if is_playing:
-            self._retry_count = 0
-            self._state_reset_timer.start(500)
-            logger.info(f"[GlobalPlayer] Emitting playback_state_changed(True)")
-            self.playback_state_changed.emit(True)
-        else:
-            if self._is_starting_new_song:
-                logger.info(f"[GlobalPlayer] Ignoring non-playing state during song start")
-                pass
-            else:
-                if self.player.position() >= self.player.duration() - 100 and self.player.duration() > 0:
-                    self._state_reset_timer.stop()
-                    self._is_starting_new_song = True
-                    logger.info(f"[GlobalPlayer] Setting _is_starting_new_song=True before playback_finished")
-                    self.playback_finished.emit()
-                    logger.info(f"[GlobalPlayer] Not emitting False after playback_finished (auto-play next)")
-                    return
-                logger.info(f"[GlobalPlayer] Emitting playback_state_changed(False)")
-                self.playback_state_changed.emit(False)
-    
-    def _on_position_changed(self, position):
-        """播放位置变化"""
-        self.position_changed.emit(position)
-    
-    def _on_duration_changed(self, duration):
-        """时长变化"""
-        self.duration_changed.emit(duration)
-    
-    def _on_error(self):
-        """播放错误"""
-        error_string = self.player.errorString()
-        logger.error(f"[GlobalPlayer] Error: {error_string}")
-        
-        if self._retry_count < self._max_retry and self._current_song:
-            self._retry_count += 1
-            logger.info(f"[GlobalPlayer] 尝试重新加载 ({self._retry_count}/{self._max_retry})")
-            
-            if self._retry_count == 1:
-                self._retry_current()
-            else:
-                logger.info(f"[GlobalPlayer] 尝试从平台重新获取播放链接...")
-                self._refresh_play_url()
-        else:
-            logger.warning(f"[GlobalPlayer] 重试失败，停止播放")
-            self._retry_count = 0
     
     def _retry_current(self):
         """重试当前歌曲"""
@@ -262,4 +496,5 @@ class GlobalMusicPlayer(QObject):
     
     def close(self):
         """关闭播放器"""
-        self.player.stop()
+        self._position_timer.stop()
+        self.player.close()

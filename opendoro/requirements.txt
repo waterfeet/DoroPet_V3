@@ -20,4 +20,5 @@ musicdl
 gradio_client
 pycryptodomex
 pygame
+python-vlc
 dashscope
