@@ -1,3 +1,6 @@
+import math
+import random
+
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal, QPropertyAnimation, QEasingCurve, QRectF, QEvent, QPoint
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                              QListWidgetItem, QAbstractItemView, QSlider, QStyle,
@@ -172,90 +175,185 @@ class StyledVolumeSlider(ClickableSlider):
 class SpectrumWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._num_bars = 48
+        self._num_bars = 32
         self._bar_data = [0.0] * self._num_bars
         self._target_data = [0.0] * self._num_bars
+        self._peak_data = [0.0] * self._num_bars
+        self._peak_fall_speed = [0.0] * self._num_bars
         self._accent_color = QColor(96, 165, 250)
         self._is_playing = False
-        
+        self._idle_phase = 0.0
+        self._bar_gap = 3
+        self._bar_radius = 2.5
+        self._reflection_ratio = 0.25
+        self._peak_height = 3
+        self._peak_gap = 2
+        self._use_real_data = False
+        self._real_data_timeout = 0
+
         self._animation_timer = QTimer(self)
         self._animation_timer.timeout.connect(self._animate)
-        self._animation_timer.setInterval(25)
-        
-        self.setFixedHeight(40)
+        self._animation_timer.setInterval(20)
+
+        self.setFixedHeight(64)
         self.setAttribute(Qt.WA_TranslucentBackground)
-    
+
     def set_accent_color(self, color: QColor):
         self._accent_color = color
         self.update()
-    
+
     def set_playing(self, is_playing: bool):
+        was_playing = self._is_playing
         self._is_playing = is_playing
         if is_playing:
-            self._animation_timer.start()
-        else:
-            self._animation_timer.stop()
-            self._bar_data = [0.0] * self._num_bars
             self._target_data = [0.0] * self._num_bars
-            self.update()
-    
-    def _animate(self):
-        if not self._is_playing:
-            return
-        
-        import random
-        for i in range(self._num_bars):
-            if random.random() < 0.3:
-                self._target_data[i] = random.uniform(0.2, 1.0)
-            elif random.random() < 0.5:
-                self._target_data[i] *= 0.9
-        
-        smoothing = 0.25
-        for i in range(self._num_bars):
-            self._bar_data[i] += (self._target_data[i] - self._bar_data[i]) * smoothing
-        
+            self._peak_data = [0.0] * self._num_bars
+            self._peak_fall_speed = [0.0] * self._num_bars
+            self._use_real_data = False
+        else:
+            self._target_data = [0.0] * self._num_bars
+        if not self._animation_timer.isActive():
+            self._animation_timer.start()
         self.update()
-    
+
+    def _get_frequency_weight(self, index: int) -> float:
+        center = self._num_bars / 2.0
+        distance = abs(index - center) / center
+        return max(0.3, 1.0 - distance * 0.4)
+
+    def _get_bar_color(self, index: int, value: float) -> QColor:
+        t = index / max(self._num_bars - 1, 1)
+        base = self._accent_color
+
+        if t < 0.33:
+            r = int(base.red() * 0.7 + 255 * 0.3)
+            g = int(base.green() * 0.5 + 120 * 0.5)
+            b = int(base.blue() * 0.3 + 200 * 0.7)
+        elif t < 0.66:
+            r = base.red()
+            g = base.green()
+            b = base.blue()
+        else:
+            r = int(base.red() * 0.5 + 180 * 0.5)
+            g = int(base.green() * 0.7 + 80 * 0.3)
+            b = int(base.blue() * 0.9 + 255 * 0.1)
+
+        intensity = 0.6 + value * 0.4
+        r = min(255, int(r * intensity))
+        g = min(255, int(g * intensity))
+        b = min(255, int(b * intensity))
+        return QColor(r, g, b)
+
+    def _animate(self):
+        if self._is_playing:
+            if self._use_real_data:
+                self._real_data_timeout += 1
+                if self._real_data_timeout > 10:
+                    self._use_real_data = False
+                    self._real_data_timeout = 0
+            else:
+                beat = math.sin(self._idle_phase * 0.5) * 0.15 + 0.85
+                self._idle_phase += 0.15
+
+                for i in range(self._num_bars):
+                    weight = self._get_frequency_weight(i)
+                    if random.random() < 0.35:
+                        base = random.uniform(0.15, 0.95) * weight * beat
+                        self._target_data[i] = max(0.05, min(1.0, base))
+                    elif random.random() < 0.4:
+                        self._target_data[i] *= random.uniform(0.7, 0.95)
+
+            smoothing = 0.22
+            for i in range(self._num_bars):
+                self._bar_data[i] += (self._target_data[i] - self._bar_data[i]) * smoothing
+                if self._bar_data[i] < 0.01:
+                    self._bar_data[i] = 0.0
+
+                if self._bar_data[i] > self._peak_data[i]:
+                    self._peak_data[i] = self._bar_data[i]
+                    self._peak_fall_speed[i] = 0.0
+                else:
+                    self._peak_fall_speed[i] += 0.008
+                    self._peak_data[i] -= self._peak_fall_speed[i]
+                    if self._peak_data[i] < 0:
+                        self._peak_data[i] = 0.0
+        else:
+            self._idle_phase += 0.03
+            for i in range(self._num_bars):
+                breath = math.sin(self._idle_phase + i * 0.2) * 0.5 + 0.5
+                self._bar_data[i] += (breath * 0.08 - self._bar_data[i]) * 0.05
+                self._peak_data[i] *= 0.95
+
+        self.update()
+
     def set_spectrum_data(self, data: list):
         if len(data) == self._num_bars:
             self._target_data = data[:]
+            self._use_real_data = True
+            self._real_data_timeout = 0
         self.update()
-    
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        
-        bar_width = (self.width() - 20) / self._num_bars - 2
-        max_height = self.height() - 8
-        
+
+        total_gap = self._bar_gap * (self._num_bars - 1)
+        bar_width = (self.width() - total_gap) / self._num_bars
+        main_height = self.height() * (1.0 - self._reflection_ratio)
+        max_bar_height = main_height - self._peak_height - self._peak_gap - 4
+
         for i in range(self._num_bars):
-            x = 10 + i * (bar_width + 2)
-            bar_height = self._bar_data[i] * max_height
-            
-            if bar_height < 2:
-                bar_height = 2
-            
-            y = (self.height() - bar_height) / 2
-            
-            gradient = QLinearGradient(x, y, x, y + bar_height)
-            gradient.setColorAt(0.0, self._accent_color.lighter(130))
-            gradient.setColorAt(0.5, self._accent_color)
-            gradient.setColorAt(1.0, self._accent_color.lighter(130))
-            
-            painter.setBrush(QBrush(gradient))
+            x = i * (bar_width + self._bar_gap)
+            value = self._bar_data[i]
+            bar_height = max(2, value * max_bar_height)
+            bar_y = main_height - bar_height
+
+            color = self._get_bar_color(i, value)
+            gradient = QLinearGradient(x, bar_y, x, main_height)
+            top_color = QColor(color)
+            top_color.setAlpha(220)
+            gradient.setColorAt(0.0, top_color)
+            gradient.setColorAt(0.4, color)
+            mid_color = QColor(color)
+            mid_color = mid_color.darker(110)
+            gradient.setColorAt(1.0, mid_color)
+
             painter.setPen(Qt.NoPen)
-            
-            radius = min(bar_width / 2, 2)
-            rect = QRectF(x, y, bar_width, bar_height)
-            painter.drawRoundedRect(rect, radius, radius)
-            
-            if self._bar_data[i] > 0.5:
-                glow_color = QColor(self._accent_color)
-                glow_color.setAlpha(int(50 * self._bar_data[i]))
+            painter.setBrush(QBrush(gradient))
+            bar_rect = QRectF(x, bar_y, bar_width, bar_height)
+            painter.drawRoundedRect(bar_rect, self._bar_radius, self._bar_radius)
+
+            if value > 0.4:
+                glow_color = QColor(color)
+                glow_alpha = int(40 * value)
+                glow_color.setAlpha(glow_alpha)
                 painter.setBrush(QBrush(glow_color))
-                glow_rect = QRectF(x - 1, y - 2, bar_width + 2, bar_height + 4)
-                painter.drawRoundedRect(glow_rect, radius + 1, radius + 1)
-        
+                glow_rect = QRectF(x - 1, bar_y - 1, bar_width + 2, bar_height + 2)
+                painter.drawRoundedRect(glow_rect, self._bar_radius + 1, self._bar_radius + 1)
+
+            peak_val = self._peak_data[i]
+            if peak_val > 0.05:
+                peak_y = main_height - peak_val * max_bar_height - self._peak_gap
+                peak_color = QColor(color.lighter(140))
+                peak_color.setAlpha(200)
+                painter.setBrush(QBrush(peak_color))
+                peak_rect = QRectF(x, peak_y, bar_width, self._peak_height)
+                painter.drawRoundedRect(peak_rect, 1.5, 1.5)
+
+            reflection_height = bar_height * self._reflection_ratio
+            if reflection_height > 1:
+                ref_y = main_height + 1
+                ref_gradient = QLinearGradient(x, ref_y, x, ref_y + reflection_height)
+                ref_color = QColor(color)
+                ref_color.setAlpha(50)
+                ref_gradient.setColorAt(0.0, ref_color)
+                ref_color_end = QColor(color)
+                ref_color_end.setAlpha(0)
+                ref_gradient.setColorAt(1.0, ref_color_end)
+                painter.setBrush(QBrush(ref_gradient))
+                ref_rect = QRectF(x, ref_y, bar_width, reflection_height)
+                painter.drawRoundedRect(ref_rect, self._bar_radius, self._bar_radius)
+
         painter.end()
 
 

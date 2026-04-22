@@ -53,29 +53,7 @@ class GeneralSettingsPage(QWidget):
         
         layout.addWidget(card)
         
-        cache_card = SettingCard("缓存管理", self)
-        
-        from PyQt5.QtWidgets import QHBoxLayout, QLabel
-        from qfluentwidgets import PushButton, FluentIcon, InfoBar
-        
-        cache_info_layout = QHBoxLayout()
-        cache_info_label = BodyLabel("TTS 语音缓存: ", self)
-        cache_info_layout.addWidget(cache_info_label)
-        
-        self.cache_size_label = CaptionLabel("0 MB", self)
-        cache_info_layout.addWidget(self.cache_size_label)
-        cache_info_layout.addStretch()
-        cache_card.addLayout(cache_info_layout)
-        
-        self.btn_clear_tts_cache = PushButton(FluentIcon.DELETE, "清除 TTS 缓存", self)
-        self.btn_clear_tts_cache.setFixedWidth(150)
-        
-        btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
-        btn_layout.addWidget(self.btn_clear_tts_cache)
-        cache_card.addLayout(btn_layout)
-        
-        layout.addWidget(cache_card)
+        self._setup_cache_management(layout)
         
         shortcut_card = SettingCard("快捷方式", self)
         
@@ -96,9 +74,196 @@ class GeneralSettingsPage(QWidget):
         layout.addWidget(shortcut_card)
         layout.addStretch()
         
-        self.btn_clear_tts_cache.clicked.connect(self._clear_tts_cache)
         self.btn_create_shortcut.clicked.connect(self._create_desktop_shortcut)
-        self._update_cache_size()
+        self._refresh_all_cache_sizes()
+
+    def _setup_cache_management(self, parent_layout):
+        from PyQt5.QtWidgets import QHBoxLayout, QLabel, QFrame, QSizePolicy
+        from qfluentwidgets import PushButton, FluentIcon, InfoBar
+        from src.core.cache_manager import get_cache_manager
+        
+        self._cache_manager = get_cache_manager()
+        self._cache_labels = {}
+        self._cache_buttons = {}
+        
+        cache_card = SettingCard("缓存管理", self)
+        
+        safe_cache_label = StrongBodyLabel("安全缓存（可随时清除）", self)
+        cache_card.addWidget(safe_cache_label)
+        
+        safe_caches = [
+            ("tts", "TTS 语音缓存", "AI 语音合成的音频缓存", "🔊"),
+            ("image", "网络图片缓存", "聊天中加载的网络图片缓存", "🖼️"),
+            ("temp_images", "临时图片", "Base64 编码的临时图片文件", "📄"),
+            ("musicdl", "musicdl 临时输出", "音乐搜索产生的临时文件", "🎵"),
+            ("old_logs", "旧日志文件", "超过 7 天的日志文件", "📝"),
+        ]
+        
+        for cache_key, cache_name, description, icon in safe_caches:
+            self._add_cache_row(cache_card, cache_key, cache_name, description, icon, is_safe=True)
+        
+        separator = QFrame(self)
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        cache_card.addWidget(separator)
+        
+        warning_cache_label = StrongBodyLabel("⚠️ 谨慎清除（会丢失用户数据）", self)
+        cache_card.addWidget(warning_cache_label)
+        
+        warning_caches = [
+            ("music_downloads", "音乐下载", "已下载的音乐文件（清除后需重新下载）", "⚠️"),
+        ]
+        
+        for cache_key, cache_name, description, icon in warning_caches:
+            self._add_cache_row(cache_card, cache_key, cache_name, description, icon, is_safe=False)
+        
+        separator2 = QFrame(self)
+        separator2.setFrameShape(QFrame.HLine)
+        separator2.setFrameShadow(QFrame.Sunken)
+        cache_card.addWidget(separator2)
+        
+        total_layout = QHBoxLayout()
+        total_label = StrongBodyLabel("📊 总缓存大小:", self)
+        total_layout.addWidget(total_label)
+        
+        self._total_cache_label = CaptionLabel("0 MB", self)
+        self._total_cache_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        total_layout.addWidget(self._total_cache_label)
+        total_layout.addStretch()
+        cache_card.addLayout(total_layout)
+        
+        clear_all_layout = QHBoxLayout()
+        clear_all_layout.addStretch()
+        
+        self.btn_clear_all_safe = PushButton(FluentIcon.DELETE, "一键清除安全缓存", self)
+        self.btn_clear_all_safe.setFixedWidth(160)
+        self.btn_clear_all_safe.clicked.connect(self._clear_all_safe_caches)
+        clear_all_layout.addWidget(self.btn_clear_all_safe)
+        
+        cache_card.addLayout(clear_all_layout)
+        
+        parent_layout.addWidget(cache_card)
+
+    def _add_cache_row(self, parent_card, cache_key: str, cache_name: str, description: str, icon: str, is_safe: bool):
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(8)
+        
+        icon_label = CaptionLabel(icon, self)
+        icon_label.setFixedWidth(20)
+        row_layout.addWidget(icon_label)
+        
+        name_label = BodyLabel(cache_name, self)
+        name_label.setFixedWidth(120)
+        row_layout.addWidget(name_label)
+        
+        size_label = CaptionLabel("0 MB", self)
+        size_label.setFixedWidth(80)
+        self._cache_labels[cache_key] = size_label
+        row_layout.addWidget(size_label)
+        
+        btn = PushButton("清除", self)
+        btn.setFixedSize(60, 28)
+        btn.clicked.connect(lambda checked, k=cache_key: self._clear_cache(k))
+        self._cache_buttons[cache_key] = btn
+        row_layout.addWidget(btn)
+        
+        row_layout.addStretch()
+        parent_card.addLayout(row_layout)
+        
+        desc_label = CaptionLabel(description, self)
+        desc_label.setStyleSheet("color: gray; margin-left: 28px;")
+        parent_card.addWidget(desc_label)
+
+    def _refresh_all_cache_sizes(self):
+        from PyQt5.QtCore import QTimer
+        
+        all_info = self._cache_manager.get_all_cache_info()
+        
+        for info in all_info:
+            cache_key = self._get_cache_key_from_name(info.name)
+            if cache_key in self._cache_labels:
+                self._cache_labels[cache_key].setText(info.size_display)
+        
+        self._total_cache_label.setText(self._cache_manager.get_total_size_display())
+
+    def _get_cache_key_from_name(self, name: str) -> str:
+        mapping = {
+            "TTS 语音缓存": "tts",
+            "网络图片缓存": "image",
+            "临时图片": "temp_images",
+            "musicdl 临时输出": "musicdl",
+            "旧日志文件": "old_logs",
+            "音乐下载": "music_downloads",
+        }
+        return mapping.get(name, "")
+
+    def _clear_cache(self, cache_key: str):
+        clear_methods = {
+            "tts": self._cache_manager.clear_tts_cache,
+            "image": self._cache_manager.clear_image_cache,
+            "temp_images": self._cache_manager.clear_temp_images_cache,
+            "musicdl": self._cache_manager.clear_musicdl_cache,
+            "old_logs": self._cache_manager.clear_old_logs,
+            "music_downloads": self._cache_manager.clear_music_downloads,
+        }
+        
+        method = clear_methods.get(cache_key)
+        if not method:
+            return
+        
+        try:
+            deleted, freed = method()
+            freed_mb = freed / (1024 * 1024)
+            
+            if deleted > 0:
+                InfoBar.success(
+                    "缓存已清除",
+                    f"已删除 {deleted} 个文件，释放 {freed_mb:.2f} MB",
+                    duration=2000
+                )
+            else:
+                InfoBar.warning(
+                    "缓存为空",
+                    "没有需要清除的缓存文件",
+                    duration=2000
+                )
+        except Exception as e:
+            InfoBar.error(
+                "清除失败",
+                f"清除缓存时出错: {str(e)}",
+                duration=2000
+            )
+        
+        self._refresh_all_cache_sizes()
+
+    def _clear_all_safe_caches(self):
+        try:
+            deleted, freed = self._cache_manager.clear_all_safe_caches()
+            freed_mb = freed / (1024 * 1024)
+            
+            if deleted > 0:
+                InfoBar.success(
+                    "缓存已清除",
+                    f"已删除 {deleted} 个文件，释放 {freed_mb:.2f} MB",
+                    duration=2000
+                )
+            else:
+                InfoBar.warning(
+                    "缓存为空",
+                    "没有需要清除的缓存文件",
+                    duration=2000
+                )
+        except Exception as e:
+            InfoBar.error(
+                "清除失败",
+                f"清除缓存时出错: {str(e)}",
+                duration=2000
+            )
+        
+        self._refresh_all_cache_sizes()
+
+    def refresh_cache_sizes(self):
+        self._refresh_all_cache_sizes()
     
     def _create_desktop_shortcut(self):
         from src.core.shortcut_utils import create_desktop_shortcut
@@ -116,66 +281,6 @@ class GeneralSettingsPage(QWidget):
                 message,
                 duration=3000
             )
-        
-    def _get_tts_cache_dir(self):
-        import os
-        local_app_data = os.environ.get('LOCALAPPDATA')
-        if local_app_data:
-            return os.path.join(local_app_data, 'DoroPet', 'cache', 'tts')
-        return os.path.join(os.getcwd(), 'cache', 'tts')
-    
-    def _update_cache_size(self):
-        cache_dir = self._get_tts_cache_dir()
-        import os
-        if os.path.exists(cache_dir):
-            total_size = 0
-            for file in os.listdir(cache_dir):
-                file_path = os.path.join(cache_dir, file)
-                total_size += os.path.getsize(file_path)
-            size_mb = total_size / (1024 * 1024)
-            self.cache_size_label.setText(f"{size_mb:.2f} MB")
-        else:
-            self.cache_size_label.setText("0 MB")
-    
-    def _clear_tts_cache(self):
-        cache_dir = self._get_tts_cache_dir()
-        import os
-        if not os.path.exists(cache_dir):
-            from qfluentwidgets import InfoBar
-            InfoBar.warning(
-                "缓存目录不存在",
-                "缓存目录不存在",
-                duration=2000
-            )
-            return
-        
-        deleted = 0
-        total_freed = 0
-        for file in os.listdir(cache_dir):
-            try:
-                file_path = os.path.join(cache_dir, file)
-                total_freed += os.path.getsize(file_path)
-                os.remove(file_path)
-                deleted += 1
-            except Exception as e:
-                pass
-        
-        from qfluentwidgets import InfoBar
-        if deleted > 0:
-            freed_mb = total_freed / (1024 * 1024)
-            InfoBar.success(
-                "缓存已清除",
-                f"已删除 {deleted} 个文件，释放 {freed_mb:.2f} MB",
-                duration=2000
-            )
-        else:
-            InfoBar.warning(
-                "缓存为空",
-                "没有需要清除的缓存文件",
-                duration=2000
-            )
-        
-        self._update_cache_size()
 
 
 class DisplaySettingsPage(QWidget):

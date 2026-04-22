@@ -1216,9 +1216,16 @@ class MessageBubble(QFrame):
     delete_requested = pyqtSignal(int)
     regenerate_requested = pyqtSignal(int)
     speak_requested = pyqtSignal(int, str)
+    speak_pause_requested = pyqtSignal(int)
+    speak_resume_requested = pyqtSignal(int)
+    speak_restart_requested = pyqtSignal(int, str)
     switch_branch_requested = pyqtSignal(int)
     branch_conversation_requested = pyqtSignal(int)
     context_menu_requested = pyqtSignal(int, str, str, object)
+    
+    PLAYBACK_STOPPED = 0
+    PLAYBACK_PLAYING = 1
+    PLAYBACK_PAUSED = 2
     
     def __init__(self, role, content, msg_id, parent_window=None, images=None, sibling_ids=None, current_index=0, is_active=True, model=None):
         super().__init__()
@@ -1232,6 +1239,7 @@ class MessageBubble(QFrame):
         self.is_active = is_active
         self.model = model
         self.content_widgets = []
+        self._playback_state = self.PLAYBACK_STOPPED
         
         # self.setFrameShape(QFrame.NoFrame)
         self.layout = QVBoxLayout(self)
@@ -1388,7 +1396,9 @@ class MessageBubble(QFrame):
             self.btn_read.setToolTip("朗读")
             self.btn_read.setObjectName("chatActionButton")
             self.btn_read.setIconSize(QSize(14, 14))
-            self.btn_read.clicked.connect(lambda: self.speak_requested.emit(self.msg_id, self.content))
+            self.btn_read.clicked.connect(self._on_read_button_clicked)
+            self.btn_read.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.btn_read.customContextMenuRequested.connect(self._show_read_context_menu)
             self.action_layout.addWidget(self.btn_read)
 
             # Branch Button (Plus) - Now in the same row
@@ -1450,6 +1460,35 @@ class MessageBubble(QFrame):
 
     def on_branch_clicked(self):
         self.branch_conversation_requested.emit(self.msg_id)
+
+    def _on_read_button_clicked(self):
+        if self._playback_state == self.PLAYBACK_STOPPED:
+            self.speak_requested.emit(self.msg_id, self.content)
+        elif self._playback_state == self.PLAYBACK_PLAYING:
+            self.speak_pause_requested.emit(self.msg_id)
+        elif self._playback_state == self.PLAYBACK_PAUSED:
+            self.speak_resume_requested.emit(self.msg_id)
+
+    def _show_read_context_menu(self, pos):
+        menu = QMenu(self)
+        restart_action = menu.addAction("从头开始朗读")
+        restart_action.triggered.connect(lambda: self.speak_restart_requested.emit(self.msg_id, self.content))
+        menu.exec_(self.btn_read.mapToGlobal(pos))
+
+    def update_playback_state(self, state):
+        self._playback_state = state
+        self._update_read_button()
+
+    def _update_read_button(self):
+        if self._playback_state == self.PLAYBACK_STOPPED:
+            self.btn_read.setIcon(FluentIcon.PLAY)
+            self.btn_read.setToolTip("朗读")
+        elif self._playback_state == self.PLAYBACK_PLAYING:
+            self.btn_read.setIcon(FluentIcon.PAUSE)
+            self.btn_read.setToolTip("暂停")
+        elif self._playback_state == self.PLAYBACK_PAUSED:
+            self.btn_read.setIcon(FluentIcon.PLAY)
+            self.btn_read.setToolTip("继续播放")
 
     def copy_content(self):
         """复制内容到剪贴板并提供视觉反馈"""
@@ -1693,6 +1732,8 @@ class ChatInterface(QWidget):
         self.tts_manager = TTSManager(self.db)
         self.tts_manager.playback_started.connect(self.on_tts_started)
         self.tts_manager.playback_stopped.connect(self.on_tts_stopped)
+        self.tts_manager.playback_paused.connect(self.on_tts_paused)
+        self.tts_manager.playback_resumed.connect(self.on_tts_resumed)
         self.tts_manager.playback_error.connect(self.on_tts_error)
 
         self.update_voice_ui_visibility()
@@ -2449,6 +2490,9 @@ class ChatInterface(QWidget):
                     bubble.delete_requested.connect(self.delete_message)
                     bubble.regenerate_requested.connect(self.regenerate_message)
                     bubble.speak_requested.connect(self.speak_message)
+                    bubble.speak_pause_requested.connect(self.speak_pause_message)
+                    bubble.speak_resume_requested.connect(self.speak_resume_message)
+                    bubble.speak_restart_requested.connect(self.speak_restart_message)
                     bubble.switch_branch_requested.connect(self.switch_branch)
                     bubble.branch_conversation_requested.connect(self.branch_conversation)
                     bubble.context_menu_requested.connect(self._on_bubble_context_menu)
@@ -2569,39 +2613,72 @@ class ChatInterface(QWidget):
             # self.btn_voice.setStyleSheet(self.get_voice_button_style("idle"))
     
     # --- TTS Handlers ---
-    def speak_message(self, msg_id, content):
+    def speak_message(self, msg_id, content, force_restart=False):
         if not hasattr(self, 'tts_manager') or not self.tts_manager:
             return
         
         try:
-            clean_content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+            clean_content = re.sub(r'<thinking>.*?</thinking>', '', content, flags=re.DOTALL).strip()
             
-            if self.tts_manager.current_msg_id == msg_id:
-                 self.tts_manager.speak(msg_id, clean_content)
-                 return
-
             if clean_content:
-                 self.tts_manager.speak(msg_id, clean_content)
+                self.tts_manager.speak(msg_id, clean_content, force_restart=force_restart)
         except Exception as e:
             logger.error(f"Error in speak_message: {e}")
+
+    def speak_pause_message(self, msg_id):
+        if not hasattr(self, 'tts_manager') or not self.tts_manager:
+            return
+        
+        try:
+            if self.tts_manager.current_msg_id == msg_id:
+                self.tts_manager.pause()
+        except Exception as e:
+            logger.error(f"Error in speak_pause_message: {e}")
+
+    def speak_resume_message(self, msg_id):
+        if not hasattr(self, 'tts_manager') or not self.tts_manager:
+            return
+        
+        try:
+            if self.tts_manager.current_msg_id == msg_id:
+                self.tts_manager.resume()
+        except Exception as e:
+            logger.error(f"Error in speak_resume_message: {e}")
+
+    def speak_restart_message(self, msg_id, content):
+        self.speak_message(msg_id, content, force_restart=True)
 
     def on_tts_started(self, msg_id):
         try:
             bubble = self.get_bubble_by_id(msg_id)
-            if bubble and hasattr(bubble, 'btn_read'):
-                bubble.btn_read.setIcon(FluentIcon.PAUSE) 
-                bubble.btn_read.setToolTip("停止播放")
+            if bubble:
+                bubble.update_playback_state(MessageBubble.PLAYBACK_PLAYING)
         except Exception as e:
             logger.error(f"Error in on_tts_started: {e}")
 
     def on_tts_stopped(self, msg_id):
         try:
             bubble = self.get_bubble_by_id(msg_id)
-            if bubble and hasattr(bubble, 'btn_read'):
-                bubble.btn_read.setIcon(FluentIcon.PLAY)
-                bubble.btn_read.setToolTip("朗读")
+            if bubble:
+                bubble.update_playback_state(MessageBubble.PLAYBACK_STOPPED)
         except Exception as e:
             logger.error(f"Error in on_tts_stopped: {e}")
+
+    def on_tts_paused(self, msg_id):
+        try:
+            bubble = self.get_bubble_by_id(msg_id)
+            if bubble:
+                bubble.update_playback_state(MessageBubble.PLAYBACK_PAUSED)
+        except Exception as e:
+            logger.error(f"Error in on_tts_paused: {e}")
+
+    def on_tts_resumed(self, msg_id):
+        try:
+            bubble = self.get_bubble_by_id(msg_id)
+            if bubble:
+                bubble.update_playback_state(MessageBubble.PLAYBACK_PLAYING)
+        except Exception as e:
+            logger.error(f"Error in on_tts_resumed: {e}")
 
     def on_tts_error(self, msg_id, error_msg):
         try:
@@ -2655,6 +2732,9 @@ class ChatInterface(QWidget):
         bubble.delete_requested.connect(self.delete_message)
         bubble.regenerate_requested.connect(self.regenerate_message)
         bubble.speak_requested.connect(self.speak_message)
+        bubble.speak_pause_requested.connect(self.speak_pause_message)
+        bubble.speak_resume_requested.connect(self.speak_resume_message)
+        bubble.speak_restart_requested.connect(self.speak_restart_message)
         bubble.switch_branch_requested.connect(self.switch_branch)
         bubble.branch_conversation_requested.connect(self.branch_conversation)
         bubble.context_menu_requested.connect(self._on_bubble_context_menu)
@@ -3718,6 +3798,9 @@ class ChatInterface(QWidget):
             self.streaming_bubble.delete_requested.connect(self.delete_message)
             self.streaming_bubble.regenerate_requested.connect(self.regenerate_message)
             self.streaming_bubble.speak_requested.connect(self.speak_message)
+            self.streaming_bubble.speak_pause_requested.connect(self.speak_pause_message)
+            self.streaming_bubble.speak_resume_requested.connect(self.speak_resume_message)
+            self.streaming_bubble.speak_restart_requested.connect(self.speak_restart_message)
             self.streaming_bubble.switch_branch_requested.connect(self.switch_branch)
             self.streaming_bubble.branch_conversation_requested.connect(self.branch_conversation)
             self.streaming_bubble.context_menu_requested.connect(self._on_bubble_context_menu)

@@ -11,6 +11,7 @@ from .openai_tts_source import ProviderOpenAITTS
 from .openai_image_source import ProviderOpenAIImage
 from .gradio_tts_source import ProviderGradioTTS
 from .qwen_tts_source import ProviderQwenTTS
+from .gemini_tts_source import ProviderGeminiTTS
 
 __all__ = [
     'ProviderOpenAI',
@@ -26,4 +27,5 @@ __all__ = [
     'ProviderOpenAIImage',
     'ProviderGradioTTS',
     'ProviderQwenTTS',
+    'ProviderGeminiTTS',
 ]

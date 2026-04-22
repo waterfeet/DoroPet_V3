@@ -16,9 +16,9 @@ from qfluentwidgets import (CardWidget, PushButton, TransparentToolButton, Scrol
                            SubtitleLabel, Dialog, CheckBox)
 from qfluentwidgets import FluentIcon as FIF
 
-from src.core.cookie_manager import CookieManager
 from src.services.extended_music_service import ExtendedMusicService, SongInfo, Playlist, get_music_data_dir
 from src.services.global_music_player import GlobalMusicPlayer
+from src.services.audio_spectrum_analyzer import AudioSpectrumAnalyzer
 from src.core.logger import logger
 from src.utils.lyric_parser import LyricParser, LyricLine
 
@@ -29,7 +29,6 @@ from .widgets import (
     ClickableLabel, DockablePlaylistWidget, SlidingPlayerPanel, ClickableSlider,
     StyledProgressBar, StyledVolumeSlider, SpectrumWidget
 )
-from .dialogs import CookieSettingsDialog
 
 
 class MusicInterface(ScrollArea):
@@ -282,6 +281,10 @@ class MusicInterface(ScrollArea):
         self._spectrum_widget.setFixedWidth(320)
         vinyl_layout.addWidget(self._spectrum_widget, 0, Qt.AlignCenter)
         
+        self._spectrum_analyzer = AudioSpectrumAnalyzer.get_instance(self)
+        self._spectrum_analyzer.set_num_bars(32)
+        self._spectrum_analyzer.spectrum_data_ready.connect(self._on_spectrum_data_ready)
+        
         song_info_widget = QWidget()
         song_info_widget.setStyleSheet("QWidget { background: transparent; }")
         song_info_layout = QVBoxLayout(song_info_widget)
@@ -374,11 +377,6 @@ class MusicInterface(ScrollArea):
         self.search_count_box.setFixedWidth(120)
         self.search_count_box.setToolTip("搜索结果数量")
         
-        self.cookie_settings_btn = TransparentToolButton(FIF.SETTING, self)
-        self.cookie_settings_btn.setFixedSize(28, 28)
-        self.cookie_settings_btn.setToolTip("Cookie 设置")
-        self.cookie_settings_btn.clicked.connect(self._show_cookie_settings)
-        
         search_card_layout.addWidget(self.platform_combo)
         search_card_layout.addWidget(self.search_input)
         search_card_layout.addWidget(self.search_btn)
@@ -391,8 +389,6 @@ class MusicInterface(ScrollArea):
         self.import_playlist_btn.setToolTip("导入歌单")
         self.import_playlist_btn.clicked.connect(self._on_import_playlist)
         search_card_layout.addWidget(self.import_playlist_btn)
-        
-        search_card_layout.addWidget(self.cookie_settings_btn)
         
         search_layout.addWidget(search_card)
         
@@ -1159,10 +1155,6 @@ class MusicInterface(ScrollArea):
         if 0 <= index < len(self._playlist_songs):
             self._show_add_to_playlist_dialog(self._playlist_songs[index])
     
-    def _show_cookie_settings(self):
-        dialog = CookieSettingsDialog(self)
-        dialog.exec_()
-    
     def _show_add_to_playlist_dialog(self, song: SongInfo):
         if not self._playlists:
             QMessageBox.information(self, "提示", "请先创建歌单")
@@ -1201,6 +1193,8 @@ class MusicInterface(ScrollArea):
                 self._vinyl_record.set_playing(True)
             if hasattr(self, '_spectrum_widget'):
                 self._spectrum_widget.set_playing(True)
+            if hasattr(self, '_spectrum_analyzer'):
+                self._spectrum_analyzer.start()
         else:
             self.play_btn.setIcon(FIF.PLAY)
             self.play_btn.setToolTip("播放")
@@ -1208,6 +1202,12 @@ class MusicInterface(ScrollArea):
                 self._vinyl_record.set_playing(False)
             if hasattr(self, '_spectrum_widget'):
                 self._spectrum_widget.set_playing(False)
+            if hasattr(self, '_spectrum_analyzer'):
+                self._spectrum_analyzer.stop()
+    
+    def _on_spectrum_data_ready(self, data: list):
+        if hasattr(self, '_spectrum_widget'):
+            self._spectrum_widget.set_spectrum_data(data)
     
     def _on_global_song_changed(self, song: SongInfo):
         self._update_now_playing(song)
@@ -1531,6 +1531,10 @@ class MusicInterface(ScrollArea):
         
         self._update_lyrics_theme(is_dark)
         self._update_nav_style()
+        
+        if hasattr(self, '_spectrum_widget'):
+            accent = QColor(96, 165, 250) if is_dark else QColor(0, 120, 212)
+            self._spectrum_widget.set_accent_color(accent)
     
     def _update_lyrics_text_color(self, normal_color: str, hover_color: str, selected_color: str):
         self._lyrics_normal_color = normal_color

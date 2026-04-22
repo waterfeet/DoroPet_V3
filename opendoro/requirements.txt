@@ -1,10 +1,12 @@
 PyQt5
 PyQt-Fluent-Widgets
 openai
+google-genai
 httpx
 Pillow
 sherpa-onnx
 sounddevice
+pyaudiowpatch
 numpy
 requests
 psutil

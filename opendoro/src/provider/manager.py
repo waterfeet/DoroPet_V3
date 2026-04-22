@@ -210,6 +210,7 @@ class ProviderManager:
                 'openai': 'openai_tts',
                 'siliconflow': 'openai_tts',
                 'fishaudio': 'openai_tts',
+                'gemini': 'gemini_tts',
                 'custom': 'openai_tts',
             }
             default_type = 'edge_tts'
@@ -255,6 +256,8 @@ class ProviderManager:
                 from .sources.edge_tts_source import ProviderEdgeTTS
             elif provider_type == 'openai_tts':
                 from .sources.openai_tts_source import ProviderOpenAITTS
+            elif provider_type == 'gemini_tts':
+                from .sources.gemini_tts_source import ProviderGeminiTTS
             elif provider_type == 'openai_image':
                 from .sources.openai_image_source import ProviderOpenAIImage
         except ImportError as e:

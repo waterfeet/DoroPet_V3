@@ -4,6 +4,8 @@ import requests
 import json
 import shutil
 import threading
+import tempfile
+import wave
 from PyQt5.QtCore import QObject, pyqtSignal, QThread, QUrl, QTimer
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from src.core.logger import logger
@@ -15,6 +17,15 @@ try:
 except ImportError:
     HAS_PYGAME = False
     pygame = None
+
+try:
+    from google import genai
+    from google.genai import types
+    HAS_GOOGLE_GENAI = True
+except ImportError:
+    HAS_GOOGLE_GENAI = False
+    genai = None
+    types = None
 
 def get_user_data_dir():
     """
@@ -318,10 +329,99 @@ class GradioTTSWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+
+class GeminiTTSWorker(QThread):
+    finished = pyqtSignal(str)
+    error = pyqtSignal(str)
+
+    def __init__(self, api_key, model, voice, text, cache_path):
+        super().__init__()
+        self.api_key = api_key
+        self.model = model
+        self.voice = voice
+        self.text = text
+        self.cache_path = cache_path
+
+    def _save_wave_file(self, filename: str, pcm_data: bytes, channels: int = 1, rate: int = 24000, sample_width: int = 2):
+        with wave.open(filename, "wb") as wf:
+            wf.setnchannels(channels)
+            wf.setsampwidth(sample_width)
+            wf.setframerate(rate)
+            wf.writeframes(pcm_data)
+
+    def run(self):
+        try:
+            if os.path.exists(self.cache_path):
+                self.finished.emit(self.cache_path)
+                return
+            
+            cache_path_wav = os.path.splitext(self.cache_path)[0] + '.wav'
+            if os.path.exists(cache_path_wav):
+                self.finished.emit(cache_path_wav)
+                return
+
+            if not HAS_GOOGLE_GENAI:
+                self.error.emit("google-genai 未安装，请运行：pip install google-genai")
+                return
+
+            client_kwargs = {}
+            if self.api_key:
+                client_kwargs['api_key'] = self.api_key
+            client = genai.Client(**client_kwargs)
+            
+            model = self.model or "gemini-2.5-flash-preview-tts"
+            voice = self.voice or "Kore"
+            
+            logger.info(f"调用 Gemini TTS API: model={model}, voice={voice}")
+            
+            response = client.models.generate_content(
+                model=model,
+                contents=self.text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice,
+                            )
+                        )
+                    ),
+                )
+            )
+            
+            audio_data = None
+            if response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+                if candidate.content and candidate.content.parts:
+                    for part in candidate.content.parts:
+                        if hasattr(part, 'inline_data') and part.inline_data:
+                            audio_data = part.inline_data.data
+                            break
+            
+            if not audio_data:
+                self.error.emit("Gemini TTS 未返回有效的音频数据")
+                return
+            
+            os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
+            self._save_wave_file(cache_path_wav, audio_data)
+            
+            logger.info(f"Gemini TTS 音频已保存: {cache_path_wav}")
+            self.finished.emit(cache_path_wav)
+        except Exception as e:
+            logger.error(f"Gemini TTS 错误: {e}")
+            self.error.emit(str(e))
+
+
 class TTSManager(QObject):
     playback_started = pyqtSignal(int)
     playback_stopped = pyqtSignal(int)
+    playback_paused = pyqtSignal(int)
+    playback_resumed = pyqtSignal(int)
     playback_error = pyqtSignal(int, str)
+
+    STATE_STOPPED = 0
+    STATE_PLAYING = 1
+    STATE_PAUSED = 2
 
     def __init__(self, db):
         super().__init__()
@@ -334,6 +434,8 @@ class TTSManager(QObject):
         self._pygame_playing = False
         self._playback_timer = QTimer()
         self._playback_timer.timeout.connect(self._check_pygame_playback)
+        self._is_paused = False
+        self._current_audio_path = None
         
         if not self._use_pygame:
             self.player = QMediaPlayer()
@@ -348,7 +450,7 @@ class TTSManager(QObject):
             self._retry_count = 0
             self._max_retries = 3
         
-    def speak(self, msg_id, text):
+    def speak(self, msg_id, text, force_restart=False):
         if self._use_pygame and pygame.mixer.music.get_busy():
             pygame.mixer.music.stop()
             self._pygame_playing = False
@@ -356,10 +458,11 @@ class TTSManager(QObject):
             previous_msg_id = self.current_msg_id
             self.player.stop()
             self._is_playing = False
-            if previous_msg_id == msg_id:
+            if previous_msg_id == msg_id and not force_restart:
                 return
 
         self.current_msg_id = msg_id
+        self._is_paused = False
         
         config = self.db.get_active_tts_model()
         if not config:
@@ -399,6 +502,8 @@ class TTSManager(QObject):
                 self.worker = GradioTTSWorker(base_url, voice, api_name, text, file_path, prompt_audio, prompt_text)
             elif provider == "qwen_tts":
                 self.worker = QwenTTSWorker(api_key, base_url, model_name, voice, text, file_path)
+            elif provider == "gemini_tts":
+                self.worker = GeminiTTSWorker(api_key, model_name, voice, text, file_path)
             else:
                 self.worker = OpenAITTSWorker(api_key, base_url, model_name, voice, text, file_path)
             
@@ -416,6 +521,8 @@ class TTSManager(QObject):
             return
         
         logger.info(f"播放音频: {path}, 使用 {'pygame' if self._use_pygame else 'QMediaPlayer'}")
+        self._current_audio_path = path
+        self._is_paused = False
         
         if self._use_pygame:
             self._play_pygame(path)
@@ -469,6 +576,55 @@ class TTSManager(QObject):
         if self.current_msg_id:
             self.playback_stopped.emit(self.current_msg_id)
             self.current_msg_id = None
+            self._is_paused = False
+            self._current_audio_path = None
+
+    def pause(self):
+        if not self.current_msg_id:
+            return
+        
+        if self._use_pygame:
+            if pygame.mixer.music.get_busy():
+                pygame.mixer.music.pause()
+                self._pygame_playing = False
+                self._is_paused = True
+                self.playback_paused.emit(self.current_msg_id)
+        else:
+            if self.player.state() == QMediaPlayer.PlayingState:
+                self.player.pause()
+                self._is_paused = True
+                self.playback_paused.emit(self.current_msg_id)
+
+    def resume(self):
+        if not self.current_msg_id or not self._is_paused:
+            return
+        
+        if self._use_pygame:
+            pygame.mixer.music.unpause()
+            self._pygame_playing = True
+            self._playback_timer.start(100)
+            self._is_paused = False
+            self.playback_resumed.emit(self.current_msg_id)
+        else:
+            self.player.play()
+            self._is_paused = False
+            self.playback_resumed.emit(self.current_msg_id)
+
+    def get_state(self):
+        if not self.current_msg_id:
+            return self.STATE_STOPPED
+        
+        if self._is_paused:
+            return self.STATE_PAUSED
+        
+        if self._use_pygame:
+            if pygame.mixer.music.get_busy():
+                return self.STATE_PLAYING
+        else:
+            if self.player.state() == QMediaPlayer.PlayingState:
+                return self.STATE_PLAYING
+        
+        return self.STATE_STOPPED
 
     def _on_qm_duration_changed(self, duration):
         self._audio_duration = duration

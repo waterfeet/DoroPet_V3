@@ -165,6 +165,13 @@ class QuickMessageBubble(QFrame):
     delete_requested = pyqtSignal(int)
     regenerate_requested = pyqtSignal(int)
     speak_requested = pyqtSignal(int, str)
+    speak_pause_requested = pyqtSignal(int)
+    speak_resume_requested = pyqtSignal(int)
+    speak_restart_requested = pyqtSignal(int, str)
+
+    PLAYBACK_STOPPED = 0
+    PLAYBACK_PLAYING = 1
+    PLAYBACK_PAUSED = 2
 
     def __init__(self, role, content, msg_id, parent_window=None):
         super().__init__()
@@ -173,6 +180,7 @@ class QuickMessageBubble(QFrame):
         self.msg_id = msg_id
         self.parent_window = parent_window
         self._text_browser = None
+        self._playback_state = self.PLAYBACK_STOPPED
 
         self.setFrameShape(QFrame.NoFrame)
         self.setStyleSheet("background-color: transparent;")
@@ -559,10 +567,41 @@ class QuickMessageBubble(QFrame):
             self.btn_read.setToolTip("朗读")
             self.btn_read.setIconSize(QSize(16, 16))
             self.btn_read.setStyleSheet(btn_style)
-            self.btn_read.clicked.connect(lambda: self.speak_requested.emit(self.msg_id, self.content))
+            self.btn_read.clicked.connect(self._on_read_button_clicked)
+            self.btn_read.setContextMenuPolicy(Qt.CustomContextMenu)
+            self.btn_read.customContextMenuRequested.connect(self._show_read_context_menu)
             self.action_layout.addWidget(self.btn_read)
 
         self.action_layout.addStretch()
+
+    def _on_read_button_clicked(self):
+        if self._playback_state == self.PLAYBACK_STOPPED:
+            self.speak_requested.emit(self.msg_id, self.content)
+        elif self._playback_state == self.PLAYBACK_PLAYING:
+            self.speak_pause_requested.emit(self.msg_id)
+        elif self._playback_state == self.PLAYBACK_PAUSED:
+            self.speak_resume_requested.emit(self.msg_id)
+
+    def _show_read_context_menu(self, pos):
+        menu = QMenu(self)
+        restart_action = menu.addAction("从头开始朗读")
+        restart_action.triggered.connect(lambda: self.speak_restart_requested.emit(self.msg_id, self.content))
+        menu.exec_(self.btn_read.mapToGlobal(pos))
+
+    def update_playback_state(self, state):
+        self._playback_state = state
+        self._update_read_button()
+
+    def _update_read_button(self):
+        if self._playback_state == self.PLAYBACK_STOPPED:
+            self.btn_read.setIcon(FIF.PLAY)
+            self.btn_read.setToolTip("朗读")
+        elif self._playback_state == self.PLAYBACK_PLAYING:
+            self.btn_read.setIcon(FIF.PAUSE)
+            self.btn_read.setToolTip("暂停")
+        elif self._playback_state == self.PLAYBACK_PAUSED:
+            self.btn_read.setIcon(FIF.PLAY)
+            self.btn_read.setToolTip("继续播放")
 
     def update_content(self, new_content):
         self.content = new_content
@@ -664,6 +703,11 @@ class QuickChatWindow(QWidget):
         from src.core.tts import TTSManager
         self._tts_manager = TTSManager(get_quick_chat_deps().db_manager)
         self._service.set_tts_manager(self._tts_manager)
+        
+        self._tts_manager.playback_started.connect(self._on_playback_started)
+        self._tts_manager.playback_stopped.connect(self._on_playback_stopped)
+        self._tts_manager.playback_paused.connect(self._on_playback_paused)
+        self._tts_manager.playback_resumed.connect(self._on_playback_resumed)
 
         self._error_handler = ErrorHandler(self._state)
         self._error_handler.error_handled.connect(self._on_error_handled)
@@ -671,6 +715,26 @@ class QuickChatWindow(QWidget):
 
     def _on_error_handled(self, error_type, error_message):
         pass
+
+    def _on_playback_started(self, msg_id_str):
+        msg_id = int(msg_id_str)
+        if msg_id in self.message_widgets:
+            self.message_widgets[msg_id].update_playback_state(QuickMessageBubble.PLAYBACK_PLAYING)
+
+    def _on_playback_stopped(self, msg_id_str):
+        msg_id = int(msg_id_str)
+        if msg_id in self.message_widgets:
+            self.message_widgets[msg_id].update_playback_state(QuickMessageBubble.PLAYBACK_STOPPED)
+
+    def _on_playback_paused(self, msg_id_str):
+        msg_id = int(msg_id_str)
+        if msg_id in self.message_widgets:
+            self.message_widgets[msg_id].update_playback_state(QuickMessageBubble.PLAYBACK_PAUSED)
+
+    def _on_playback_resumed(self, msg_id_str):
+        msg_id = int(msg_id_str)
+        if msg_id in self.message_widgets:
+            self.message_widgets[msg_id].update_playback_state(QuickMessageBubble.PLAYBACK_PLAYING)
 
     def _show_error_message(self, title, message, with_retry):
         if with_retry:
@@ -1177,6 +1241,9 @@ class QuickChatWindow(QWidget):
                 bubble.delete_requested.connect(self.delete_message)
                 bubble.regenerate_requested.connect(self.regenerate_message)
                 bubble.speak_requested.connect(self.speak_message)
+                bubble.speak_pause_requested.connect(self.speak_pause_message)
+                bubble.speak_resume_requested.connect(self.speak_resume_message)
+                bubble.speak_restart_requested.connect(self.speak_restart_message)
                 self.message_widgets[msg_id] = bubble
 
                 insert_index = self.chat_layout.count() - 1
@@ -1203,6 +1270,9 @@ class QuickChatWindow(QWidget):
         bubble.delete_requested.connect(self.delete_message)
         bubble.regenerate_requested.connect(self.regenerate_message)
         bubble.speak_requested.connect(self.speak_message)
+        bubble.speak_pause_requested.connect(self.speak_pause_message)
+        bubble.speak_resume_requested.connect(self.speak_resume_message)
+        bubble.speak_restart_requested.connect(self.speak_restart_message)
 
         self.message_widgets[msg_id] = bubble
 
@@ -1316,6 +1386,15 @@ class QuickChatWindow(QWidget):
 
     def speak_message(self, msg_id, content):
         self._service.speak(msg_id, content)
+
+    def speak_pause_message(self, msg_id):
+        self._service.pause_speak(msg_id)
+
+    def speak_resume_message(self, msg_id):
+        self._service.resume_speak(msg_id)
+
+    def speak_restart_message(self, msg_id, content):
+        self._service.speak(msg_id, content, force_restart=True)
 
     def trigger_llm_generation(self):
         session_id = self._service.get_or_create_session()

@@ -582,10 +582,18 @@ class QuickChatService:
                 })
         logger.info(f"[QuickChatService] 重新加载内存：{len(msgs)} 条消息")
 
-    def speak(self, msg_id: int, content: str):
+    def speak(self, msg_id: int, content: str, force_restart: bool = False):
         clean_content = re.sub(r'<thinking>.*?</thinking>', '', content, flags=re.DOTALL).strip()
         if clean_content and self._tts_manager:
-            self._tts_manager.speak(str(msg_id), clean_content)
+            self._tts_manager.speak(str(msg_id), clean_content, force_restart=force_restart)
+
+    def pause_speak(self, msg_id: int):
+        if self._tts_manager and self._tts_manager.current_msg_id == str(msg_id):
+            self._tts_manager.pause()
+
+    def resume_speak(self, msg_id: int):
+        if self._tts_manager and self._tts_manager.current_msg_id == str(msg_id):
+            self._tts_manager.resume()
 
     def load_personas(self) -> Tuple[List[str], List[str], List[bool]]:
         names = ["默认助手"]

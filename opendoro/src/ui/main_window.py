@@ -23,6 +23,7 @@ from .update_ui import UpdateInterface
 from .pet_status_interface import PetStatusInterface
 from .live2d_config_ui import Live2DConfigInterface
 from .music_ui import MusicInterface
+from .galgame import GalgameInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
@@ -58,6 +59,7 @@ class MainWindow(FluentWindow):
         
         self.pet_status_interface = PetStatusInterface(None, self.db, self)
         self.music_interface = MusicInterface(self)
+        self.galgame_interface = GalgameInterface(self.db, self)
         
         # 4. 初始化导航栏
         self.init_navigation()
@@ -80,6 +82,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.pet_status_interface, FIF.HOME, "桌宠状态")
         self.addSubInterface(self.chat_interface, FIF.CHAT, "AI 聊天")
         self.addSubInterface(self.music_interface, FIF.MUSIC, "音乐播放")
+        self.addSubInterface(self.galgame_interface, FIF.GAME, "Galgame")
         self.addSubInterface(self.config_interface, FIF.ROBOT, "模型配置")
         self.addSubInterface(self.voice_config_interface, FIF.MICROPHONE, "语音设置")
         self.addSubInterface(self.live2d_config_interface, FIF.PHOTO, "Live2D模型")
@@ -188,6 +191,9 @@ class MainWindow(FluentWindow):
         
         if hasattr(self, 'music_interface'):
             self.music_interface.update_theme(is_dark)
+        
+        if hasattr(self, 'galgame_interface'):
+            self.galgame_interface.update_theme()
         
         if hasattr(self, 'live2d_widget') and hasattr(self.live2d_widget, 'quick_chat_window'):
             if self.live2d_widget.quick_chat_window:

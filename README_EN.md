@@ -7,7 +7,7 @@
 ### ✨ Your Intelligent Desktop Companion
 
 [![Website](https://img.shields.io/badge/Website-waterfeetbot.top-blue?style=for-the-badge&logo=google-chrome)](https://www.waterfeetbot.top/)
-[![Version](https://img.shields.io/badge/version-3.3.6-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[![Version](https://img.shields.io/badge/version-3.4.0-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
 [![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
