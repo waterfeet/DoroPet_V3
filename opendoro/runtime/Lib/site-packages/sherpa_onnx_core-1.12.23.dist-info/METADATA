@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: sherpa-onnx-core
+Version: 1.12.23
+Summary: Core shared libraries for sherpa-onnx
+Home-page: https://github.com/k2-fsa/sherpa-onnx
+Author: The sherpa-onnx development team
+Author-email: dpovey@gmail.com
+License: Apache-2.0
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: Microsoft :: Windows
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Operating System :: MacOS :: MacOS X
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+

@@ -1,0 +1,2 @@
+[console_scripts]
+ytmusicapi = ytmusicapi.setup:main

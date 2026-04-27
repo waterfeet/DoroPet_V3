@@ -4,16 +4,16 @@
 
 # DoroPet
 
-### ✨ Your Intelligent Desktop Companion
+### ✨ Your Smart Desktop Companion — Work Never Feels Lonely Again
 
-[![Website](https://img.shields.io/badge/Website-waterfeetbot.top-blue?style=for-the-badge&logo=google-chrome)](https://www.waterfeetbot.top/)
-[![Version](https://img.shields.io/badge/version-3.4.0-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
+[![Website](https://img.shields.io/badge/Website-waterfeetbot.top-blue?style=for-the-badge\&logo=google-chrome)](https://www.waterfeetbot.top/)
+[![Version](https://img.shields.io/badge/version-3.4.1-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
 [![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
 [![QQ Group](https://img.shields.io/badge/QQ_Group-695753609-blue.svg)](https://qm.qq.com/q/MbaBoCevaC)
 
-**A desktop application featuring Live2D pets, AI chat, voice interaction, and pet simulation system**
+**A desktop app integrating Live2D pet, AI chat, voice interaction, pet simulation, Galgame interactive storytelling, and online music — all in one place**
 
 [🚀 Quick Start](#-quick-start) · [✨ Features](#-features) · [📖 User Guide](#-user-guide) · [🤝 Contributing](#-contributing)
 
@@ -25,22 +25,26 @@
 
 ## 🎯 Introduction
 
-**DoroPet** is a revolutionary desktop pet application. It's not just an animated pet on your screen—it's your intelligent work companion!
+**DoroPet** is a revolutionary desktop pet application. It's not just an animated pet on your screen — it's your intelligent work companion!
 
-Imagine having a cute Live2D character accompanying you while you work alone at your computer. It chases your mouse cursor, peeks out from screen edges, reminds you to rest when you're tired, and even engages in intelligent conversations with you!
+Imagine: while you're working alone at your computer, a cute Live2D character keeps you company — it chases your mouse, peeks out from screen edges, reminds you to take a break when you're tired, and can even chat intelligently with you, play Galgame interactive stories, and play music for you!
 
 ### 🌟 Why Choose DoroPet?
 
-| Feature                         | Description                                                                                  |
-| ------------------------------- | -------------------------------------------------------------------------------------------- |
-| 🎭 **Live2D Dynamic Character** | Smooth Live2D model rendering with expression switching, motion playback, and mouse tracking |
-| 🤖 **Multi-Model AI Chat**      | Supports 10+ AI models including OpenAI, DeepSeek, Claude, Gemini, Ollama, and more          |
-| 🎙️ **Voice Interaction**       | Speech recognition + Text-to-Speech for natural conversations                                |
-| 🎮 **Pet Simulation System**    | Four attributes: Hunger, Mood, Cleanliness, and Energy for an immersive experience           |
-| 🔌 **Skill Extensions**         | Built-in skill system with customizable AI capabilities                                      |
-| 🎨 **Theme Switching**          | Light and dark themes to suit your preference                                                |
-| 📌 **Edge Docking**             | Pet can dock to screen edges and auto-hide/peek                                              |
-| 🔄 **Auto Update**              | Built-in version management for one-click updates                                            |
+| Feature                         | Description                                                                                       |
+| ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 🎭 **Live2D Dynamic Characters** | Smooth Live2D v3 model rendering with expressions, motions, mouse tracking, and speech bubbles     |
+| 🤖 **Multi-Model AI Chat**       | Supports 8 AI models: OpenAI, DeepSeek, Claude, Gemini, Ollama, and more                          |
+| 🎙️ **Voice Interaction**        | Wake word detection + speech recognition + speech synthesis for natural conversations             |
+| 🎮 **Pet Simulation System**     | Four attributes — Hunger, Mood, Cleanliness, Energy — with linked mechanics for immersive raising |
+| 📖 **Galgame Storytelling**      | AI-driven interactive storytelling with affection system, multiple endings, save/load, inventory  |
+| 🎵 **Online Music**              | Multi-platform music search & playback, lyrics & spectrogram, playlist management, VLC engine     |
+| 🔌 **Agent Skills**              | 11+ built-in utility skills: document processing, search, weather, web scraping, frontend design, extensible |
+| 🧠 **Smart Memory**              | AI automatically extracts long-term memories and analyzes message importance for coherent chats   |
+| 🎨 **Theme Switching**           | Light & dark themes with adjustable font scaling                                                  |
+| 📌 **Edge Docking**              | Pet docks to any screen edge with auto-hide/peek                                                  |
+| 📎 **Attachment Handling**       | Auto-extract text from txt, html, json, md files and send to AI                                   |
+| 🔄 **Auto Update**               | Built-in version management, auto-check on startup, one-click update                              |
 
 ***
 
@@ -72,11 +76,11 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 <table>
   <tr>
     <td align="center"><b>🤖 Model Config</b></td>
-    <td align="center"><b>🎭 Live2D Model</b></td>
+    <td align="center"><b>🎭 Live2D Models</b></td>
   </tr>
   <tr>
     <td><img src="opendoro/data/resourse/img/模型配置.png" alt="Model Config" width="400"/></td>
-    <td><img src="opendoro/data/resourse/img/live2d.png" alt="Live2D Model" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/live2d.png" alt="Live2D Models" width="400"/></td>
   </tr>
   <tr>
     <td align="center"><b>👤 Role Play</b></td>
@@ -95,11 +99,11 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
     <td><img src="opendoro/data/resourse/img/logpage.png" alt="Logs" width="400"/></td>
   </tr>
   <tr>
-    <td align="center"><b>🔄 Updates</b></td>
+    <td align="center"><b>🔄 Update</b></td>
     <td align="center"><b>📱 Context Menu</b></td>
   </tr>
   <tr>
-    <td><img src="opendoro/data/resourse/img/更新界面.png" alt="Updates" width="400"/></td>
+    <td><img src="opendoro/data/resourse/img/更新界面.png" alt="Update" width="400"/></td>
     <td><img src="opendoro/data/resourse/img/右键菜单.png" alt="Context Menu" width="400"/></td>
   </tr>
 </table>
@@ -111,30 +115,31 @@ Imagine having a cute Live2D character accompanying you while you work alone at 
 ### 📋 System Requirements
 
 - **OS**: Windows 10/11 (64-bit)
-- **RAM**: 4GB or more
-- **Storage**: 500MB+ available space
+- **Python**: 3.12+ (source install only)
+- **RAM**: 4GB or above
+- **Storage**: 500MB+ free space
 - **GPU**: OpenGL 3.0+ support
 
 ### 🔧 Installation
 
 #### Method 1: Download Release (Recommended)
 
-1. **Download Latest Version**
+1. **Download the latest version**
 
-   Visit the [Releases Page](https://gitee.com/waterfeet/DoroPet_V3/releases) to download the latest ZIP package
-2. **Extract Files**
+   Go to the [Releases Page](https://gitee.com/waterfeet/DoroPet_V3/releases) and download the latest ZIP package
+2. **Extract files**
 
-   Extract the downloaded ZIP file to any directory (avoid Chinese characters or special characters in the path)
-3. **Run Installation Script**
+   Extract the downloaded ZIP to any directory (avoid Chinese characters and special characters in the path)
+3. **Run the installation script**
 
-   Double-click `install_env.bat`, the script will automatically:
-   - Download Python 3.12 embedded version
+   Double-click `install_env.bat` — the script will automatically:
+   - Download Python 3.12 embedded edition
    - Install pip package manager
    - Install all dependencies
    - Configure the runtime environment
-4. **Launch Application**
+4. **Launch the application**
 
-   The app will start automatically after installation, or double-click `start_app.bat` to launch manually
+   The app starts automatically after installation, or double-click `start_app.bat` to launch manually
 
 #### Method 2: Build from Source (Developers)
 
@@ -150,7 +155,7 @@ For users who want to contribute or customize the application.
    ```bash
    pip install -r requirements.txt
    ```
-4. **Launch application**
+4. **Launch the application**
    ```bash
    python main.py
    ```
@@ -159,9 +164,9 @@ For users who want to contribute or customize the application.
 
 After launching for the first time:
 
-1. **Configure AI Model** - Go to "Model Config" page and add your API Key
-2. **Select Model** - Choose your preferred AI model from the dropdown
-3. **Start Chatting** - Click the pet or go to "AI Chat" page to interact
+1. **Configure AI Model** — Go to "Model Config" and add your API Key
+2. **Select a model** — Choose your AI model from the dropdown menu
+3. **Start chatting** — Click the pet or go to the "AI Chat" page to begin interacting
 
 ***
 
@@ -169,122 +174,226 @@ After launching for the first time:
 
 ### 🎭 Live2D Desktop Pet
 
-| Feature               | Description                                                   |
-| --------------------- | ------------------------------------------------------------- |
-| **Expression System** | 10+ expressions including happy, confused, sleepy, cool, etc. |
-| **Motion System**     | Supports idle, jump, touch, and other motions                 |
-| **Mouse Tracking**    | Pet's eyes follow your mouse cursor                           |
-| **Chase Mode**        | Pet chases your mouse cursor around the screen                |
-| **Random Wander**     | Pet walks randomly on the screen                              |
-| **Edge Docking**      | Automatically docks and hides when dragged to screen edges    |
-| **Scroll Resize**     | Use mouse wheel to resize the pet                             |
+| Feature               | Description                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------- |
+| **Expression System** | 10+ expressions including happy, confused, sleepy, sunglasses, etc.                      |
+| **Motion System**     | Supports idle, jump, touch, and other motions                                            |
+| **Mouse Tracking**    | Pet's eyes follow your mouse cursor                                                      |
+| **Chase Mode**        | Pet chases your mouse cursor, consuming energy                                           |
+| **Random Wander**     | Pet wanders randomly across the screen, with pauses                                      |
+| **Speech Bubbles**    | Comic-style dialogue bubbles — pets say random lines based on status, auto-dismiss       |
+| **Edge Docking**      | Auto-docks and hides when dragged to screen edges                                        |
+| **Scroll Resize**     | Use mouse wheel to resize the pet                                                        |
+| **Status Overlay**    | Hover to reveal a four-attribute status bar overlay                                      |
+| **Context Menu**      | Lock position, open chat, screenshot & send, toggle status overlay, exit                 |
 
 ### 🤖 AI Chat System
 
 Supports multiple mainstream AI model providers:
 
-| Provider          | Models         | Features                                    |
-| ----------------- | -------------- | ------------------------------------------- |
-| **OpenAI**        | GPT-4, GPT-3.5 | Industry leader, comprehensive capabilities |
-| **DeepSeek**      | DeepSeek-Chat  | Excellent value, Chinese optimized          |
-| **Anthropic**     | Claude 3       | Safe and reliable, great for long texts     |
-| **Google Gemini** | Gemini Pro     | Multimodal support                          |
-| **Groq**          | Llama, Mixtral | Ultra-fast inference                        |
-| **Moonshot**      | Kimi           | Long text processing                        |
-| **Zhipu AI**      | GLM-4          | Chinese large language model                |
-| **Ollama**        | Local Models   | Fully local, privacy-focused                |
+| Provider           | Model Examples      | Highlights                               |
+| ------------------ | ------------------- | ---------------------------------------- |
+| **OpenAI**         | GPT-4, GPT-3.5      | Industry leader, comprehensive           |
+| **DeepSeek**       | DeepSeek-v4-flash   | Chinese excellence, great value          |
+| **Google Gemini**  | Gemini Pro          | Multimodal support                       |
+| **Moonshot**       | Kimi                | Long-text processing                     |
+| **Zhipu AI**       | GLM-5               | Chinese large language model             |
+| **Ollama**         | Local models        | Fully local, privacy-first               |
+| Custom             |                     | Any OpenAI-compatible API                |
+
+**Chat feature highlights**:
+
+| Feature             | Description                                                                      |
+| ------------------- | -------------------------------------------------------------------------------- |
+| **Streaming Output** | Real-time AI reply display, no need to wait for full generation                  |
+| **Thinking Mode**    | Visualizes the reasoning process for models like DeepSeek-R1                     |
+| **Multi-Session**    | Create/delete/rename sessions with persistent chat history                       |
+| **Markdown**         | Full Markdown rendering + code syntax highlighting (Pygments)                    |
+| **Tool Calling**     | AI can autonomously invoke search, file ops, image generation — process visible  |
+| **Image Generation** | Supports AI drawing APIs, generate images directly in conversation               |
+| **Attachments**      | Send PDF/Word/Excel/CSV/TXT/HTML files, auto-extract text                        |
+| **Screenshot Tool**  | Built-in region screenshot, send directly to chat                                |
+| **Voice Input**      | Integrated speech recognition, type with your voice                              |
 
 ### 🎙️ Voice Features
 
-- **Speech-to-Text (STT)**: Real-time voice input support
-- **Text-to-Speech (TTS)**:
-  - Edge-TTS (Microsoft free TTS)
-  - OpenAI TTS
-  - Gradio TTS (connect to local tts-api)
-- **Voice Wake-up**: Configurable wake words
+| Feature                          | Description                                                                                   |
+| -------------------------------- | --------------------------------------------------------------------------------------------- |
+| **Wake Word Detection (KWS)**    | Local wake word "Hey Doro" detection, based on sherpa-onnx                                     |
+| **Speech Recognition (ASR)**    | Real-time speech-to-text with BPE tokenization                                                |
+| **Speech Synthesis (TTS)**       | Multiple engines: Edge-TTS (Microsoft free) / OpenAI TTS / Gemini TTS / Gradio TTS / Qwen TTS |
+| **TTS Caching**                  | Auto-caches synthesized speech to avoid redundant requests                                    |
 
 ### 🎮 Pet Simulation System
 
-Four core attributes for an immersive experience:
+Four core attributes for an immersive nurturing experience:
 
-| Attribute          | Description                        | Effect                                |
-| ------------------ | ---------------------------------- | ------------------------------------- |
-| 🍖 **Hunger**      | Decreases over time, needs feeding | Triggers special expressions when low |
-| 😊 **Mood**        | Increases through interaction      | Affects pet reactions                 |
-| 🛁 **Cleanliness** | Decreases over time                | Needs cleaning to maintain            |
-| ⚡ **Energy**       | Consumed by chase/wander modes     | Restored by resting                   |
+| Attribute             | Description                       | Effect                                     |
+| --------------------- | --------------------------------- | ------------------------------------------ |
+| 🍖 **Hunger**         | Decreases over time, needs feeding| Low hunger accelerates mood decay          |
+| 😊 **Mood**           | Boosted through interaction       | Affects pet reactions and dialogue         |
+| 🛁 **Cleanliness**    | Declines periodically             | Needs cleaning to maintain                 |
+| ⚡ **Energy**          | Consumed by chasing/wandering     | Rest recovers it; affects activity ability |
 
-### 🔌 Skill System
+**Companion gameplay**:
 
-Built-in practical skills to extend AI capabilities (requires skill runtime configuration):
+| Category    | Actions                      | Effect                       |
+| ----------- | ---------------------------- | ---------------------------- |
+| **Feeding** | Snack / Meal / Feast         | Restores hunger              |
+| **Playing** | Light / Fun / Intense        | Boosts mood, consumes energy |
+| **Cleaning** | Wipe / Bath                | Restores cleanliness         |
+| **Resting** | Nap / Deep Sleep             | Restores energy              |
+| **Interacting** | Pet / Scold / Comfort    | Affects mood                 |
 
-- 📄 **Document Processing**: Word, PPT, Excel, PDF handling
-- 🎨 **Design Tools**: Brand guidelines, frontend design, theme factory
-- 🌤️ **Utilities**: Weather, memo, calculator
-- 🖼️ **Resource Generation**: Web asset generator
+> 💡 The four attributes have **linked mechanics**: low hunger accelerates mood decay, low mood slows energy recovery, etc. Nurture strategically!
 
-### 🎵 Music Player
+### 📖 Galgame Interactive Storytelling
 
-- Built-in music player
-- Online music search and download
-- Auto-play on startup option
+AI-driven immersive visual novel experience — beyond just "chatting," you enter a complete story world:
+
+| System                 | Description                                                                   |
+| ---------------------- | ----------------------------------------------------------------------------- |
+| **AI-Driven Narrative** | AI generates story in real-time; every choice branches the plot infinitely    |
+| **Protagonist Customization** | Customize name, gender, personality, and backstory                     |
+| **Character System**    | Create and manage multiple story characters with traits, appearance, relationships |
+| **World Setting**       | Customize world view, era, magic/sci-fi elements, etc.                        |
+| **Affection System**   | Interactions affect affection values, influencing character reactions and endings |
+| **Economy System**      | Virtual currency, shop, inventory system                                      |
+| **Multiple Endings**   | Different endings triggered by accumulated choice conditions                  |
+| **Save & Load**        | Full save system — save/load game progress anytime                            |
+| **Event Triggers**     | Exclusive events, dynamic events, special date events to make the world alive |
+| **HTML Export**        | Export your gameplay journey as an HTML file to share your story              |
+
+### 🎵 Online Music
+
+| Feature               | Description                                                       |
+| --------------------- | ----------------------------------------------------------------- |
+| **Multi-Platform Search** | Supports Netease / QQ / Kugou and more                        |
+| **Playback Engine**    | Based on VLC, supports mainstream audio formats                  |
+| **Lyrics Display**     | LRC parsing, synchronized scrolling lyrics                       |
+| **Spectrogram Visualization** | Real-time audio spectrum effects                         |
+| **Vinyl Record UI**    | Switches to a spinning vinyl record animation during playback     |
+| **Playlist Management** | Create and manage local playlists                                |
+| **Playback Modes**     | List loop / Shuffle / Single repeat                              |
+| **Mini Player**        | A compact player card also appears on the pet status page         |
+| **Global Playback**    | Cross-page shared playback state, uninterrupted when switching UI |
+
+### 🔌 Agent Skill System
+
+Built-in tools and skills the AI can invoke, extending AI capabilities from "chatting" to "doing":
+
+**Agent Tools** (AI can invoke autonomously):
+
+| Tool                        | Function                              |
+| --------------------------- | ------------------------------------- |
+| 🔍 `search_baidu`          | Baidu search                          |
+| 🔍 `search_bing`           | Bing search                           |
+| 🌐 `visit_webpage`         | Visit webpage and extract content     |
+| 🖼️ `generate_image`       | AI image generation                   |
+| 📁 `read_file`             | Read file contents                    |
+| 📝 `write_file`            | Write to a file                       |
+| 📂 `list_files`            | List directory contents               |
+| 🔎 `search_files`          | Search for files                      |
+| ✏️ `edit_file`             | Edit file (precise replace)           |
+| 🎭 `set_expression`        | Control pet expressions               |
+| 📊 `modify_pet_attribute`  | Modify pet attribute values           |
+
+**Built-in Skills** (requires self-configuration of runtime environment):
+
+| Skill                        | Purpose                            |
+| ---------------------------- | ---------------------------------- |
+| 📄 **Word Processing**       | Word document creation & editing   |
+| 📊 **Excel Processing**      | Excel spreadsheet handling         |
+| 📑 **PDF Processing**        | PDF document processing            |
+| 🎞️ **PPT Processing**       | PPT presentation handling          |
+| 🌤️ **Weather Query**        | Real-time weather info             |
+| 📰 **Daily Hot Topics**      | Aggregated trending topics         |
+| 🎨 **Frontend Design**       | Web/UI design generation           |
+| 🕸️ **Web Scraping**         | Web content retrieval              |
+| 🛠️ **Skill Creator**        | Create custom skills               |
+
+### 🎨 Other Features
+
+| Feature                | Description                                                                             |
+| ---------------------- | --------------------------------------------------------------------------------------- |
+| 🧠 **Smart Memory**    | AI auto-analyzes message importance (5 levels), extracts long-term memory & keywords    |
+| 👤 **Role Play**       | Custom AI persona (System Prompt), bindable to Live2D models for unique characters      |
+| 🔌 **Plugin System**   | Dynamic third-party plugin loading; examples: calculator, Ludo, memo, 2048 game         |
+| 💬 **Immersive Chat**  | Standalone quick chat window with simplified UI focused on conversation                 |
+| 🗄️ **Data Persistence**| SQLite storage for chat history, character settings, pet attributes, Galgame saves      |
+| 🗑️ **Cache Management**| Image cache (500MB/7-day auto-cleanup), TTS cache, one-click purge                      |
+| 📝 **Runtime Logs**    | Tiered logging (DEBUG~ERROR), real-time log viewer in UI                                |
+| 🔤 **Font Scaling**    | Global font size adjustment (90%~150%), adapt to different screens and preferences      |
+| 🖥️ **Shortcut**        | Auto-detect and create desktop shortcut                                                  |
+| 📌 **Always on Top**   | One-click toggle main window always-on-top status                                        |
 
 ***
 
 ## 📖 User Guide
 
-### 🖱️ Pet Interactions
+### 🖱️ Pet Interaction
 
-| Action           | Effect                                                          |
-| ---------------- | --------------------------------------------------------------- |
-| **Single Click** | Triggers interaction, different effects on different body parts |
-| **Double Click** | Opens main interface                                            |
-| **Right Click**  | Opens context menu                                              |
-| **Drag**         | Move pet position                                               |
-| **Scroll**       | Resize pet                                                      |
-| **Drag to Edge** | Auto dock and hide                                              |
+| Action            | Effect                                                                |
+| ----------------- | --------------------------------------------------------------------- |
+| **Single Click**  | Triggers interaction — different body parts have different effects    |
+| **Double Click**  | Opens the main interface                                              |
+| **Right Click**   | Opens context menu (lock/chat/screenshot/status overlay, etc.)        |
+| **Drag**          | Move pet position                                                     |
+| **Scroll**        | Resize pet                                                            |
+| **Drag to Edge**  | Auto-dock and hide                                                    |
+| **Mouse Hover**   | Shows attribute status overlay                                        |
 
 ### 📱 Main Interface Navigation
 
 ```
-┌─────────────────────────────────────┐
-│  🏠 Pet Status  - View attributes, quick actions    │
-│  💬 AI Chat     - Intelligent conversation          │
-│  🤖 Model Config - Configure AI models              │
-│  🎤 Voice Settings - Configure voice features       │
-│  🖼️ Live2D Model - Switch/manage models             │
-│  👤 Role Play   - Custom character settings         │
-│  📚 Plugins     - Manage installed plugins          │
-│  🎨 Skills      - View/install skills               │
-│  📋 Logs        - View application logs             │
-│  ─────────────────────────────────  │
-│  🔄 Updates     - Check/install updates             │
-│  ⚙️ Settings    - Application settings              │
-└─────────────────────────────────────┘
+┌──────────────────────────────────────────┐
+│  🏠 Pet Status  - View attributes, quick actions, mini player  │
+│  💬 AI Chat     - Multi-session AI conversations               │
+│  🎵 Music Player - Online music search & playback              │
+│  🎮 Galgame     - AI interactive storytelling                  │
+│  ──────────────────────────────────────  │
+│  🤖 Model Config - Configure AI model providers               │
+│  🎤 Voice Settings - Configure wake word/ASR/TTS               │
+│  🖼️ Live2D Models - Switch/manage/download models             │
+│  👤 Role Play   - Customize AI persona settings                │
+│  📚 Plugin Manager - Manage installed plugins                  │
+│  🎨 Skill Manager - View/install/enable skills                 │
+│  📋 Logs        - View application runtime logs                │
+│  ──────────────────────────────────────  │
+│  🔄 Updates     - Check/install updates (bottom)               │
+│  ⚙️ Settings    - Startup/cache/font, etc. (bottom)            │
+└──────────────────────────────────────────┘
 ```
 
 ### ⌨️ System Tray
 
-Right-click the tray icon to quickly:
+Right-click the tray icon for quick access to:
 
+- Open immersive chat window
 - Show/Hide pet
-- Open main interface
-- Lock/Unlock position
+- Show/Hide main interface
+- Lock/Unlock pet position
 - Exit application
 
 ### 🔑 Configure AI Model
 
-1. Go to "Model Config" page
+1. Go to the "Model Config" page
 2. Click "Add Config"
-3. Select provider type
-4. Enter API Key and related settings
+3. Select provider type (OpenAI / DeepSeek / Claude / Gemini / Kimi / Zhipu / Groq / Ollama)
+4. Enter API Key and related settings (Base URL, model name, etc.)
 5. Save and activate
 
-**Get API Keys**:
+### 🎮 Start Galgame
 
-- OpenAI: <https://platform.openai.com/api-keys>
-- DeepSeek: <https://platform.deepseek.com/>
-- Anthropic: <https://console.anthropic.com/>
+1. Go to the "Galgame" page
+2. Click the top config panel to set up world view, protagonist, and characters
+3. Click "Start New Game" or "Continue"
+4. AI generates story in real-time; make choices when options appear
+5. Every choice affects story direction, character affection, and ultimately leads to different endings
+
+> 💡 Affection, currency, and items in Galgame are persisted. View items in "Inventory" and character affection in "Affection".
+
+<br />
 
 ***
 
@@ -294,50 +403,100 @@ Right-click the tray icon to quickly:
 
 ```
 opendoro/
-├── main.py                 # Application entry
-├── requirements.txt        # Dependencies
-├── install_env.bat         # Environment setup script
-├── start_app.bat           # Launch script
-├── data/                   # Resource files
-│   ├── icons/              # Icon resources
-│   └── resourse/           # Other resources
-├── models/                 # Live2D models
-│   ├── Doro/               # Default model
-│   └── yourmodel/          # Custom models
-├── plugin/                 # Plugins directory
-├── src/                    # Source code
-│   ├── core/               # Core modules
-│   ├── provider/           # AI providers
-│   ├── services/           # Service layer
-│   ├── skills/             # Skill modules
-│   ├── ui/                 # UI components
-│   └── live2dview.py       # Live2D view
-└── themes/                 # Theme stylesheets
+├── main.py                     # Entry point (dependency check, splash screen, module init)
+├── requirements.txt            # Python dependencies
+├── install_env.bat             # One-click environment setup script
+├── start_app.bat               # Launch script
+├── data/
+│   ├── icons/                  # Icon resources
+│   └── resourse/               # Image resources (screenshots, etc.)
+├── md/                         # Project documentation
+├── models/
+│   └── Doro/                   # Default Live2D model
+│       ├── Doro.model3.json    # Model config file
+│       ├── expressions/        # Expression files
+│       └── motions/            # Motion files
+├── plugin/                     # User plugin directory
+│   ├── calculation/            # Calculator plugin
+│   ├── memo/                   # Memo plugin
+│   ├── ludo/                   # Ludo plugin
+│   └── DemoDirPlugin/          # Plugin dev demo + 2048 game
+├── src/
+│   ├── agent/                  # Agent framework
+│   │   ├── core/               # Agent core (tool definitions, pipeline, orchestrator, sandbox)
+│   │   ├── tools/              # Tool implementations (search, image, file ops, code execution)
+│   │   ├── skills/             # Skill system (load, register, validate, status management)
+│   │   ├── pipeline/           # Execution pipeline
+│   │   └── middleware/         # Middleware
+│   ├── core/                   # Core business logic
+│   │   ├── pet_attributes_manager.py  # Pet attributes manager
+│   │   ├── database.py                # SQLite database (chat, characters, saves)
+│   │   ├── voice.py                   # Voice interaction (wake word + ASR)
+│   │   ├── tts.py                     # TTS speech synthesis
+│   │   ├── memory_manager.py          # AI memory manager
+│   │   ├── stream_processor.py        # Stream response processor
+│   │   ├── message_parser.py          # Message parser
+│   │   ├── mouse_chaser.py            # Mouse chaser
+│   │   ├── random_wanderer.py         # Random wanderer
+│   │   ├── version_manager.py         # Version update manager
+│   │   ├── skill_manager.py           # Skill manager
+│   │   └── ...
+│   ├── provider/               # AI provider adapter layer
+│   │   ├── manager.py          # Provider manager (singleton)
+│   │   ├── provider.py         # Abstract base classes (LLM/TTS/STT/Image)
+│   │   └── sources/            # Provider implementations
+│   ├── services/               # Service layer
+│   │   ├── llm_service.py      # LLM invocation service (multi-threaded, tool call loop)
+│   │   ├── global_music_player.py  # Global music player (VLC)
+│   │   └── extended_music_service.py  # Music search/playlist service
+│   ├── skills/                 # Built-in skills directory
+│   ├── ui/                     # UI components
+│   │   ├── main_window.py      # Main window (FluentWindow navigation)
+│   │   ├── pages/              # 12 feature pages
+│   │   ├── galgame/            # Galgame subsystem (story gen, save, endings, events)
+│   │   ├── music/              # Music UI (search, playlist, spectrogram, lyrics)
+│   │   ├── widgets/            # Common UI widgets
+│   │   └── windows/            # Standalone windows (immersive chat, pet status overlay)
+│   └── utils/                  # Utility functions
+├── themes/
+│   ├── dark.qss                # Dark theme stylesheet
+│   └── light.qss               # Light theme stylesheet
+└── tools/                      # Utility scripts
 ```
 
 ### Tech Stack
 
-- **GUI Framework**: PyQt5 + PyQt-Fluent-Widgets
-- **Live2D Rendering**: live2d-py + OpenGL
-- **AI Interface**: OpenAI SDK (multi-provider compatible)
-- **Voice Processing**: sherpa-onnx + edge-tts
-- **Database**: SQLite
+| Layer                | Technology                                              |
+| -------------------- | ------------------------------------------------------- |
+| **GUI Framework**    | PyQt5 + PyQt-Fluent-Widgets (Fluent Design)             |
+| **Live2D Rendering** | live2d-py + OpenGL (v3)                                 |
+| **AI Interface**     | OpenAI SDK (multi-provider compatible), Provider adapter|
+| **Voice Processing** | sherpa-onnx (wake word + ASR) + edge-tts / OpenAI TTS   |
+| **Database**         | SQLite (chat history, characters, pet data, Galgame saves)|
+| **Music Engine**     | VLC + musicdl (multi-platform music search)             |
+| **Code Highlighting**| Pygments                                                |
 
 ### Extension Development
 
-#### Add New AI Provider
+#### Adding a New AI Provider
 
 1. Create a new provider file in `src/provider/sources/`
-2. Inherit from `LLMProvider` base class
-3. Implement required methods
-4. Register in `__init__.py`
+2. Inherit from the `LLMProvider` base class
+3. Implement required methods (`chat`, `stream_chat`, etc.)
+4. Register provider metadata in `src/provider/register.py`
 
-#### Add New Skill
+#### Adding a New Skill
 
 1. Create a skill directory in `src/skills/`
-2. Write a `SKILL.md` configuration file
-3. Add execution scripts (optional)
-4. Restart the application to auto-load
+2. Write a `SKILL.md` config file (following skill specification)
+3. Add execution scripts (optional, for complex skills)
+4. Restart the app to auto-load, or refresh from the "Skill Manager" page
+
+#### Developing a Plugin
+
+1. Create a new folder under `plugin/`
+2. Create a `main.py` containing a `Plugin` class that inherits from `QWidget`
+3. Restart the app — the plugin will auto-appear on the "Plugin Manager" page
 
 ***
 
@@ -348,8 +507,8 @@ opendoro/
 
 A: Please check the following:
 
-- **Path Issue**: Ensure the installation path doesn't contain Chinese characters, spaces, or special characters (e.g., `D:\软件\DoroPet` ❌ → `D:\DoroPet` ✅)
-- Check network connection
+- **Path issues**: Ensure the installation path contains no Chinese characters, spaces, or special characters (e.g., `D:\Software\DoroPet` ❌ → `D:\DoroPet` ✅)
+- Check network connectivity
 - Check if blocked by antivirus or firewall
 - Try running the installation script as administrator
 
@@ -358,11 +517,11 @@ A: Please check the following:
 <details>
 <summary><b>Q: Network error when downloading dependencies?</b></summary>
 
-A: The script has built-in multiple mirror sources. If all fail, please check:
+A: The script has built-in multiple mirror sources (Tsinghua, Alibaba, USTC, etc.). If all fail, please check:
 
-- Network connection status
+- Network connectivity
 - Firewall settings
-- Try using VPN or switch network environment
+- Try using a VPN or switch network environment
 
 </details>
 
@@ -373,7 +532,7 @@ A: Please ensure:
 
 - Graphics driver is up to date
 - OpenGL 3.0+ is supported
-- Model files are complete and not corrupted
+- Model files are complete and uncorrupted (must include a `.model3.json` config file)
 
 </details>
 
@@ -383,30 +542,53 @@ A: Please ensure:
 A: Please check:
 
 - API Key is correctly configured
-- Network can access the corresponding API
-- Check runtime logs for detailed errors
+- Network can reach the corresponding API address
+- Base URL is correct (when using a custom proxy)
+- Check the "Logs" page for detailed error information
 
 </details>
 
 <details>
 <summary><b>Q: How to add custom Live2D models?</b></summary>
 
-A: Place the model folder in the `models/` directory, ensure it contains a `.model3.json` configuration file, then select and load it from the "Live2D Model" page.
+A: Place the model folder in the `models/` directory, ensure it contains a `.model3.json` config file along with related expression/motion/physics files, then select and load it from the "Live2D Models" page.
+
+</details>
+
+<details>
+<summary><b>Q: Wake word detection not sensitive enough?</b></summary>
+
+A: Wake word detection uses the local sherpa-onnx model. Recommendations:
+
+- Use in a relatively quiet environment
+- Clearly speak the wake word "Hey Doro"
+- Ensure microphone permissions are granted
+- Adjust parameters in "Voice Settings"
+
+</details>
+
+<details>
+<summary><b>Q: How to use Ollama local models?</b></summary>
+
+A:
+
+1. Install [Ollama](https://ollama.com/) locally and pull a model
+2. Select the Ollama provider in "Model Config"
+3. Set Base URL to `http://localhost:11434/v1` (default address)
+4. Enter the model name you pulled in Ollama (e.g., `qwen2.5:7b`)
+
+</details>
+
+<details>
+<summary><b>Q: Galgame saves lost?</b></summary>
+
+A: Galgame saves are stored in the SQLite database under the app data directory. They shouldn't be lost under normal circumstances. To back up, check the data directory path in "Settings" and manually back up the relevant data files.
 
 </details>
 
 ***
 
-## 🗺️ Roadmap
-
-- [ ] macOS support
-- [ ] More Live2D models
-- [ ] Multiple pets on screen
-- [ ] Cloud sync for settings
-- [ ] Community model marketplace
-- [ ] More AI capabilities integration
-
-***
+<br />
 
 ## 🤝 Contributing
 
@@ -419,6 +601,7 @@ We welcome all forms of contributions!
 - 📝 Improve documentation
 - 🔧 Submit code PRs
 - 🎨 Share Live2D models
+- 🔌 Develop and share plugins
 
 ### Development Workflow
 
@@ -432,7 +615,7 @@ We welcome all forms of contributions!
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ***
 
@@ -442,9 +625,11 @@ Thanks to the following open source projects:
 
 - [PyQt5](https://www.riverbankcomputing.com/software/pyqt/) - GUI Framework
 - [PyQt-Fluent-Widgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) - Fluent Design component library
-- [live2d-py](https://github.com/Arkueid/live2d-py) - Live2D Python binding
+- [live2d-py](https://github.com/Arkueid/live2d-py) - Live2D Python bindings
 - [OpenAI](https://openai.com/) - AI API
-- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - Speech recognition
+- [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) - Speech recognition & wake word detection
+- [edge-tts](https://github.com/rany2/edge-tts) - Microsoft free TTS
+- [musicdl](https://github.com/CharlesPikachu/musicdl) - Multi-platform music search
 
 ***
 
