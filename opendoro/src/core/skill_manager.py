@@ -17,7 +17,17 @@ import requests
 from src.core.logger import logger
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKILLS_DIR = os.path.join(BASE_DIR, "src", "skills")
+BUILTIN_SKILLS_DIR = os.path.join(BASE_DIR, "src", "skills")
+
+
+def _get_user_data_dir():
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        return os.path.join(local_app_data, "DoroPet")
+    return os.path.join(os.path.expanduser("~"), "AppData", "Local", "DoroPet")
+
+
+USER_SKILLS_DIR = os.path.join(_get_user_data_dir(), "skills")
 
 
 class SkillType(Enum):
@@ -54,22 +64,33 @@ class Skill:
 
 
 class SkillManager:
-    def __init__(self, skills_dir: str = SKILLS_DIR):
+    def __init__(self, skills_dir: str = BUILTIN_SKILLS_DIR, user_skills_dir: str = USER_SKILLS_DIR):
         self.skills_dir = skills_dir
+        self.user_skills_dir = user_skills_dir
         self.skills: Dict[str, Skill] = {}
+        self.name_mapping: Dict[str, str] = {}
         self.load_skills()
 
     def load_skills(self) -> None:
         self.skills = {}
-        if not os.path.exists(self.skills_dir):
-            try:
-                os.makedirs(self.skills_dir)
-            except Exception as e:
-                logger.error(f"Failed to create skills directory: {e}")
-                return
+        self.name_mapping = {}
 
-        logger.info(f"Loading skills from {self.skills_dir}")
-        self._load_skills_recursive(self.skills_dir)
+        logger.info(f"[SkillManager] Loading builtin skills from {self.skills_dir}")
+        self._load_directory(self.skills_dir)
+
+        if os.path.exists(self.user_skills_dir):
+            logger.info(f"[SkillManager] Loading user skills from {self.user_skills_dir}")
+            user_dir = self.user_skills_dir
+        else:
+            os.makedirs(self.user_skills_dir, exist_ok=True)
+            user_dir = self.user_skills_dir
+
+        self._load_directory(user_dir)
+
+    def _load_directory(self, directory: str) -> None:
+        if not os.path.exists(directory):
+            return
+        self._load_skills_recursive(directory)
 
     def _load_skills_recursive(self, directory: str, depth: int = 0) -> None:
         if depth > 3:
@@ -390,11 +411,22 @@ class SkillManager:
 
     def get_tool_schemas(self) -> List[Dict]:
         schemas = []
+        self.name_mapping = {}
+        try:
+            from src.agent.skills.state import SkillEnabledState
+            state = SkillEnabledState.get_instance()
+        except ImportError:
+            state = None
+
         for name, skill in self.skills.items():
+            if state is not None and not state.is_enabled(name):
+                continue
+            normalized_name = re.sub(r'[^a-zA-Z0-9_-]', '_', name)
+            self.name_mapping[normalized_name] = name
             schema = {
                 "type": "function",
                 "function": {
-                    "name": name,
+                    "name": normalized_name,
                     "description": skill.description,
                     "parameters": skill.parameters or {"type": "object", "properties": {}},
                 },
@@ -403,6 +435,17 @@ class SkillManager:
         return schemas
 
     def get_skill_content(self, skill_name: str) -> Optional[str]:
+        try:
+            from src.agent.skills.state import SkillEnabledState
+            state = SkillEnabledState.get_instance()
+            if not state.is_enabled(skill_name):
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Skill '{skill_name}' is currently disabled. Enable it in the Skills panel to view its content."
+                }, ensure_ascii=False)
+        except ImportError:
+            pass
+
         if skill_name in self.skills:
             return self.skills[skill_name].content
         return None
@@ -411,34 +454,46 @@ class SkillManager:
         return {name: skill.description for name, skill in self.skills.items()}
 
     def execute_skill(self, skill_name: str, **kwargs) -> str:
-        if skill_name not in self.skills:
-            logger.error(f"[SkillManager] Skill '{skill_name}' not found. Available skills: {list(self.skills.keys())}")
+        original_name = self.name_mapping.get(skill_name, skill_name)
+        if original_name not in self.skills:
+            logger.error(f"[SkillManager] Skill '{skill_name}' (original: '{original_name}') not found. Available skills: {list(self.skills.keys())}")
             return json.dumps({"status": "error", "message": f"Skill '{skill_name}' not found"})
 
-        skill = self.skills[skill_name]
-        logger.info(f"[SkillManager] Executing skill '{skill_name}' (type: {skill.skill_type.value}, entry: {skill.entry_point})")
-        logger.info(f"[SkillManager] Skill '{skill_name}' parameters: {kwargs}")
+        try:
+            from src.agent.skills.state import SkillEnabledState
+            state = SkillEnabledState.get_instance()
+            if not state.is_enabled(original_name):
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Skill '{original_name}' is currently disabled. Enable it in the Skills panel to use it."
+                })
+        except ImportError:
+            pass
+
+        skill = self.skills[original_name]
+        logger.info(f"[SkillManager] Executing skill '{original_name}' (normalized: '{skill_name}', type: {skill.skill_type.value}, entry: {skill.entry_point})")
+        logger.info(f"[SkillManager] Skill '{original_name}' parameters: {kwargs}")
 
         if skill.function:
             try:
-                logger.info(f"[SkillManager] Calling skill function for '{skill_name}'...")
+                logger.info(f"[SkillManager] Calling skill function for '{original_name}'...")
                 result = skill.function(**kwargs)
                 if isinstance(result, str):
-                    logger.info(f"[SkillManager] Skill '{skill_name}' executed successfully (string result, length: {len(result)})")
+                    logger.info(f"[SkillManager] Skill '{original_name}' executed successfully (string result, length: {len(result)})")
                     return result
-                logger.info(f"[SkillManager] Skill '{skill_name}' executed successfully (result type: {type(result).__name__})")
+                logger.info(f"[SkillManager] Skill '{original_name}' executed successfully (result type: {type(result).__name__})")
                 return json.dumps({"status": "success", "result": result}, ensure_ascii=False)
             except TypeError as e:
-                logger.error(f"[SkillManager] Skill '{skill_name}' parameter error: {e}. Expected params: {list(skill.parameters.get('properties', {}).keys())}, Got: {list(kwargs.keys())}")
+                logger.error(f"[SkillManager] Skill '{original_name}' parameter error: {e}. Expected params: {list(skill.parameters.get('properties', {}).keys())}, Got: {list(kwargs.keys())}")
                 return json.dumps({"status": "error", "message": f"Parameter error: {str(e)}"})
             except Exception as e:
-                logger.error(f"[SkillManager] Error executing skill '{skill_name}': {type(e).__name__}: {e}")
+                logger.error(f"[SkillManager] Error executing skill '{original_name}': {type(e).__name__}: {e}")
                 return json.dumps({"status": "error", "message": str(e)})
 
-        logger.info(f"[SkillManager] Skill '{skill_name}' is document-type, returning full content for AI to learn")
+        logger.info(f"[SkillManager] Skill '{original_name}' is document-type, returning full content for AI to learn")
         return json.dumps({
             "status": "info",
-            "message": f"Skill '{skill_name}' is a document-type skill. Please read the content below and learn how to use it.",
+            "message": f"Skill '{original_name}' is a document-type skill. Please read the content below and learn how to use it.",
             "content": skill.content,
             "scripts": [os.path.basename(s) for s in skill.scripts],
         }, ensure_ascii=False)
@@ -588,7 +643,8 @@ class SkillManager:
 
         final_name = skill_name or detected_name or os.path.basename(source_path)
 
-        target_path = os.path.join(self.skills_dir, final_name)
+        target_path = os.path.join(self.user_skills_dir, final_name)
+        os.makedirs(self.user_skills_dir, exist_ok=True)
         if os.path.exists(target_path):
             logger.info(f"Removing existing skill: {final_name}")
             shutil.rmtree(target_path)
@@ -617,7 +673,19 @@ class SkillManager:
             return json.dumps({"status": "error", "message": str(e)})
 
     def list_skills(self) -> List[Dict]:
-        return [skill.to_dict() for skill in self.skills.values()]
+        skills_list = []
+        try:
+            from src.agent.skills.state import SkillEnabledState
+            state = SkillEnabledState.get_instance()
+            for skill in self.skills.values():
+                d = skill.to_dict()
+                d["is_builtin"] = skill.path.startswith(self.skills_dir)
+                d["source"] = "builtin" if d["is_builtin"] else "user"
+                d["is_enabled"] = state.is_enabled(skill.name)
+                skills_list.append(d)
+        except ImportError:
+            skills_list = [skill.to_dict() for skill in self.skills.values()]
+        return skills_list
 
     def get_skill_info(self, skill_name: str) -> Optional[Dict]:
         if skill_name in self.skills:

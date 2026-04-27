@@ -39,6 +39,35 @@ def init_provider_framework():
     pm.load_providers_from_db(db)
     logger.info(f"ProviderManager initialized with {len(pm.get_all_llm_providers())} LLM providers")
 
+
+def init_agent_framework():
+    try:
+        from src.agent.tools import register_all_tools
+        from src.agent.skills.registry import SkillRegistry
+        from src.agent.skills.state import SkillEnabledState, SkillCategory
+        from src.agent.doropet_agent import AgentBridge
+        from src.agent.core.sandbox import SandboxManager
+
+        state = SkillEnabledState.get_instance()
+        state.load_from_settings()
+
+        bridge = AgentBridge.instance()
+        bridge.init_default_tools()
+        skill_registry = bridge.get_skill_registry()
+        count = skill_registry.discover_skills()
+        logger.info(f"[AgentFW] Initialized: {len(bridge.get_tool_registry().list_tool_names())} tools, {count} skills")
+
+        sandbox = SandboxManager.get_instance()
+        sandbox.update_config(
+            max_execution_time_sec=30.0,
+            max_output_bytes=1024 * 1024,
+        )
+        logger.info("[AgentFW] Sandbox configured")
+    except ImportError as e:
+        logger.warning(f"[AgentFW] Not available: {e}")
+    except Exception as e:
+        logger.error(f"[AgentFW] Init error: {e}")
+
 def setup_tray_icon(app, widget):
     """设置系统托盘"""
     tray_icon = QSystemTrayIcon(app)
@@ -60,7 +89,7 @@ def setup_tray_icon(app, widget):
     quick_chat_action = QAction("💬 沉浸聊天", app)
     quick_chat_action.setToolTip("打开沉浸聊天窗口，快速与 Doro 对话")
     def open_quick_chat():
-        from src.ui.quick_chat_window import QuickChatWindow
+        from src.ui.windows.quick_chat_window import QuickChatWindow
         from src.core.quick_chat_dependencies import get_quick_chat_deps
         if not hasattr(widget, 'quick_chat_window') or not widget.quick_chat_window:
             deps = get_quick_chat_deps()
@@ -155,7 +184,7 @@ def setup_startup_update_checker(widget):
     return update_checker
 
 def show_update_dialog(widget, version_info, update_checker):
-    from src.ui.update_ui import UpdateNotificationDialog
+    from src.ui.pages.update_interface import UpdateNotificationDialog
     from src.core.version_manager import __version__
     
     main_window = None
@@ -193,6 +222,9 @@ def check_and_create_shortcut_async():
 
 def main():
     app = QApplication(sys.argv)
+    from qfluentwidgets import setThemeColor
+    from src.core.app_theme import THEME_COLOR
+    setThemeColor(THEME_COLOR)
     # 显示启动画面（立即显示，让用户知道程序正在启动）
     splash = SplashScreen()
     splash.show()
@@ -220,6 +252,10 @@ def main():
     # Initialize Provider Framework
     splash.set_status("正在初始化 Provider 框架...")
     init_provider_framework()
+
+    # Initialize Agent Framework
+    splash.set_status("正在初始化 Agent 框架...")
+    init_agent_framework()
 
     # Load light.qss
     qss_path = resource_path("themes/light.qss")

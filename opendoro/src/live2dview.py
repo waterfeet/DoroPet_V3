@@ -15,7 +15,7 @@ from src.resource_utils import resource_path
 from qfluentwidgets import isDarkTheme
 from src.core.pet_attributes_manager import PetAttributesManager
 from src.core.pet_constants import ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS
-from src.ui.pet_status_overlay import PetStatusOverlay
+from src.ui.windows.pet_status_overlay import PetStatusOverlay
 from src.core.mouse_chaser import MouseChaser
 from src.core.random_wanderer import RandomWanderer
 
@@ -694,7 +694,7 @@ class Live2DWidget(QOpenGLWidget):
         quick_chat_action = QAction("💬 沉浸聊天", self)
         quick_chat_action.setToolTip("打开沉浸聊天窗口，快速与 Doro 对话")
         def open_quick_chat():
-            from src.ui.quick_chat_window import QuickChatWindow
+            from src.ui.windows.quick_chat_window import QuickChatWindow
             from src.core.database import DatabaseManager
             if not hasattr(self, 'quick_chat_window') or not self.quick_chat_window:
                 db_manager = DatabaseManager()

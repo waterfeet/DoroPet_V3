@@ -132,11 +132,7 @@ class LLMWorker(QThread):
             filtered_tools.append(tool)
         
         skill_schemas = self.skill_manager.get_tool_schemas()
-        enabled_skill_names = [k.replace("skill:", "") for k in self.enabled_plugins if k.startswith("skill:")]
-        for skill_schema in skill_schemas:
-            skill_name = skill_schema["function"]["name"]
-            if skill_name in enabled_skill_names:
-                filtered_tools.append(skill_schema)
+        filtered_tools.extend(skill_schemas)
         
         api_params = {
             "model": self.model,
@@ -455,7 +451,14 @@ class LLMWorker(QThread):
             call_type = "skill" if is_skill_call else "tool"
             
             if is_skill_call:
-                skill_enabled = f"skill:{func_name}" in self.enabled_plugins
+                skill_enabled = True
+                try:
+                    from src.agent.skills.state import SkillEnabledState
+                    state = SkillEnabledState.get_instance()
+                    skill_enabled = state.is_enabled(func_name)
+                except ImportError:
+                    skill_enabled = f"skill:{func_name}" in self.enabled_plugins
+
                 if not skill_enabled:
                     logger.warning(f"[LLMWorker] Skill '{func_name}' is disabled, skipping execution")
                     tool_result = json.dumps({"status": "error", "message": f"技能 '{func_name}' 已禁用，请在工具菜单中启用后再使用。"})
@@ -514,7 +517,26 @@ class LLMWorker(QThread):
                         "content": tool_result
                     })
                     continue
-                if func_name in AVAILABLE_TOOLS:
+                agent_result = None
+                try:
+                    from src.core.agent_tools import execute_tool_via_agent, is_new_agent_available
+                    if is_new_agent_available():
+                        agent_result = execute_tool_via_agent(func_name, func_args)
+                except Exception:
+                    pass
+
+                if agent_result is not None:
+                    tool_result = agent_result
+                    try:
+                        res_json = json.loads(tool_result)
+                        if func_name == "generate_image" and res_json.get("status") == "success":
+                            data = res_json.get("data", {})
+                            image_path = data.get("image_path") if isinstance(data, dict) else res_json.get("image_path")
+                            if image_path:
+                                self.generated_images.append(image_path)
+                    except json.JSONDecodeError:
+                        pass
+                elif func_name in AVAILABLE_TOOLS:
                     func = AVAILABLE_TOOLS[func_name]
                     
                     if func_name == "set_expression":

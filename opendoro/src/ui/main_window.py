@@ -7,27 +7,28 @@ from PyQt5.QtGui import QIcon, QDesktopServices
 
 from qfluentwidgets import (FluentWindow, NavigationItemPosition, FluentTranslator, 
                             NavigationAvatarWidget, SplashScreen, TransparentToolButton,
-                            setTheme, Theme, isDarkTheme)
+                            setTheme, Theme, isDarkTheme, setThemeColor)
 from qfluentwidgets import FluentIcon as FIF
 
 # 导入子界面
-from .chat_ui import ChatInterface
-from .config_ui import ConfigInterface
-from .settings_ui import SettingsInterface
-from .prompt_ui import PromptInterface
-from .log_ui import LogInterface
-from .voice_config_ui import VoiceConfigInterface
-from .plugin_ui import PluginInterface
-from .skills_ui import SkillsInterface
-from .update_ui import UpdateInterface
-from .pet_status_interface import PetStatusInterface
-from .live2d_config_ui import Live2DConfigInterface
-from .music_ui import MusicInterface
+from .pages.chat_interface import ChatInterface
+from .pages.config_interface import ConfigInterface
+from .pages.settings_interface import SettingsInterface
+from .pages.prompt_interface import PromptInterface
+from .pages.log_interface import LogInterface
+from .pages.voice_config_interface import VoiceConfigInterface
+from .pages.plugin_interface import PluginInterface
+from .pages.skills_interface import SkillsInterface
+from .pages.update_interface import UpdateInterface
+from .pages.pet_status_interface import PetStatusInterface
+from .pages.live2d_config_interface import Live2DConfigInterface
+from .music import MusicInterface
 from .galgame import GalgameInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
 from src.core.font_scale_utils import apply_font_scale
+from src.core.app_theme import THEME_COLOR
 
 class MainWindow(FluentWindow):
     def __init__(self, version_manager=None):
@@ -67,7 +68,7 @@ class MainWindow(FluentWindow):
         # 5. 初始化标题栏功能 (置顶、主题切换)
         self.init_title_bar()
         
-        # 初始化加载主题
+        setThemeColor(THEME_COLOR)
         if isDarkTheme():
             setTheme(Theme.DARK)
             self.load_stylesheet(resource_path("themes/dark.qss"))
@@ -164,6 +165,7 @@ class MainWindow(FluentWindow):
         self.switchTo(self.music_interface)
 
     def toggle_theme(self):
+        setThemeColor(THEME_COLOR)
         if isDarkTheme():
             logger.info("Switching to Light theme.")
             setTheme(Theme.LIGHT)
@@ -194,7 +196,10 @@ class MainWindow(FluentWindow):
         
         if hasattr(self, 'galgame_interface'):
             self.galgame_interface.update_theme()
-        
+
+        if hasattr(self, 'skills_interface'):
+            self.skills_interface.update_theme()
+
         if hasattr(self, 'live2d_widget') and hasattr(self.live2d_widget, 'quick_chat_window'):
             if self.live2d_widget.quick_chat_window:
                 self.live2d_widget.quick_chat_window.update_theme()

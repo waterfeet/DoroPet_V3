@@ -8,7 +8,7 @@ from qfluentwidgets import (ScrollArea, PlainTextEdit, PrimaryPushButton, PushBu
                             SubtitleLabel, ComboBox)
 from src.core.database import ChatDatabase
 from src.core.live2d_model_manager import Live2DModelManager, Live2DModelInfo
-from src.ui.model_selector_dialog import ModelSelectorDialog
+from src.ui.widgets.model_selector_dialog import ModelSelectorDialog
 from src.resource_utils import resource_path
 from src.core.logger import logger
 

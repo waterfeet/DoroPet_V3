@@ -329,7 +329,7 @@ class QuickMessageBubble(QFrame):
                     if isinstance(img_url, dict):
                         img_url = img_url.get('url', '')
                     if img_url:
-                        from src.ui.chat_ui import NetworkImageLabel
+                        from src.ui.pages.chat_interface import NetworkImageLabel
                         img_label = NetworkImageLabel(img_url, None, max_width=400)
                         self.container_layout.addWidget(img_label)
             return
@@ -374,7 +374,7 @@ class QuickMessageBubble(QFrame):
             elif block.is_image():
                 img_url = block.image_url
                 if img_url:
-                    from src.ui.chat_ui import NetworkImageLabel
+                    from src.ui.pages.chat_interface import NetworkImageLabel
                     img_label = NetworkImageLabel(img_url, content_container, max_width=400)
                     content_layout.addWidget(img_label)
             else:
@@ -1117,7 +1117,7 @@ class QuickChatWindow(QWidget):
 
     def start_capture_tool(self):
         try:
-            from src.ui.screenshot_tool import ScreenCaptureTool
+            from src.ui.widgets.screenshot_tool import ScreenCaptureTool
             self.capture_tool = ScreenCaptureTool()
             self.capture_tool.screenshot_captured.connect(self.on_screenshot_captured)
             self.capture_tool.canceled.connect(self.on_screenshot_canceled)
@@ -2067,4 +2067,3 @@ class QuickChatWindow(QWidget):
         event.ignore()
 
 
-from .quick_chat_window import QuickChatWindow

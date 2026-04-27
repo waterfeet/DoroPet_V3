@@ -32,7 +32,10 @@ from src.core.skill_manager import SkillManager
 from src.core.state_manager import StateManager, GenerationState, ConnectionState
 from src.resource_utils import resource_path
 from src.core.logger import logger
-from src.ui.screenshot_tool import ScreenCaptureTool
+from src.ui.widgets.screenshot_tool import ScreenCaptureTool
+from src.ui.widgets.attachment_widgets import AttachmentInputBar, AttachmentCard, InlinePreviewPanel
+from src.core.attachments import AttachmentStorage
+from src.core.attachments.models import AttachmentInfo
 from src.core.pet_constants import ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY, ATTR_NAMES
 
 # ---------------------------------------------------------
@@ -1227,13 +1230,14 @@ class MessageBubble(QFrame):
     PLAYBACK_PLAYING = 1
     PLAYBACK_PAUSED = 2
     
-    def __init__(self, role, content, msg_id, parent_window=None, images=None, sibling_ids=None, current_index=0, is_active=True, model=None):
+    def __init__(self, role, content, msg_id, parent_window=None, images=None, sibling_ids=None, current_index=0, is_active=True, model=None, attachments=None):
         super().__init__()
         self.role = role.lower() if role else "user"
         self.content = content
         self.msg_id = msg_id
         self.parent_window = parent_window
         self.images = images or []
+        self.attachments = attachments or []
         self.sibling_ids = sibling_ids or []
         self.current_index = current_index
         self.is_active = is_active
@@ -1297,6 +1301,63 @@ class MessageBubble(QFrame):
                     img_layout.addWidget(lbl_err)
             
             self.container_layout.addWidget(img_content)
+
+        # --- Display Attachments ---
+        if self.attachments:
+            att_container = QWidget()
+            att_container.setObjectName("messageAttachmentContainer")
+            att_layout = QVBoxLayout(att_container)
+            att_layout.setContentsMargins(0, 0, 0, 0)
+            att_layout.setSpacing(4)
+
+            for att in self.attachments:
+                if isinstance(att, dict):
+                    from src.core.attachments.models import AttachmentInfo
+                    info = AttachmentInfo.from_dict(att)
+                else:
+                    info = att
+
+                card = QFrame()
+                card.setStyleSheet(
+                    f"QFrame {{ background: #F8F9FA; border: 1px solid #E0E0E0; "
+                    f"border-radius: 6px; }} QFrame:hover {{ background: #F0F1F3; }}"
+                )
+                card.setCursor(Qt.PointingHandCursor)
+                card.setFixedHeight(40)
+                card_layout = QHBoxLayout(card)
+                card_layout.setContentsMargins(8, 4, 8, 4)
+                card_layout.setSpacing(6)
+
+                icon_label = QLabel(info.icon)
+                icon_label.setStyleSheet("font-size: 14px;background: transparent;border: none;")
+                card_layout.addWidget(icon_label)
+
+                name_label = QLabel(info.file_name)
+                name_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #333;background: transparent;border: none;")
+                card_layout.addWidget(name_label)
+
+                card_layout.addStretch()
+
+                size_label = QLabel(info.size_display)
+                size_label.setStyleSheet("font-size: 10px; color: #999;background: transparent;border: none;")
+                card_layout.addWidget(size_label)
+
+                if hasattr(info, 'extraction_method') and info.extraction_method != "none":
+                    status_labels = {
+                        "full": "✅",
+                        "truncated": "📋",
+                        "failed": "⚠",
+                    }
+                    status_icon = status_labels.get(info.extraction_method, "")
+                    if status_icon:
+                        sl = QLabel(status_icon)
+                        sl.setStyleSheet("font-size: 12px;background: transparent;border: none;")
+                        sl.setToolTip(f"提取状态: {info.extraction_method}")
+                        card_layout.addWidget(sl)
+
+                att_layout.addWidget(card)
+
+            self.container_layout.addWidget(att_container)
 
         # Parse content using MessageParser for more robust block separation
         from src.core.message_parser import MessageParser, ContentType
@@ -1627,6 +1688,7 @@ class MessageBubble(QFrame):
 
 class PasteableTextEdit(TextEdit):
     imagePasted = pyqtSignal(str)
+    filesDropped = pyqtSignal(list)
 
     def canInsertFromMimeData(self, source):
         if source.hasImage():
@@ -1638,20 +1700,23 @@ class PasteableTextEdit(TextEdit):
                     ext = os.path.splitext(path)[1].lower()
                     if ext in ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp']:
                         return True
+                    if ext in ('.docx', '.xlsx', '.xls', '.csv', '.pdf', '.pptx', '.ppt',
+                               '.txt', '.log', '.md', '.json', '.xml', '.yaml', '.yml',
+                               '.html', '.htm', '.py', '.js', '.ts', '.java', '.c', '.cpp',
+                               '.h', '.go', '.rs', '.zip', '.tar', '.gz'):
+                        return True
         return super().canInsertFromMimeData(source)
 
     def insertFromMimeData(self, source):
         if source.hasImage():
             image = source.imageData()
             if image:
-                # Handle QVariant wrapper if present
                 try:
                     if hasattr(image, 'value'): 
                         image = image.value()
                 except:
                     pass
                 
-                # Convert QPixmap to QImage if necessary
                 if isinstance(image, QPixmap):
                     image = image.toImage()
                 
@@ -1670,16 +1735,25 @@ class PasteableTextEdit(TextEdit):
                         logger.error(f"Error saving pasted image: {e}")
         
         if source.hasUrls():
-            has_images = False
+            image_paths = []
+            file_paths = []
+            image_exts = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp'}
             for url in source.urls():
                 if url.isLocalFile():
                     path = url.toLocalFile()
                     ext = os.path.splitext(path)[1].lower()
-                    if ext in ['.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp']:
-                        self.imagePasted.emit(path)
-                        has_images = True
-            
-            if has_images:
+                    if ext in image_exts:
+                        image_paths.append(path)
+                    elif os.path.isfile(path):
+                        file_paths.append(path)
+
+            for img_path in image_paths:
+                self.imagePasted.emit(img_path)
+
+            if file_paths:
+                self.filesDropped.emit(file_paths)
+
+            if image_paths or file_paths:
                 return
 
         super().insertFromMimeData(source)
@@ -1862,6 +1936,7 @@ class ChatInterface(QWidget):
         # 上方：文本输入框
         self.input_text = PasteableTextEdit(right_panel)
         self.input_text.imagePasted.connect(self.on_image_pasted)
+        self.input_text.filesDropped.connect(self._on_files_added)
         self.input_text.setFixedHeight(80)
         self.input_text.setPlaceholderText("请输入内容...")
         
@@ -1925,6 +2000,11 @@ class ChatInterface(QWidget):
         bottom_toolbar_layout.addWidget(self.btn_send)
         
         # 将文本框和工具栏加入主输入容器
+        self.attachment_bar = AttachmentInputBar(right_panel)
+        self.attachment_bar.files_added.connect(self._on_files_added)
+        self.attachment_bar.attachment_clicked.connect(self._on_attachment_clicked)
+        self.attachment_bar.attachment_removed.connect(self._on_attachment_removed)
+        input_container_layout.addWidget(self.attachment_bar)
         input_container_layout.addWidget(self.input_text)
         input_container_layout.addLayout(bottom_toolbar_layout)
 
@@ -2198,6 +2278,11 @@ class ChatInterface(QWidget):
         self.skill_states[skill_name] = checked
         settings = QSettings("DoroPet", "Settings")
         settings.setValue(f"skill_{skill_name}_enabled", checked)
+        try:
+            from src.agent.skills.state import SkillEnabledState
+            SkillEnabledState.get_instance().set_enabled(skill_name, checked)
+        except ImportError:
+            pass
         self.update_tools_button_icon()
         
     def update_tools_button_icon(self):
@@ -2405,8 +2490,10 @@ class ChatInterface(QWidget):
 
         messages = self.db.get_messages(self.current_session_id)
         for msg_data in messages:
-            # Unpack based on length to support legacy code if needed, but db returns 10 items now
-            if len(msg_data) >= 10:
+            attachments = []
+            if len(msg_data) >= 11:
+                msg_id, role, content, images, parent_id, sibling_ids, current_index, model, reasoning, tool_calls, attachments = msg_data[:11]
+            elif len(msg_data) >= 10:
                 msg_id, role, content, images, parent_id, sibling_ids, current_index, model, reasoning, tool_calls = msg_data[:10]
             elif len(msg_data) >= 9:
                 msg_id, role, content, images, parent_id, sibling_ids, current_index, model, reasoning = msg_data[:9]
@@ -2421,13 +2508,14 @@ class ChatInterface(QWidget):
                 reasoning = None
                 tool_calls = None
             else:
-                # Fallback
                 msg_id, role, content, images = msg_data[:4]
                 sibling_ids = []
                 current_index = 0
                 model = None
                 reasoning = None
                 tool_calls = None
+            if attachments is None:
+                attachments = []
             
             # Check for multiple branches (siblings)
             if len(sibling_ids) > 1:
@@ -2438,8 +2526,11 @@ class ChatInterface(QWidget):
                 container = BranchContainer()
                 
                 for s_row in siblings_data:
-                    # Unpack: id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls
-                    if len(s_row) >= 10:
+                    # Unpack: id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls, attachments
+                    s_attachments_str = None
+                    if len(s_row) >= 11:
+                        s_id, s_role, s_content, s_images_str, s_parent_id, s_is_active, s_ts, s_model, s_reasoning, s_tool_calls, s_attachments_str = s_row[:11]
+                    elif len(s_row) >= 10:
                         s_id, s_role, s_content, s_images_str, s_parent_id, s_is_active, s_ts, s_model, s_reasoning, s_tool_calls = s_row[:10]
                     elif len(s_row) >= 9:
                         s_id, s_role, s_content, s_images_str, s_parent_id, s_is_active, s_ts, s_model, s_reasoning = s_row[:9]
@@ -2461,6 +2552,14 @@ class ChatInterface(QWidget):
                              s_images = json.loads(s_images_str)
                          except:
                              pass
+                    
+                    # Parse attachments for sibling
+                    s_attachments = []
+                    if s_attachments_str:
+                        try:
+                            s_attachments = json.loads(s_attachments_str)
+                        except:
+                            pass
                     
                     # Calculate index
                     try:
@@ -2486,7 +2585,7 @@ class ChatInterface(QWidget):
 
                     # Create bubble
                     # Note: s_is_active is 1 or 0 from DB
-                    bubble = MessageBubble(s_role, s_content, s_id, self, s_images, sibling_ids, s_index, is_active=(s_is_active==1), model=s_model)
+                    bubble = MessageBubble(s_role, s_content, s_id, self, s_images, sibling_ids, s_index, is_active=(s_is_active==1), model=s_model, attachments=s_attachments)
                     bubble.delete_requested.connect(self.delete_message)
                     bubble.regenerate_requested.connect(self.regenerate_message)
                     bubble.speak_requested.connect(self.speak_message)
@@ -2500,7 +2599,7 @@ class ChatInterface(QWidget):
                 
                 self.chat_layout.addWidget(container)
             else:
-                self.add_message_to_ui(role, content, msg_id, images, sibling_ids, current_index, model=model, reasoning=reasoning, tool_calls=tool_calls)
+                self.add_message_to_ui(role, content, msg_id, images, sibling_ids, current_index, model=model, reasoning=reasoning, tool_calls=tool_calls, attachments=attachments)
 
         
         self.chat_layout.addStretch()
@@ -2699,7 +2798,7 @@ class ChatInterface(QWidget):
                     return widget
         return None
 
-    def add_message_to_ui(self, role, content, msg_id, images=None, sibling_ids=None, current_index=0, model=None, reasoning=None, tool_calls=None):
+    def add_message_to_ui(self, role, content, msg_id, images=None, sibling_ids=None, current_index=0, model=None, reasoning=None, tool_calls=None, attachments=None):
         if role == "assistant" and (reasoning or tool_calls):
             exec_widget = ToolExecutionWidget(self)
             if reasoning:
@@ -2727,7 +2826,7 @@ class ChatInterface(QWidget):
             if not inserted_exec:
                 self.chat_layout.addWidget(exec_widget)
 
-        bubble = MessageBubble(role, content, msg_id, self, images, sibling_ids, current_index, model=model)
+        bubble = MessageBubble(role, content, msg_id, self, images, sibling_ids, current_index, model=model, attachments=attachments)
         
         bubble.delete_requested.connect(self.delete_message)
         bubble.regenerate_requested.connect(self.regenerate_message)
@@ -2990,28 +3089,124 @@ class ChatInterface(QWidget):
 
     def send_message(self):
         user_input = self.input_text.toPlainText().strip()
-        if (not user_input and not self.selected_images) or not self.current_session_id:
+        has_images = bool(self.selected_images)
+        has_attachments = bool(self.attachment_bar.get_attachments())
+        if (not user_input and not has_images and not has_attachments) or not self.current_session_id:
             return
         
-        # Log the full user message
         logger.info(f"User sent: {user_input}")
         
         stretch_item = self.chat_layout.takeAt(self.chat_layout.count() - 1)
 
         images = list(self.selected_images)
-        msg_id = self.db.add_message(self.current_session_id, "user", user_input, images)
-        self.add_message_to_ui("user", user_input, msg_id, images)
+        attachments = [
+            info.to_dict() for info in self.attachment_bar.get_attachments()
+        ] if has_attachments else None
+        
+        msg_id = self.db.add_message(self.current_session_id, "user", user_input, images, attachments=attachments)
+        self.add_message_to_ui("user", user_input, msg_id, images, attachments=attachments)
         
         if stretch_item: self.chat_layout.addItem(stretch_item)
         
         self.input_text.clear()
         self.selected_images = []
+        self.attachment_bar.clear()
         self.update_image_preview()
         
         QApplication.processEvents()
         self.scroll_to_bottom()
 
         self.trigger_llm_generation()
+
+    def _on_files_added(self, file_paths: list):
+        from src.core.attachments.pipeline import get_pipeline
+        from src.core.attachments.models import MAX_FILE_SIZE
+        pipeline = get_pipeline()
+        supported_exts = set(pipeline.get_supported_extensions())
+
+        unsupported = []
+        too_large = []
+        supported_paths = []
+        for path in file_paths:
+            ext = os.path.splitext(path)[1].lower().lstrip(".")
+            if ext not in supported_exts:
+                unsupported.append(path)
+                continue
+            try:
+                file_size = os.path.getsize(path)
+            except OSError:
+                unsupported.append(path)
+                continue
+            if file_size > MAX_FILE_SIZE:
+                too_large.append(path)
+                continue
+            supported_paths.append(path)
+
+        if unsupported:
+            names = ", ".join(os.path.basename(p) for p in unsupported)
+            InfoBar.warning(
+                title="不支持的文件类型",
+                content=f"以下文件暂不支持：{names}",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=5000, parent=self
+            )
+
+        if too_large:
+            names = ", ".join(
+                f"{os.path.basename(p)}（{os.path.getsize(p) / (1024*1024):.1f}MB）"
+                for p in too_large
+            )
+            InfoBar.warning(
+                title="文件过大",
+                content=f"超过 {MAX_FILE_SIZE / (1024*1024):.0f}MB 限制：{names}\n请使用技能处理大文件。",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=5000, parent=self
+            )
+
+        storage = AttachmentStorage.get_instance()
+        for path in supported_paths:
+            try:
+                info = storage.store_without_extract(path)
+                info.extraction_method = "extracting"
+                self.attachment_bar.add_attachment(info)
+                QApplication.processEvents()
+
+                result = pipeline.extract(info.file_path)
+                storage.apply_extract_by_id(info.id, result)
+                info.extraction_method = result.method
+                info.extracted_text = result.text
+                info.token_count = result.token_estimate
+                self.attachment_bar.update_attachment_status(info.id, info)
+            except OSError as e:
+                logger.error(f"Failed to add file {path}: {e}")
+                InfoBar.error(
+                    title="添加失败",
+                    content=f"无法添加文件: {os.path.basename(path)}",
+                    orient=Qt.Horizontal, isClosable=True,
+                    position=InfoBarPosition.TOP, duration=3000, parent=self
+                )
+            except Exception as e:
+                logger.error(f"Unexpected error adding file {path}: {e}")
+
+    def _on_attachment_clicked(self, attachment_id: str):
+        info = None
+        for a in self.attachment_bar.get_attachments():
+            if a.id == attachment_id:
+                info = a
+                break
+        if info:
+            panel = InlinePreviewPanel(info, self)
+            btn = self.attachment_bar.findChild(AttachmentCard)
+            if btn:
+                pos = btn.mapToGlobal(btn.rect().topLeft())
+                panel.move(pos.x(), pos.y() - panel.height())
+            else:
+                panel.move(self.mapToGlobal(self.rect().center()) - panel.rect().center())
+            panel.show()
+
+    def _on_attachment_removed(self, attachment_id: str):
+        storage = AttachmentStorage.get_instance()
+        storage.delete(attachment_id)
 
     def encode_image(self, image_path):
         try:
@@ -3214,7 +3409,6 @@ class ChatInterface(QWidget):
 
         has_images = False
         for msg_data in db_msgs:
-            # Unpack safely (support both 4 and 7 items)
             if len(msg_data) >= 4:
                 role = msg_data[1]
                 content = msg_data[2]
@@ -3222,13 +3416,33 @@ class ChatInterface(QWidget):
             else:
                 continue
 
+            attachments_json = msg_data[10] if len(msg_data) >= 11 and msg_data[10] else None
+            attachment_texts = []
+            if attachments_json:
+                try:
+                    atts = json.loads(attachments_json) if isinstance(attachments_json, str) else attachments_json
+                    for a in atts:
+                        ext_text = (a.get("extracted_text") or "").strip()
+                        if ext_text:
+                            fname = a.get("file_name", "unknown")
+                            ftype = a.get("file_type", "")
+                            attachment_texts.append(
+                                f"文件 {fname} 的内容如下：\n\n{ext_text}\n\n--- 文件结束 ---"
+                            )
+                except Exception:
+                    pass
+
+            full_content = content
+            if attachment_texts:
+                full_content = "以下是用户提供的文件附件内容：\n\n" + "\n\n".join(attachment_texts) + "\n\n用户消息：" + (content or "(无文本)")
+
             if not images:
-                history.append({"role": role, "content": content})
+                history.append({"role": role, "content": full_content})
             else:
                 has_images = True
                 content_list = []
-                if content:
-                    content_list.append({"type": "text", "text": content})
+                if full_content:
+                    content_list.append({"type": "text", "text": full_content})
                 for img_path in images:
                     if img_path and os.path.exists(img_path):
                         file_uri = pathlib.Path(img_path).as_uri()

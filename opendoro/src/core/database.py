@@ -59,6 +59,7 @@ class ChatDatabase(BaseDatabase):
                             role TEXT,
                             content TEXT,
                             images TEXT,
+                            attachments TEXT,
                             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                             parent_id INTEGER,
                             is_active INTEGER DEFAULT 1,
@@ -85,6 +86,8 @@ class ChatDatabase(BaseDatabase):
             cursor.execute("ALTER TABLE messages ADD COLUMN tool_calls TEXT")
         if 'model' not in columns:
             cursor.execute("ALTER TABLE messages ADD COLUMN model TEXT")
+        if 'attachments' not in columns:
+            cursor.execute("ALTER TABLE messages ADD COLUMN attachments TEXT")
         
         self.conn.commit()
 
@@ -128,10 +131,11 @@ class ChatDatabase(BaseDatabase):
         cursor.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         self.conn.commit()
 
-    def add_message(self, session_id, role, content, images=None, parent_id=None, model=None, reasoning=None, tool_calls=None):
+    def add_message(self, session_id, role, content, images=None, parent_id=None, model=None, reasoning=None, tool_calls=None, attachments=None):
         cursor = self.conn.cursor()
         images_json = json.dumps(images) if images else None
         tool_calls_json = json.dumps(tool_calls) if tool_calls else None
+        attachments_json = json.dumps(attachments, ensure_ascii=False) if attachments else None
         
         if parent_id is None:
             cursor.execute("SELECT id FROM messages WHERE session_id=? AND is_active=1 ORDER BY timestamp DESC, id DESC LIMIT 1", (session_id,))
@@ -142,8 +146,8 @@ class ChatDatabase(BaseDatabase):
         if parent_id is not None:
             cursor.execute("UPDATE messages SET is_active=0 WHERE parent_id=?", (parent_id,))
         
-        cursor.execute("INSERT INTO messages (session_id, role, content, images, parent_id, is_active, model, reasoning, tool_calls) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)", 
-                       (session_id, role, content, images_json, parent_id, model, reasoning, tool_calls_json))
+        cursor.execute("INSERT INTO messages (session_id, role, content, images, attachments, parent_id, is_active, model, reasoning, tool_calls) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)", 
+                       (session_id, role, content, images_json, attachments_json, parent_id, model, reasoning, tool_calls_json))
         self.conn.commit()
         return cursor.lastrowid
 
@@ -152,12 +156,12 @@ class ChatDatabase(BaseDatabase):
             return []
         cursor = self.conn.cursor()
         placeholders = ','.join(['?'] * len(msg_ids))
-        cursor.execute(f"SELECT id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls FROM messages WHERE id IN ({placeholders}) ORDER BY id ASC", msg_ids)
+        cursor.execute(f"SELECT id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls, attachments FROM messages WHERE id IN ({placeholders}) ORDER BY id ASC", msg_ids)
         return cursor.fetchall()
 
     def get_messages(self, session_id):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls FROM messages WHERE session_id=? ORDER BY timestamp ASC, id ASC", (session_id,))
+        cursor.execute("SELECT id, role, content, images, parent_id, is_active, timestamp, model, reasoning, tool_calls, attachments FROM messages WHERE session_id=? ORDER BY timestamp ASC, id ASC", (session_id,))
         rows = cursor.fetchall()
         
         if not rows:
@@ -212,8 +216,14 @@ class ChatDatabase(BaseDatabase):
             model = current[7] if len(current) > 7 else None
             reasoning = current[8] if len(current) > 8 else None
             tool_calls = current[9] if len(current) > 9 else None
+            attachments = []
+            if len(current) > 10 and current[10]:
+                try:
+                    attachments = json.loads(current[10])
+                except:
+                    attachments = []
             
-            active_path.append((current[0], current[1], current[2], images, current[4], sibling_ids, current_index, model, reasoning, tool_calls))
+            active_path.append((current[0], current[1], current[2], images, current[4], sibling_ids, current_index, model, reasoning, tool_calls, attachments))
             
             children = parent_to_children.get(current[0], [])
             next_node = None

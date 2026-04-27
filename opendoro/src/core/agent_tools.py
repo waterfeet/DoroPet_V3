@@ -1447,19 +1447,131 @@ def get_dynamic_skill_schemas():
 def get_all_tool_schemas():
     """
     Returns all tool schemas including static tools and dynamic skills.
+    Uses the new Agent framework when available, falls back to legacy.
     """
+    try:
+        from src.agent.doropet_agent import AgentBridge
+        bridge = AgentBridge.instance()
+        bridge.init_default_tools()
+        skill_registry = bridge.get_skill_registry()
+        if not skill_registry._skills:
+            skill_registry.discover_skills()
+
+        legacy_desc = _get_skill_manager().get_all_skill_descriptions()
+        for name, desc in legacy_desc.items():
+            if name not in skill_registry._skills:
+                pass
+
+        schemas = bridge.get_tool_schemas()
+        if schemas:
+            return schemas
+    except ImportError:
+        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("DoroPet").debug(f"[AgentTools] New framework fallback: {e}")
+
     return TOOLS_SCHEMA + get_dynamic_skill_schemas()
 
 def execute_skill(skill_name, **kwargs):
     """
     Executes a dynamically loaded skill.
+    Uses the new Agent framework when available, falls back to legacy.
     """
+    try:
+        from src.agent.doropet_agent import AgentBridge
+        bridge = AgentBridge.instance()
+        result = bridge.execute_skill(skill_name, **kwargs)
+        if result:
+            return result
+    except ImportError:
+        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("DoroPet").debug(f"[AgentTools] Skill execution fallback: {e}")
+
     manager = _get_skill_manager()
     return manager.execute_skill(skill_name, **kwargs)
 
 def get_skill_descriptions():
     """
     Returns a dict of skill names to descriptions for context injection.
+    Uses the new Agent framework when available, falls back to legacy.
     """
+    try:
+        from src.agent.doropet_agent import AgentBridge
+        bridge = AgentBridge.instance()
+        skill_registry = bridge.get_skill_registry()
+        if skill_registry._skills:
+            return skill_registry.get_descriptions()
+    except ImportError:
+        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("DoroPet").debug(f"[AgentTools] Skill desc fallback: {e}")
+
     manager = _get_skill_manager()
     return manager.get_all_skill_descriptions()
+
+
+_agent_registry = None
+
+
+def get_agent_tool_registry():
+    global _agent_registry
+    if _agent_registry is None:
+        try:
+            from src.agent.core.tool import ToolRegistry
+            _agent_registry = ToolRegistry.get_instance()
+            if not _agent_registry.list_tool_names():
+                from src.agent.tools import register_all_tools
+                register_all_tools(_agent_registry)
+        except ImportError:
+            _agent_registry = None
+    return _agent_registry
+
+
+def execute_tool_via_agent(tool_name, tool_args, context=None):
+    registry = get_agent_tool_registry()
+    if registry is None or tool_name not in registry.list_tool_names():
+        return None
+
+    tool = registry.get(tool_name)
+    if tool is None:
+        return None
+
+    from src.agent.core.context import ToolCallContext
+    call_ctx = ToolCallContext(
+        tool_name=tool_name,
+        arguments=tool_args,
+        call_id=f"call_{id(tool_args)}",
+    )
+
+    try:
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    lambda: asyncio.run(tool.execute(call_ctx, **tool_args))
+                )
+                result = future.result(timeout=60)
+        else:
+            result = loop.run_until_complete(tool.execute(call_ctx, **tool_args))
+    except RuntimeError:
+        result = asyncio.run(tool.execute(call_ctx, **tool_args))
+
+    if result:
+        return result.to_json()
+
+    return None
+
+
+def is_new_agent_available() -> bool:
+    return get_agent_tool_registry() is not None

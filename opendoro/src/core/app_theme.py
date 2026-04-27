@@ -1,0 +1,1 @@
+THEME_COLOR = "#EB99B4"
