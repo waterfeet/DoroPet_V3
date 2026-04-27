@@ -1,2 +1,0 @@
-[console_scripts]
-puremagic = puremagic.main:command_line_entry
