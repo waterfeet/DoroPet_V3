@@ -774,6 +774,8 @@ set "TARGET={self.project_root}"
 
 timeout /t 3 /nobreak >nul
 
+if exist "%TARGET%\\src\\skills" rmdir /s /q "%TARGET%\\src\\skills" >nul 2>&1
+
 xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I /Q >nul 2>&1
 
 if %errorlevel% neq 0 (
@@ -849,6 +851,8 @@ set "TARGET={target_dir}"
 
 timeout /t 2 /nobreak >nul
 
+if exist "%TARGET%\\src\\skills" rmdir /s /q "%TARGET%\\src\\skills" >nul 2>&1
+
 xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I /Q >nul 2>&1
 
 if %errorlevel% neq 0 (
@@ -872,6 +876,9 @@ set "TARGET={target_dir}"
 
 echo 正在等待程序退出...
 timeout /t 2 /nobreak >nul
+
+echo 正在清理旧技能文件...
+if exist "%TARGET%\\src\\skills" rmdir /s /q "%TARGET%\\src\\skills"
 
 echo 正在复制文件...
 xcopy "%SOURCE%\\*" "%TARGET%\\" /E /Y /I
