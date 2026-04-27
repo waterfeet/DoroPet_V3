@@ -68,7 +68,7 @@ try:
     import vlc as vlc_module
     vlc = vlc_module
     
-    test_instance = vlc.Instance()
+    test_instance = vlc.Instance('--stereo-mode=1')
     if test_instance:
         test_instance.release()
         VLC_AVAILABLE = True
@@ -87,8 +87,14 @@ class VLCMusicPlayer:
         if not VLC_AVAILABLE:
             raise RuntimeError("VLC not available")
         
-        self.instance = vlc.Instance()
+        self.instance = vlc.Instance('--stereo-mode=1')
         self.player = self.instance.media_player_new()
+
+        if hasattr(self.player, 'audio_set_channel'):
+            try:
+                self.player.audio_set_channel(1)
+            except Exception:
+                pass
         
         self._volume = 100
         self._is_playing = False
@@ -125,7 +131,13 @@ class VLCMusicPlayer:
         time.sleep(0.1)
         
         self.player.audio_set_volume(self._volume)
-        
+
+        if hasattr(self.player, 'audio_set_channel'):
+            try:
+                self.player.audio_set_channel(1)
+            except Exception:
+                pass
+
         self._duration = self.player.get_length()
         
         self._update_timer.start(100)

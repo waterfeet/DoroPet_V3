@@ -6,7 +6,7 @@ from PyQt5.QtCore import (Qt, QTimer, QUrl, pyqtSignal, QSize, QEvent,
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSlider,
                              QFrame, QScrollArea, QLineEdit, QPushButton, QComboBox, QSpinBox,
                              QListWidget, QListWidgetItem, QAbstractItemView, QMenu, QAction,
-                             QInputDialog, QMessageBox, QStackedWidget)
+                             QInputDialog, QMessageBox, QStackedWidget, QShortcut)
 from PyQt5.QtGui import (QFont, QColor, QFontMetrics, QPalette, QLinearGradient, QRadialGradient, 
                          QPainter, QPainterPath, QBrush, QPen, QPixmap, QImage)
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -27,7 +27,7 @@ from .network_manager import NetworkManager
 from .widgets import (
     VinylRecordWidget, LyricsCardWidget, SongListItemWidget, PlaylistItemWidget,
     ClickableLabel, DockablePlaylistWidget, SlidingPlayerPanel, ClickableSlider,
-    StyledProgressBar, StyledVolumeSlider, SpectrumWidget
+    StyledProgressBar, StyledVolumeSlider, SpectrumWidget, MiniSpectrumWidget
 )
 
 
@@ -135,8 +135,14 @@ class MusicInterface(ScrollArea):
         self._dockable_playlist.song_double_clicked.connect(self._on_playqueue_song_double_clicked)
         self._dockable_playlist.song_remove_clicked.connect(self._remove_from_playqueue)
         self._dockable_playlist.song_download_clicked.connect(self._on_download_from_playqueue)
+        self._dockable_playlist.clear_all_clicked.connect(self._clear_play_queue)
         self._dockable_playlist.hide()
-    
+
+        self._init_shortcuts()
+
+    def _init_shortcuts(self):
+        QShortcut(Qt.CTRL + Qt.Key_Up, self._container, self._toggle_home_view)
+        QShortcut(Qt.CTRL + Qt.Key_Down, self._container, self._toggle_home_view)
     def _init_content_area(self):
         from qfluentwidgets import SegmentedWidget
         
@@ -194,10 +200,16 @@ class MusicInterface(ScrollArea):
         self._apply_theme_to_container()
         self.progress_bar_widget.raise_()
         self.bottom_player.raise_()
+        if hasattr(self, 'expand_btn'):
+            self.expand_btn.setIcon(FIF.CHEVRON_DOWN_MED)
+            self.expand_btn.setToolTip("收起播放面板")
     
     def _on_panel_collapsed(self):
         self._is_home_visible = False
         self._update_nav_style_for_widget(self._previous_widget)
+        if hasattr(self, 'expand_btn'):
+            self.expand_btn.setIcon(FIF.CARE_UP_SOLID)
+            self.expand_btn.setToolTip("展开播放面板")
     
     def _update_nav_style_for_widget(self, widget):
         if widget == self.search_widget:
@@ -460,6 +472,34 @@ class MusicInterface(ScrollArea):
         local_header.addWidget(self.open_music_dir_btn)
         
         local_layout.addLayout(local_header)
+
+        self.local_batch_toolbar = QWidget()
+        local_batch_layout = QHBoxLayout(self.local_batch_toolbar)
+        local_batch_layout.setContentsMargins(16, 8, 16, 8)
+        local_batch_layout.setSpacing(8)
+
+        self.local_select_all_cb = CheckBox()
+        self.local_select_all_cb.setText("全选")
+        self.local_select_all_cb.stateChanged.connect(self._on_select_all_local)
+        local_batch_layout.addWidget(self.local_select_all_cb)
+
+        self.local_batch_add_queue_btn = PushButton("添加到播放列表")
+        self.local_batch_add_queue_btn.setIcon(FIF.ADD)
+        self.local_batch_add_queue_btn.clicked.connect(self._local_batch_add_to_playqueue)
+        local_batch_layout.addWidget(self.local_batch_add_queue_btn)
+
+        self.local_batch_add_playlist_btn = PushButton("添加到歌单")
+        self.local_batch_add_playlist_btn.setIcon(FIF.FOLDER_ADD)
+        self.local_batch_add_playlist_btn.clicked.connect(self._local_batch_add_to_playlist)
+        local_batch_layout.addWidget(self.local_batch_add_playlist_btn)
+
+        self.local_selected_count_label = QLabel("已选 0 首")
+        local_batch_layout.addWidget(self.local_selected_count_label)
+
+        local_batch_layout.addStretch()
+
+        local_layout.addWidget(self.local_batch_toolbar)
+        self.local_batch_toolbar.setVisible(False)
         
         self.local_music_list = ListWidget()
         self.local_music_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
@@ -599,7 +639,11 @@ class MusicInterface(ScrollArea):
         
         player_layout.addWidget(self.cover_label, 0, Qt.AlignLeft)
         player_layout.addWidget(song_info_container, 2)
-        
+
+        self._mini_spectrum = MiniSpectrumWidget()
+        self._mini_spectrum.setFixedSize(80, 20)
+        player_layout.addWidget(self._mini_spectrum, 0, Qt.AlignVCenter)
+
         self._bottom_player_drag_start_y = 0
         self._bottom_player_is_dragging = False
         self.bottom_player.installEventFilter(self)
@@ -636,7 +680,14 @@ class MusicInterface(ScrollArea):
         controls_layout.addWidget(self.prev_btn)
         controls_layout.addWidget(self.play_btn)
         controls_layout.addWidget(self.next_btn)
-        
+
+        self.expand_btn = TransparentToolButton(FIF.CARE_UP_SOLID, self)
+        self.expand_btn.setFixedSize(28, 28)
+        self.expand_btn.setToolTip("展开播放面板")
+        self.expand_btn.clicked.connect(self._toggle_home_view)
+
+        controls_layout.addWidget(self.expand_btn)
+
         player_layout.addLayout(controls_layout)
         
         volume_layout = QHBoxLayout()
@@ -1123,18 +1174,23 @@ class MusicInterface(ScrollArea):
     
     def _update_local_music_view(self):
         self.local_music_list.clear()
+        self._selected_indices["local"].clear()
         self.local_count.setText(f"{len(self._local_playlist)} 首歌曲")
-        
+
         for i, song in enumerate(self._local_playlist):
             item = QListWidgetItem()
-            widget = SongListItemWidget(song, i, i == self._current_index, show_download=False)
+            widget = SongListItemWidget(song, i, i == self._current_index, show_download=False, show_checkbox=True)
             widget.double_clicked.connect(self._on_local_music_double_clicked)
             widget.add_to_playlist_clicked.connect(self._on_add_to_playlist_from_local)
             widget.add_to_playqueue_clicked.connect(self._on_add_to_playqueue_from_local)
+            widget.selection_changed.connect(self._on_local_selection_changed)
             widget.update_theme(isDarkTheme())
             item.setSizeHint(widget.sizeHint())
             self.local_music_list.addItem(item)
             self.local_music_list.setItemWidget(item, widget)
+
+        self.local_batch_toolbar.setVisible(len(self._local_playlist) > 0)
+        self._update_local_selected_count()
     
     def _on_local_music_double_clicked(self, index: int):
         if 0 <= index < len(self._local_playlist):
@@ -1150,6 +1206,74 @@ class MusicInterface(ScrollArea):
     def _on_add_to_playlist_from_local(self, index: int):
         if 0 <= index < len(self._local_playlist):
             self._show_add_to_playlist_dialog(self._local_playlist[index])
+
+    def _on_local_selection_changed(self, index: int, selected: bool):
+        if selected:
+            self._selected_indices["local"].add(index)
+        else:
+            self._selected_indices["local"].discard(index)
+        self._update_local_selected_count()
+
+    def _on_select_all_local(self, state):
+        checked = state == Qt.Checked
+        for i in range(self.local_music_list.count()):
+            item = self.local_music_list.item(i)
+            widget = self.local_music_list.itemWidget(item)
+            if widget:
+                widget.set_selected(checked)
+
+        if checked:
+            self._selected_indices["local"] = set(range(self.local_music_list.count()))
+        else:
+            self._selected_indices["local"].clear()
+        self._update_local_selected_count()
+
+    def _update_local_selected_count(self):
+        count = len(self._selected_indices.get("local", set()))
+        self.local_selected_count_label.setText(f"已选 {count} 首")
+
+    def _local_clear_selection(self):
+        self._selected_indices["local"].clear()
+        self.local_select_all_cb.setChecked(False)
+        self._update_local_selected_count()
+
+    def _local_batch_add_to_playqueue(self):
+        selected = self._selected_indices.get("local", set()).copy()
+        if not selected:
+            QMessageBox.information(self, "提示", "请先选择歌曲")
+            return
+
+        count = len(selected)
+        for index in sorted(selected):
+            if 0 <= index < len(self._local_playlist):
+                self._add_to_play_queue(self._local_playlist[index])
+
+        self._local_clear_selection()
+        QMessageBox.information(self, "成功", f"已添加 {count} 首歌曲到播放列表")
+
+    def _local_batch_add_to_playlist(self):
+        selected = self._selected_indices.get("local", set()).copy()
+        if not selected:
+            QMessageBox.information(self, "提示", "请先选择歌曲")
+            return
+
+        if not self._playlists:
+            QMessageBox.information(self, "提示", "请先创建歌单")
+            return
+
+        playlist_names = [p.name for p in self._playlists]
+        selected_playlist, ok = QInputDialog.getItem(self, "添加到歌单", "选择歌单:", playlist_names, 0, False)
+        if ok and selected_playlist:
+            playlist = next((p for p in self._playlists if p.name == selected_playlist), None)
+            if playlist:
+                count = 0
+                for index in sorted(selected):
+                    if 0 <= index < len(self._local_playlist):
+                        self._music_service.add_to_playlist(playlist.id, self._local_playlist[index])
+                        count += 1
+                self._load_playlists()
+                self._local_clear_selection()
+                QMessageBox.information(self, "成功", f"已添加 {count} 首歌曲到歌单 '{playlist.name}'")
     
     def _on_add_to_playlist_from_playlist(self, index: int):
         if 0 <= index < len(self._playlist_songs):
@@ -1193,6 +1317,8 @@ class MusicInterface(ScrollArea):
                 self._vinyl_record.set_playing(True)
             if hasattr(self, '_spectrum_widget'):
                 self._spectrum_widget.set_playing(True)
+            if hasattr(self, '_mini_spectrum'):
+                self._mini_spectrum.set_playing(True)
             if hasattr(self, '_spectrum_analyzer'):
                 self._spectrum_analyzer.start()
         else:
@@ -1202,12 +1328,16 @@ class MusicInterface(ScrollArea):
                 self._vinyl_record.set_playing(False)
             if hasattr(self, '_spectrum_widget'):
                 self._spectrum_widget.set_playing(False)
+            if hasattr(self, '_mini_spectrum'):
+                self._mini_spectrum.set_playing(False)
             if hasattr(self, '_spectrum_analyzer'):
                 self._spectrum_analyzer.stop()
     
     def _on_spectrum_data_ready(self, data: list):
         if hasattr(self, '_spectrum_widget'):
             self._spectrum_widget.set_spectrum_data(data)
+        if hasattr(self, '_mini_spectrum'):
+            self._mini_spectrum.set_spectrum_data(data)
     
     def _on_global_song_changed(self, song: SongInfo):
         self._update_now_playing(song)

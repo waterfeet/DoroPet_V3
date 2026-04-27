@@ -1,5 +1,5 @@
-from PyQt5.QtCore import Qt, pyqtSignal
-from PyQt5.QtGui import QFontMetrics, QFont, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal, QTimer
+from PyQt5.QtGui import QFontMetrics, QFont, QPixmap, QPainter, QColor, QPen, QBrush
 from PyQt5.QtWidgets import (QFrame, QVBoxLayout, QHBoxLayout, QLabel, QMenu, 
                              QAction, QCheckBox)
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
@@ -127,7 +127,13 @@ class SongListItemWidget(QFrame):
         self.show_download = show_download
         self._is_selected = False
         self._network_manager = NetworkManager.get_instance()
-        
+
+        self._playing_pulse_value = 0.0
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.timeout.connect(self._on_pulse_tick)
+        self._pulse_timer.setInterval(40)
+        self._pulse_direction = 0.05
+
         self.setFixedHeight(50 if self.show_playqueue_actions else 60)
         self.setCursor(Qt.PointingHandCursor)
         self._init_ui()
@@ -301,6 +307,19 @@ class SongListItemWidget(QFrame):
     
     def set_playing(self, is_playing: bool):
         self.is_playing = is_playing
+        if is_playing:
+            self._pulse_timer.start()
+            if hasattr(self, 'index_label'):
+                self.index_label.setText("♫")
+                self.index_label.setStyleSheet("font-size: 14px; color: #0078d4; font-weight: bold;")
+        else:
+            self._pulse_timer.stop()
+            self._playing_pulse_value = 0.0
+            if hasattr(self, 'index_label'):
+                self.index_label.setText(f"{self.index + 1}")
+                index_color = "#aaa" if self._is_dark else "#888"
+                self.index_label.setStyleSheet(f"font-size: 12px; color: {index_color};")
+            self.update()
         self._update_style()
     
     def enterEvent(self, event):
@@ -368,6 +387,28 @@ class SongListItemWidget(QFrame):
             }}
         """)
     
+    def _on_pulse_tick(self):
+        self._playing_pulse_value += self._pulse_direction
+        if self._playing_pulse_value >= 1.0:
+            self._playing_pulse_value = 1.0
+            self._pulse_direction = -0.05
+        elif self._playing_pulse_value <= 0.3:
+            self._playing_pulse_value = 0.3
+            self._pulse_direction = 0.05
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self.is_playing:
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.Antialiasing)
+            alpha = int(120 + self._playing_pulse_value * 135)
+            color = QColor(0, 120, 212, alpha)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QBrush(color))
+            painter.drawRoundedRect(0, 6, 3, self.height() - 12, 1.5, 1.5)
+            painter.end()
+
     def _on_checkbox_changed(self, state):
         self._is_selected = (state == 2)
         self.selection_changed.emit(self.index, self._is_selected)

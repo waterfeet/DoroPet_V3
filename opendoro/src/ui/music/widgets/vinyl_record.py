@@ -104,6 +104,8 @@ class VinylRecordWidget(QWidget):
             self._target_needle_angle = VinylConstants.NEEDLE_ANGLE_PAUSED
             self._rotation_timer.stop()
         
+        self._needle_animation.stop()
+        self._needle_angle = self._needle_angle
         self._needle_animation.setStartValue(self._needle_angle)
         self._needle_animation.setEndValue(self._target_needle_angle)
         self._needle_animation.start()

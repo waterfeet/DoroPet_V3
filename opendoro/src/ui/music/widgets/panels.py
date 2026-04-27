@@ -361,11 +361,13 @@ class DockablePlaylistWidget(QWidget):
     song_double_clicked = pyqtSignal(int)
     song_remove_clicked = pyqtSignal(int)
     song_download_clicked = pyqtSignal(int)
+    clear_all_clicked = pyqtSignal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
         self._is_visible = False
         self._animation = None
+        self._current_song_index = -1
         self._init_ui()
         self._init_animation()
     
@@ -380,19 +382,32 @@ class DockablePlaylistWidget(QWidget):
         self._container.setObjectName("playlistDockContainer")
         self._update_theme()
         container_layout = QVBoxLayout(self._container)
-        container_layout.setContentsMargins(16, 16, 16, 16)
-        container_layout.setSpacing(12)
+        container_layout.setContentsMargins(0, 0, 0, 16)
+        container_layout.setSpacing(0)
         
-        header_layout = QHBoxLayout()
+        self._header_widget = QWidget()
+        self._header_widget.setObjectName("playlistDockHeader")
+        header_layout = QHBoxLayout(self._header_widget)
+        header_layout.setContentsMargins(20, 16, 12, 12)
+        header_layout.setSpacing(8)
         
         title_label = StrongBodyLabel("播放列表")
+        title_label.setObjectName("playlistDockTitle")
         header_layout.addWidget(title_label)
+        
+        self._count_badge = QLabel("0")
+        self._count_badge.setObjectName("playlistCountBadge")
+        self._count_badge.setFixedHeight(22)
+        self._count_badge.setAlignment(Qt.AlignCenter)
+        header_layout.addWidget(self._count_badge)
         
         header_layout.addStretch()
         
-        self._count_label = QLabel("0 首")
-        self._count_label.setObjectName("musicTimeLabel")
-        header_layout.addWidget(self._count_label)
+        clear_btn = TransparentToolButton(FIF.DELETE, self)
+        clear_btn.setFixedSize(28, 28)
+        clear_btn.setToolTip("清空播放列表")
+        clear_btn.clicked.connect(self.clear_all_clicked.emit)
+        header_layout.addWidget(clear_btn)
         
         close_btn = TransparentToolButton(FIF.CLOSE, self)
         close_btn.setFixedSize(28, 28)
@@ -400,26 +415,106 @@ class DockablePlaylistWidget(QWidget):
         close_btn.clicked.connect(self.hide_dock)
         header_layout.addWidget(close_btn)
         
-        container_layout.addLayout(header_layout)
+        container_layout.addWidget(self._header_widget)
+        
+        self._info_bar = QWidget()
+        self._info_bar.setObjectName("playlistInfoBar")
+        self._info_bar.setFixedHeight(36)
+        info_layout = QHBoxLayout(self._info_bar)
+        info_layout.setContentsMargins(20, 6, 20, 6)
+        info_layout.setSpacing(8)
+        
+        self._info_label = QLabel("播放队列为空")
+        self._info_label.setObjectName("musicTimeLabel")
+        info_layout.addWidget(self._info_label)
+        
+        info_layout.addStretch()
+        
+        self._total_duration_label = QLabel("")
+        self._total_duration_label.setObjectName("musicTimeLabel")
+        info_layout.addWidget(self._total_duration_label)
+        
+        container_layout.addWidget(self._info_bar)
         
         self._playlist_list = ListWidget()
-        self._playlist_list.setSpacing(2)
+        self._playlist_list.setObjectName("dockPlaylistList")
+        self._playlist_list.setSpacing(1)
         self._playlist_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
-        container_layout.addWidget(self._playlist_list)
+        self._playlist_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        container_layout.addWidget(self._playlist_list, 1)
         
         main_layout.addWidget(self._container)
     
     def _update_theme(self):
         is_dark = isDarkTheme()
         if is_dark:
-            bg_color = "rgba(32, 32, 40, 0.9)"
+            bg_color = "rgba(28, 28, 36, 0.97)"
+            header_bg = "rgba(32, 32, 44, 0.95)"
+            badge_bg = "rgba(255, 255, 255, 0.08)"
+            badge_color = "rgba(255, 255, 255, 0.7)"
+            info_bg = "rgba(36, 36, 48, 0.6)"
+            scroll_bg = "rgba(255, 255, 255, 0.05)"
+            scroll_handle = "rgba(255, 255, 255, 0.18)"
+            scroll_handle_hover = "rgba(255, 255, 255, 0.28)"
         else:
-            bg_color = "rgba(243, 243, 255, 0.9)"
+            bg_color = "rgba(250, 250, 255, 0.97)"
+            header_bg = "rgba(243, 243, 252, 0.95)"
+            badge_bg = "rgba(0, 0, 0, 0.06)"
+            badge_color = "rgba(0, 0, 0, 0.55)"
+            info_bg = "rgba(240, 240, 248, 0.6)"
+            scroll_bg = "rgba(0, 0, 0, 0.04)"
+            scroll_handle = "rgba(0, 0, 0, 0.15)"
+            scroll_handle_hover = "rgba(0, 0, 0, 0.25)"
         
         self._container.setStyleSheet(f"""
             #playlistDockContainer {{
                 background: {bg_color};
+            }}
+            #playlistDockHeader {{
+                background: {header_bg};
+                border-bottom: 1px solid {badge_bg};
+            }}
+            #playlistCountBadge {{
+                background: {badge_bg};
+                color: {badge_color};
+                border-radius: 11px;
+                padding: 2px 10px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            #playlistInfoBar {{
+                background: {info_bg};
+                border-bottom: 1px solid {badge_bg};
+            }}
+            #dockPlaylistList {{
                 border: none;
+                background: transparent;
+                outline: none;
+                padding: 8px 16px;
+            }}
+            #dockPlaylistList::item {{
+                border: none;
+                background: transparent;
+            }}
+            QScrollBar:vertical {{
+                background: {scroll_bg};
+                width: 6px;
+                border-radius: 3px;
+                margin: 0px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {scroll_handle};
+                border-radius: 3px;
+                min-height: 30px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {scroll_handle_hover};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+                background: none;
             }}
         """)
     
@@ -428,9 +523,45 @@ class DockablePlaylistWidget(QWidget):
         self._animation.setDuration(PlaylistConstants.DOCK_ANIMATION_DURATION)
         self._animation.setEasingCurve(QEasingCurve.OutCubic)
     
+    def _format_duration(self, seconds: int) -> str:
+        try:
+            seconds = int(seconds)
+        except (ValueError, TypeError):
+            seconds = 0
+        if seconds <= 0:
+            return ""
+        minutes = seconds // 60
+        secs = seconds % 60
+        return f"{minutes}:{secs:02d}"
+    
     def set_playlist(self, songs: list, current_index: int):
         self._playlist_list.clear()
-        self._count_label.setText(f"{len(songs)} 首")
+        self._current_song_index = current_index
+        count = len(songs)
+        self._count_badge.setText(str(count))
+        
+        if count == 0:
+            self._info_label.setText("播放队列为空")
+            self._total_duration_label.setText("")
+        else:
+            total_seconds = 0
+            for s in songs:
+                try:
+                    total_seconds += int(s.duration)
+                except (ValueError, TypeError):
+                    pass
+            total_min = total_seconds // 60
+            if total_seconds > 3600:
+                total_h = total_min // 60
+                total_m = total_min % 60
+                self._info_label.setText(f"共 {count} 首")
+                self._total_duration_label.setText(f"{total_h}小时{total_m}分钟")
+            elif total_min > 0:
+                self._info_label.setText(f"共 {count} 首")
+                self._total_duration_label.setText(f"{total_min} 分钟")
+            else:
+                self._info_label.setText(f"共 {count} 首")
+                self._total_duration_label.setText("")
         
         for i, song in enumerate(songs):
             item = QListWidgetItem()
@@ -442,6 +573,12 @@ class DockablePlaylistWidget(QWidget):
             item.setSizeHint(widget.sizeHint())
             self._playlist_list.addItem(item)
             self._playlist_list.setItemWidget(item, widget)
+        
+        if current_index >= 0 and current_index < self._playlist_list.count():
+            self._playlist_list.scrollToItem(
+                self._playlist_list.item(current_index),
+                QAbstractItemView.PositionAtCenter
+            )
     
     def show_dock(self):
         if self._is_visible:
