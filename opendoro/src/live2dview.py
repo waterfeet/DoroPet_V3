@@ -256,8 +256,12 @@ class Live2DWidget(QOpenGLWidget):
         try:
             self.makeCurrent()
             
+            was_mirrored = self.is_mirrored
+            
             if hasattr(self, 'mouse_chaser'):
                 self.mouse_chaser.stop()
+            if hasattr(self, 'random_wanderer'):
+                self.random_wanderer.stop()
             
             self.model = live2d.LAppModel()
             self.model.LoadModelJson(model_path)
@@ -272,11 +276,14 @@ class Live2DWidget(QOpenGLWidget):
             self.expression_ids = self.model.GetExpressionIds()
             self.motion_groups = self.model.GetMotionGroups()
             
-            self.is_mirrored = False
-            self.model.SetScaleX(1.0)
+            self.is_mirrored = was_mirrored
+            scale_x = -1.0 if was_mirrored else 1.0
+            self.model.SetScaleX(scale_x)
             
             if hasattr(self, 'mouse_chaser'):
                 self.mouse_chaser.model = self.model
+            if hasattr(self, 'random_wanderer'):
+                self.random_wanderer.model = self.model
             
             self.update()
             
@@ -336,11 +343,12 @@ class Live2DWidget(QOpenGLWidget):
         """追逐跑动状态改变时的回调"""
         pass
         
-    def toggle_mouse_chase(self, enabled: bool = None):
+    def toggle_mouse_chase(self, enabled: bool = None, _internal: bool = False):
         """
         切换鼠标追逐模式
         
         :param enabled: True启用, False禁用, None切换当前状态
+        :param _internal: 内部调用标志，切换模式时跳过模型重载
         """
         if not hasattr(self, 'mouse_chaser'):
             return
@@ -353,12 +361,14 @@ class Live2DWidget(QOpenGLWidget):
                 self.is_docked = None
                 self._apply_dock_rotation(None)
             if self.is_random_wandering():
-                self.toggle_random_wander(False)
+                self.toggle_random_wander(False, _internal=True)
             self.mouse_chaser.start()
             self.talk("来追你咯~", 2000, force=True)
         else:
             self.mouse_chaser.stop()
             self.talk("不追了不追了~", 2000, force=True)
+            if not _internal:
+                self.reload_model(self.path)
             
     def is_mouse_chasing(self) -> bool:
         """检查是否正在追逐鼠标"""
@@ -386,11 +396,12 @@ class Live2DWidget(QOpenGLWidget):
         """溜达跑动状态改变时的回调"""
         pass
         
-    def toggle_random_wander(self, enabled: bool = None):
+    def toggle_random_wander(self, enabled: bool = None, _internal: bool = False):
         """
         切换随机溜达模式
         
         :param enabled: True启用, False禁用, None切换当前状态
+        :param _internal: 内部调用标志，切换模式时跳过模型重载
         """
         if not hasattr(self, 'random_wanderer'):
             return
@@ -403,10 +414,12 @@ class Live2DWidget(QOpenGLWidget):
                 self.is_docked = None
                 self._apply_dock_rotation(None)
             if self.is_mouse_chasing():
-                self.toggle_mouse_chase(False)
+                self.toggle_mouse_chase(False, _internal=True)
             self.random_wanderer.start()
         else:
             self.random_wanderer.stop()
+            if not _internal:
+                self.reload_model(self.path)
             
     def is_random_wandering(self) -> bool:
         """检查是否正在随机溜达"""
@@ -812,6 +825,13 @@ class Live2DWidget(QOpenGLWidget):
                     version_manager = self._startup_checker.get_version_manager()
                 self.main_window = MainWindow(version_manager)
                 self.main_window.set_live2d_widget(self)
+            if self.main_window.isMinimized():
+                self.main_window.showNormal()
+            if not self.main_window.isVisible():
+                self.main_window.show()
+            self.main_window.setWindowFlags(self.main_window.windowFlags() | Qt.WindowStaysOnTopHint)
+            self.main_window.show()
+            self.main_window.setWindowFlags(self.main_window.windowFlags() & ~Qt.WindowStaysOnTopHint)
             self.main_window.show()
             self.main_window.raise_()
             self.main_window.activateWindow()

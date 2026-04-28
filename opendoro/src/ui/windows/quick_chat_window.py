@@ -9,9 +9,10 @@ import requests
 from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QTextEdit,
                              QPushButton, QLabel, QComboBox, QFrame, QApplication,
                              QScrollArea, QButtonGroup, QSizePolicy, QTextBrowser,
-                             QGraphicsOpacityEffect, QMenu, QAction)
-from PyQt5.QtCore import Qt, pyqtSignal, QSettings, QTimer, QSize, QUrl
-from PyQt5.QtGui import QFont, QPixmap, QIcon, QImage, QTextDocument
+                             QGraphicsOpacityEffect, QGraphicsDropShadowEffect,
+                             QMenu, QAction)
+from PyQt5.QtCore import Qt, pyqtSignal, QSettings, QTimer, QSize, QUrl, QPropertyAnimation, QEasingCurve
+from PyQt5.QtGui import QFont, QPixmap, QIcon, QImage, QTextDocument, QColor
 from qfluentwidgets import (PushButton, PrimaryPushButton, TransparentToolButton, ToolButton, FluentIcon as FIF,
                             CardWidget, StrongBodyLabel, BodyLabel, setTheme, Theme,
                             isDarkTheme, TransparentTogglePushButton, MessageBox,
@@ -161,6 +162,49 @@ class NetworkImageTextBrowser(QTextBrowser):
         self._refresh_scheduled = False
 
 
+class AutoSizeTextBrowser(QTextBrowser):
+    """参考 ChatTextEdit 的自适应高度 QTextBrowser"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setOpenExternalLinks(False)
+        self.anchorClicked.connect(self._on_anchor_clicked)
+        self.setFrameShape(QFrame.NoFrame)
+        self.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.document().setDocumentMargin(0)
+        self.setStyleSheet("background-color: transparent; border: none;")
+        self.document().contentsChanged.connect(self._adjust_height)
+
+    def _on_anchor_clicked(self, url):
+        link = url.toString()
+        if link.startswith('http://') or link.startswith('https://'):
+            import webbrowser
+            webbrowser.open(link)
+
+    def _adjust_height(self):
+        w = self.viewport().width()
+        if w > 50:
+            self.document().setTextWidth(w)
+        doc_h = self.document().size().height()
+        target = int(doc_h + 6)
+        if target < 20:
+            target = 20
+        if self.height() != target:
+            self.setFixedHeight(target)
+        self.updateGeometry()
+
+    def resizeEvent(self, event):
+        self._adjust_height()
+        super().resizeEvent(event)
+
+    def set_html(self, html):
+        self.setHtml(html)
+        self._adjust_height()
+
+
 class QuickMessageBubble(QFrame):
     delete_requested = pyqtSignal(int)
     regenerate_requested = pyqtSignal(int)
@@ -173,6 +217,30 @@ class QuickMessageBubble(QFrame):
     PLAYBACK_PLAYING = 1
     PLAYBACK_PAUSED = 2
 
+    # ===== 升级版配色常量 =====
+    _COLORS_DARK = {
+        "user_bg": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                   "stop:0 #1a6dd4, stop:0.5 #2196F3, stop:1 #4fc3f7)",
+        "user_text": "#ffffff",
+        "assistant_bg": "rgba(38, 42, 50, 235)",
+        "assistant_border": "1px solid rgba(255, 255, 255, 8)",
+        "assistant_text": "rgba(235, 240, 250, 235)",
+        "btn_bg": "rgba(60, 65, 75, 200)",
+        "btn_hover": "rgba(80, 85, 100, 235)",
+        "shadow": "rgba(0, 0, 0, 80)",
+    }
+    _COLORS_LIGHT = {
+        "user_bg": "qlineargradient(x1:0, y1:0, x2:1, y2:0, "
+                   "stop:0 #1565C0, stop:0.5 #1E88E5, stop:1 #42A5F5)",
+        "user_text": "#ffffff",
+        "assistant_bg": "rgba(255, 255, 255, 220)",
+        "assistant_border": "1px solid rgba(0, 0, 0, 8)",
+        "assistant_text": "rgba(30, 30, 40, 220)",
+        "btn_bg": "rgba(220, 225, 235, 200)",
+        "btn_hover": "rgba(200, 208, 220, 235)",
+        "shadow": "rgba(0, 0, 0, 18)",
+    }
+
     def __init__(self, role, content, msg_id, parent_window=None):
         super().__init__()
         self.role = role
@@ -181,6 +249,7 @@ class QuickMessageBubble(QFrame):
         self.parent_window = parent_window
         self._text_browser = None
         self._playback_state = self.PLAYBACK_STOPPED
+        self._colors = self._COLORS_DARK if isDarkTheme() else self._COLORS_LIGHT
 
         self.setFrameShape(QFrame.NoFrame)
         self.setStyleSheet("background-color: transparent;")
@@ -189,67 +258,65 @@ class QuickMessageBubble(QFrame):
 
     def init_ui(self):
         self.main_layout = QVBoxLayout(self)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.main_layout.setSpacing(0)
+        self.main_layout.setContentsMargins(12, 3, 12, 3)
+        self.main_layout.setSpacing(4)
 
         self.container = QFrame(self)
         self.container.setAttribute(Qt.WA_StyledBackground, True)
+        self.container.setGraphicsEffect(self._create_shadow())
 
         self.container_layout = QVBoxLayout(self.container)
-        self.container_layout.setContentsMargins(12, 12, 12, 12)
+        self.container_layout.setContentsMargins(14, 10, 14, 10)
         self.container_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
-        self.container.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.container.setMinimumWidth(300)
+        self.container.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
+        self.container.setMinimumWidth(120)
+        self.container.setMaximumWidth(600)
 
         is_dark = isDarkTheme()
+        c = self._COLORS_DARK if is_dark else self._COLORS_LIGHT
 
         if self.role == "user":
-            self.container.setStyleSheet("""
-                QFrame {
-                    background-color: rgba(0, 120, 215, 180);
-                    color: white;
-                    border-radius: 10px;
-                }
+            self.container.setStyleSheet(f"""
+                QFrame {{
+                    background: {c['user_bg']};
+                    color: {c['user_text']};
+                    border-radius: 14px;
+                    border-bottom-right-radius: 4px;
+                }}
             """)
-
             self._setup_user_content(is_dark)
         else:
-            if is_dark:
-                self.container.setStyleSheet("""
-                    QFrame {
-                        background-color: rgba(50, 50, 50, 220);
-                        color: rgba(255, 255, 255, 220);
-                        border-radius: 10px;
-                    }
-                """)
-            else:
-                self.container.setStyleSheet("""
-                    QFrame {
-                        background-color: rgba(245, 245, 245, 220);
-                        color: rgba(0, 0, 0, 200);
-                        border-radius: 10px;
-                    }
-                """)
-
+            self.container.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {c['assistant_bg']};
+                    border: {c['assistant_border']};
+                    color: {c['assistant_text']};
+                    border-radius: 14px;
+                    border-bottom-left-radius: 4px;
+                }}
+            """)
             self._setup_assistant_content(is_dark)
 
         self._setup_action_buttons(is_dark)
 
-        self.main_layout.addWidget(self.container)
-        self.main_layout.addWidget(self.action_widget, 0, Qt.AlignRight if self.role == "user" else Qt.AlignLeft)
+        self.main_layout.addWidget(self.container, 0,
+            Qt.AlignRight if self.role == "user" else Qt.AlignLeft)
+        self.main_layout.addWidget(self.action_widget, 0,
+            Qt.AlignRight if self.role == "user" else Qt.AlignLeft)
 
         self.opacity_effect = QGraphicsOpacityEffect(self.action_widget)
         self.opacity_effect.setOpacity(0.0)
         self.action_widget.setGraphicsEffect(self.opacity_effect)
+        self._fade_anim = None
+
+    def _create_shadow(self):
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(16)
+        shadow.setOffset(0, 2)
+        shadow.setColor(QColor(0, 0, 0, 40 if isDarkTheme() else 12))
+        return shadow
 
     def _setup_user_content(self, is_dark):
-        content_widget = QWidget(self.container)
-        content_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(8)
-        content_layout.setSizeConstraint(QVBoxLayout.SetMinimumSize)
-
         if isinstance(self.content, list):
             text_parts = []
             image_parts = []
@@ -262,22 +329,45 @@ class QuickMessageBubble(QFrame):
                         image_parts.append(part)
 
             if text_parts:
-                text_label = QLabel('\n'.join(text_parts))
-                text_label.setWordWrap(True)
-                text_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-                text_label.setStyleSheet("background-color: transparent; color: white;")
-                content_layout.addWidget(text_label)
+                browser = AutoSizeTextBrowser(self.container)
+                browser.setStyleSheet("background-color: transparent; color: white; border: none; font-size: 13px;")
+                browser.setPlainText('\n'.join(text_parts))
+                browser._adjust_height()
+                self.container_layout.addWidget(browser)
 
             if image_parts:
-                self._add_image_grid(content_layout, image_parts, is_dark)
+                self._add_image_grid(self.container_layout, image_parts, is_dark)
         else:
-            content_label = QLabel(self.content)
-            content_label.setWordWrap(True)
-            content_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            content_label.setStyleSheet("background-color: transparent; color: white;")
-            content_layout.addWidget(content_label)
+            browser = AutoSizeTextBrowser(self.container)
+            browser.setStyleSheet("background-color: transparent; color: white; border: none; font-size: 13px;")
+            browser.setPlainText(self.content)
+            browser._adjust_height()
+            self.container_layout.addWidget(browser)
 
-        self.container_layout.addWidget(content_widget)
+    def _make_text_browser(self, text, is_dark):
+        """创建自适应高度的 Markdown 文本浏览器"""
+        html = self.parent_window.render_markdown(text) if self.parent_window else text
+        browser = AutoSizeTextBrowser(self.container)
+        if is_dark:
+            browser.setStyleSheet("""
+                AutoSizeTextBrowser {
+                    background-color: transparent;
+                    color: rgba(235, 240, 250, 235);
+                    border: none;
+                    font-size: 13px;
+                }
+            """)
+        else:
+            browser.setStyleSheet("""
+                AutoSizeTextBrowser {
+                    background-color: transparent;
+                    color: rgba(30, 30, 40, 220);
+                    border: none;
+                    font-size: 13px;
+                }
+            """)
+        browser.set_html(html)
+        return browser
 
     def _setup_assistant_content(self, is_dark):
         from src.core.message_parser import MessageParser, ContentType
@@ -294,34 +384,8 @@ class QuickMessageBubble(QFrame):
                         image_parts.append(part)
 
             if text_parts:
-                text_content = '\n'.join(text_parts)
-                text_html = self.parent_window.render_markdown(text_content) if self.parent_window else f"<pre>{text_content}</pre>"
-                text_browser = QTextBrowser()
-                text_browser.setOpenExternalLinks(True)
-                text_browser.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-                text_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                text_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                text_browser.document().setDocumentMargin(0)
-                text_browser.installEventFilter(self)
-                if is_dark:
-                    text_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(255, 255, 255, 220);
-                            border: none;
-                        }
-                    """)
-                else:
-                    text_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(0, 0, 0, 200);
-                            border: none;
-                        }
-                    """)
-                text_browser.setHtml(text_html)
-                self._text_browser = text_browser
-                self.container_layout.addWidget(text_browser)
+                browser = self._make_text_browser('\n'.join(text_parts), is_dark)
+                self.container_layout.addWidget(browser)
 
             if image_parts:
                 for part in image_parts:
@@ -344,33 +408,12 @@ class QuickMessageBubble(QFrame):
 
         for block in blocks:
             if block.is_code():
-                code_browser = QTextBrowser()
-                code_browser.setOpenExternalLinks(True)
-                code_browser.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-                code_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                code_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                code_browser.document().setDocumentMargin(0)
-                code_browser.installEventFilter(self)
-                if is_dark:
-                    code_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(255, 255, 255, 220);
-                            border: none;
-                        }
-                    """)
-                else:
-                    code_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(0, 0, 0, 200);
-                            border: none;
-                        }
-                    """)
-                code_html = self.parent_window.render_markdown(f"```{block.language or ''}\n{block.content}\n```") if self.parent_window else f"<pre>{block.content}</pre>"
-                code_browser.setHtml(code_html)
-                self._text_browser = code_browser
-                content_layout.addWidget(code_browser)
+                code_html = self.parent_window.render_markdown(
+                    f"```{block.language or ''}\n{block.content}\n```"
+                ) if self.parent_window else f"<pre>{block.content}</pre>"
+                browser = self._make_text_browser(code_html, is_dark)
+                self._text_browser = browser
+                content_layout.addWidget(browser)
             elif block.is_image():
                 img_url = block.image_url
                 if img_url:
@@ -378,60 +421,14 @@ class QuickMessageBubble(QFrame):
                     img_label = NetworkImageLabel(img_url, content_container, max_width=400)
                     content_layout.addWidget(img_label)
             else:
-                text_browser = QTextBrowser()
-                text_browser.setOpenExternalLinks(True)
-                text_browser.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-                text_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                text_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-                text_browser.document().setDocumentMargin(0)
-                text_browser.installEventFilter(self)
-                if is_dark:
-                    text_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(255, 255, 255, 220);
-                            border: none;
-                        }
-                    """)
-                else:
-                    text_browser.setStyleSheet("""
-                        QTextBrowser {
-                            background-color: transparent;
-                            color: rgba(0, 0, 0, 200);
-                            border: none;
-                        }
-                    """)
-                text_html = self.parent_window.render_markdown(block.content) if self.parent_window else block.content
-                text_browser.setHtml(text_html)
-                self._text_browser = text_browser
-                content_layout.addWidget(text_browser)
+                browser = self._make_text_browser(block.content, is_dark)
+                self._text_browser = browser
+                content_layout.addWidget(browser)
 
         if not blocks:
-            text_browser = QTextBrowser()
-            text_browser.setOpenExternalLinks(True)
-            text_browser.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
-            text_browser.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            text_browser.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-            text_browser.document().setDocumentMargin(0)
-            text_browser.installEventFilter(self)
-            if is_dark:
-                text_browser.setStyleSheet("""
-                    QTextBrowser {
-                        background-color: transparent;
-                        color: rgba(255, 255, 255, 220);
-                        border: none;
-                    }
-                """)
-            else:
-                text_browser.setStyleSheet("""
-                    QTextBrowser {
-                        background-color: transparent;
-                        color: rgba(0, 0, 0, 200);
-                        border: none;
-                    }
-                """)
-            self._text_browser = text_browser
-            content_layout.addWidget(text_browser)
+            browser = self._make_text_browser(display_text, is_dark)
+            self._text_browser = browser
+            content_layout.addWidget(browser)
 
         self.container_layout.addWidget(content_container)
 
@@ -511,31 +508,21 @@ class QuickMessageBubble(QFrame):
     def _setup_action_buttons(self, is_dark):
         self.action_widget = QWidget(self)
         self.action_layout = QHBoxLayout(self.action_widget)
-        self.action_layout.setContentsMargins(10, 5, 10, 0)
-        self.action_layout.setSpacing(5)
+        self.action_layout.setContentsMargins(18, 2, 18, 0)
+        self.action_layout.setSpacing(4)
 
-        if is_dark:
-            btn_style = """
-                ToolButton {
-                    background-color: rgba(50, 50, 50, 180);
-                    border: none;
-                    border-radius: 3px;
-                }
-                ToolButton:hover {
-                    background-color: rgba(70, 70, 70, 220);
-                }
-            """
-        else:
-            btn_style = """
-                ToolButton {
-                    background-color: rgba(200, 200, 200, 180);
-                    border: none;
-                    border-radius: 3px;
-                }
-                ToolButton:hover {
-                    background-color: rgba(180, 180, 180, 220);
-                }
-            """
+        c = self._COLORS_DARK if is_dark else self._COLORS_LIGHT
+        btn_style = f"""
+            ToolButton {{
+                background-color: {c['btn_bg']};
+                border: none;
+                border-radius: 6px;
+                padding: 2px;
+            }}
+            ToolButton:hover {{
+                background-color: {c['btn_hover']};
+            }}
+        """
 
         self.btn_copy = ToolButton(FIF.COPY, self.action_widget)
         self.btn_copy.setFixedSize(28, 28)
@@ -615,7 +602,10 @@ class QuickMessageBubble(QFrame):
             self._setup_assistant_content(is_dark)
         elif self._text_browser:
             html = self.parent_window.render_markdown(new_content) if self.parent_window else new_content
-            self._text_browser.setHtml(html)
+            self._text_browser.set_html(html)
+            self.container.adjustSize()
+            self.adjustSize()
+            self.updateGeometry()
 
     def update_msg_id(self, new_msg_id):
         old_msg_id = self.msg_id
@@ -634,11 +624,25 @@ class QuickMessageBubble(QFrame):
         return super().eventFilter(obj, event)
 
     def enterEvent(self, event):
-        self.opacity_effect.setOpacity(1.0)
+        if self._fade_anim and self._fade_anim.state() == QPropertyAnimation.Running:
+            self._fade_anim.stop()
+        self._fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self._fade_anim.setDuration(180)
+        self._fade_anim.setStartValue(self.opacity_effect.opacity())
+        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._fade_anim.start()
         super().enterEvent(event)
 
     def leaveEvent(self, event):
-        self.opacity_effect.setOpacity(0.0)
+        if self._fade_anim and self._fade_anim.state() == QPropertyAnimation.Running:
+            self._fade_anim.stop()
+        self._fade_anim = QPropertyAnimation(self.opacity_effect, b"opacity")
+        self._fade_anim.setDuration(250)
+        self._fade_anim.setStartValue(self.opacity_effect.opacity())
+        self._fade_anim.setEndValue(0.0)
+        self._fade_anim.setEasingCurve(QEasingCurve.OutCubic)
+        self._fade_anim.start()
         super().leaveEvent(event)
 
     def copy_content(self):
@@ -678,6 +682,10 @@ class QuickChatWindow(QWidget):
         self._enter_to_send = False
         self._streaming_buffer = ""
         self._streaming_bubble = None
+
+        self._streaming_timer = QTimer(self)
+        self._streaming_timer.timeout.connect(self._flush_streaming)
+        self._streaming_timer.setInterval(100)
 
         self.selected_images = []
 
@@ -764,8 +772,15 @@ class QuickChatWindow(QWidget):
     def _on_llm_chunk_received(self, chunk):
         self._streaming_buffer += chunk
         self._state.current_streaming_content = self._streaming_buffer
+
+    def _flush_streaming(self):
+        if not self._streaming_buffer:
+            return
+        chunk = self._streaming_buffer
+        self._streaming_buffer = ""
+        self._streaming_content = self._streaming_content + chunk if hasattr(self, '_streaming_content') else chunk
         if self._streaming_bubble:
-            self._streaming_bubble.update_content(self._streaming_buffer)
+            self._streaming_bubble.update_content(self._streaming_content)
             self._scroll_to_bottom()
 
     def _on_thinking_chunk(self, chunk):
@@ -785,10 +800,73 @@ class QuickChatWindow(QWidget):
     def _on_error_occurred(self, error_type, error_message):
         self.add_message_to_ui("assistant", f"⚠️ {error_message}")
 
+    def _get_main_style(self):
+        is_dark = isDarkTheme()
+        if is_dark:
+            return """
+                QWidget#mainContainer {
+                    background-color: rgba(24, 24, 28, 238);
+                    border-radius: 14px;
+                    border: 1px solid rgba(255, 255, 255, 10);
+                }
+            """, """
+                QScrollArea {
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 10px;
+                }
+                QScrollBar:vertical {
+                    background-color: transparent;
+                    width: 6px;
+                    border-radius: 3px;
+                }
+                QScrollBar::handle:vertical {
+                    background-color: rgba(255, 255, 255, 40);
+                    border-radius: 3px;
+                    min-height: 24px;
+                }
+                QScrollBar::handle:vertical:hover {
+                    background-color: rgba(255, 255, 255, 70);
+                }
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                    height: 0px;
+                }
+            """
+        else:
+            return """
+                QWidget#mainContainer {
+                    background-color: rgba(248, 249, 252, 235);
+                    border-radius: 14px;
+                    border: 1px solid rgba(0, 0, 0, 12);
+                }
+            """, """
+                QScrollArea {
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 10px;
+                }
+                QScrollBar:vertical {
+                    background-color: transparent;
+                    width: 6px;
+                    border-radius: 3px;
+                }
+                QScrollBar::handle:vertical {
+                    background-color: rgba(0, 0, 0, 40);
+                    border-radius: 3px;
+                    min-height: 24px;
+                }
+                QScrollBar::handle:vertical:hover {
+                    background-color: rgba(0, 0, 0, 70);
+                }
+                QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                    height: 0px;
+                }
+            """
+
     def init_ui(self):
         self.setWindowTitle("Doro 沉浸聊天")
         self.setMinimumSize(450, 600)
-        self.resize(550, 800)
+        self.resize(512, 768)
         self.setWindowFlags(
             Qt.Window |
             Qt.WindowStaysOnTopHint |
@@ -801,89 +879,42 @@ class QuickChatWindow(QWidget):
 
         self.main_container = QWidget(self)
         self.main_container.setObjectName("mainContainer")
+        self.main_container.setGeometry(self.rect())
 
         is_dark = isDarkTheme()
-
         if is_dark:
             setTheme(Theme.DARK)
-            self.main_container.setStyleSheet("""
-                QWidget#mainContainer {
-                    background-color: rgba(32, 32, 32, 220);
-                    border-radius: 10px;
-                }
-                QScrollArea {
-                    background-color: rgba(0, 0, 0, 80);
-                }
-            """)
         else:
-            self.main_container.setStyleSheet("""
-                QWidget#mainContainer {
-                    background-color: rgba(255, 255, 255, 180);
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 30);
-                }
-                QScrollArea {
-                    background-color: rgba(255, 255, 255, 100);
-                }
-            """)
+            setTheme(Theme.LIGHT)
+
+        container_style, scroll_style = self._get_main_style()
+        self.main_container.setStyleSheet(container_style)
 
         main_layout = QVBoxLayout(self.main_container)
         main_layout.setSpacing(0)
-        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setContentsMargins(10, 10, 10, 10)
 
         title_bar = self.create_title_bar()
-        title_bar.setFixedHeight(40)
+        title_bar.setFixedHeight(44)
         main_layout.addWidget(title_bar)
+
+        # ===== 分隔线 =====
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setFixedHeight(1)
+        if is_dark:
+            sep.setStyleSheet("QFrame { background-color: rgba(255, 255, 255, 10); border: none; }")
+        else:
+            sep.setStyleSheet("QFrame { background-color: rgba(0, 0, 0, 6); border: none; }")
+        main_layout.addWidget(sep)
 
         self.chat_scroll = QScrollArea()
         self.chat_scroll.setWidgetResizable(True)
         self.chat_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.chat_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.chat_scroll.setMinimumHeight(500)
         self.chat_scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        if is_dark:
-            self.chat_scroll.setStyleSheet("""
-                QScrollArea {
-                    background-color: rgba(20, 20, 20, 120);
-                    border: 1px solid rgba(255, 255, 255, 20);
-                    border-radius: 8px;
-                }
-                QScrollBar:vertical {
-                    background-color: rgba(255, 255, 255, 30);
-                    width: 8px;
-                    border-radius: 4px;
-                }
-                QScrollBar::handle:vertical {
-                    background-color: rgba(255, 255, 255, 80);
-                    border-radius: 4px;
-                    min-height: 20px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background-color: rgba(255, 255, 255, 120);
-                }
-            """)
-        else:
-            self.chat_scroll.setStyleSheet("""
-                QScrollArea {
-                    background-color: rgba(255, 255, 255, 120);
-                    border: 1px solid rgba(0, 0, 0, 20);
-                    border-radius: 8px;
-                }
-                QScrollBar:vertical {
-                    background-color: rgba(0, 0, 0, 30);
-                    width: 8px;
-                    border-radius: 4px;
-                }
-                QScrollBar::handle:vertical {
-                    background-color: rgba(0, 0, 0, 80);
-                    border-radius: 4px;
-                    min-height: 20px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background-color: rgba(0, 0, 0, 120);
-                }
-            """)
+        self.chat_scroll.setStyleSheet(scroll_style)
 
         self.chat_content = QWidget()
         self.chat_content.setStyleSheet("""
@@ -892,82 +923,152 @@ class QuickChatWindow(QWidget):
             }
         """)
         self.chat_layout = QVBoxLayout(self.chat_content)
-        self.chat_layout.setSpacing(8)
-        self.chat_layout.setContentsMargins(5, 5, 5, 5)
+        self.chat_layout.setSpacing(4)
+        self.chat_layout.setContentsMargins(4, 8, 4, 8)
         self.chat_layout.addStretch()
         self.chat_layout.setStretch(0, 1)
 
         self.chat_scroll.setWidget(self.chat_content)
         main_layout.addWidget(self.chat_scroll, stretch=10)
 
+        # ===== 分隔线 =====
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setFixedHeight(1)
+        if is_dark:
+            sep2.setStyleSheet("QFrame { background-color: rgba(255, 255, 255, 10); border: none; }")
+        else:
+            sep2.setStyleSheet("QFrame { background-color: rgba(0, 0, 0, 6); border: none; }")
+        main_layout.addWidget(sep2)
+
+        # ===== 升级版输入区域 =====
+        control_panel = self._create_upgraded_input_area()
+        main_layout.addWidget(control_panel)
+
+        self.load_chat_history()
+
+    def _create_upgraded_input_area(self):
         control_panel = QWidget()
         control_layout = QVBoxLayout(control_panel)
-        control_layout.setContentsMargins(10, 6, 10, 6)
-        control_layout.setSpacing(5)
+        control_layout.setContentsMargins(6, 8, 6, 6)
+        control_layout.setSpacing(6)
 
+        is_dark = isDarkTheme()
+
+        # 图片预览
         self.image_preview_widget = QWidget()
         self.image_preview_layout = QHBoxLayout(self.image_preview_widget)
-        self.image_preview_layout.setContentsMargins(0, 0, 0, 5)
-        self.image_preview_layout.setSpacing(5)
+        self.image_preview_layout.setContentsMargins(4, 0, 4, 0)
+        self.image_preview_layout.setSpacing(6)
         self.image_preview_widget.hide()
         control_layout.addWidget(self.image_preview_widget)
+
+        # 输入框 - 圆角卡片风格
+        input_frame = QFrame()
+        input_frame.setObjectName("inputFrame")
+        input_frame.setAttribute(Qt.WA_StyledBackground, True)
+        if is_dark:
+            input_frame.setStyleSheet("""
+                QFrame#inputFrame {
+                    background-color: rgba(255, 255, 255, 6);
+                    border: 1px solid rgba(255, 255, 255, 10);
+                    border-radius: 12px;
+                }
+            """)
+        else:
+            input_frame.setStyleSheet("""
+                QFrame#inputFrame {
+                    background-color: rgba(0, 0, 0, 3);
+                    border: 1px solid rgba(0, 0, 0, 8);
+                    border-radius: 12px;
+                }
+            """)
+        frame_layout = QVBoxLayout(input_frame)
+        frame_layout.setContentsMargins(10, 6, 10, 6)
+        frame_layout.setSpacing(4)
 
         self.input_text = TextEdit()
         self.input_text.setPlaceholderText("输入想对 Doro 说的话...")
         self.input_text.setMaximumHeight(120)
-        self.input_text.setMinimumHeight(50)
+        self.input_text.setMinimumHeight(44)
         self.input_text.textChanged.connect(self.update_send_button_state)
         self.input_text.installEventFilter(self)
-        control_layout.addWidget(self.input_text)
+        if is_dark:
+            self.input_text.setStyleSheet("""
+                TextEdit {
+                    background-color: transparent;
+                    border: none;
+                    color: rgba(255, 255, 255, 230);
+                    font-size: 13px;
+                    padding: 4px 0px;
+                }
+                TextEdit:focus {
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+        else:
+            self.input_text.setStyleSheet("""
+                TextEdit {
+                    background-color: transparent;
+                    border: none;
+                    color: rgba(0, 0, 0, 220);
+                    font-size: 13px;
+                    padding: 4px 0px;
+                }
+                TextEdit:focus {
+                    background-color: transparent;
+                    border: none;
+                }
+            """)
+        frame_layout.addWidget(self.input_text)
 
+        control_layout.addWidget(input_frame)
+
+        # 底部工具栏
         self._auto_play_enabled = False
 
         bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(8)
+        bottom_row.setSpacing(6)
 
         self.btn_screenshot = ToolButton(FIF.CUT, self)
-        self.btn_screenshot.setFixedSize(24, 24)
+        self.btn_screenshot.setFixedSize(28, 28)
         self.btn_screenshot.setToolTip("屏幕截图")
         self.btn_screenshot.clicked.connect(self.take_screenshot)
         bottom_row.addWidget(self.btn_screenshot)
 
         self.auto_play_btn = TransparentToolButton(FIF.VOLUME, self)
-        self.auto_play_btn.setFixedSize(24, 24)
+        self.auto_play_btn.setFixedSize(28, 28)
         self.auto_play_btn.setToolTip("自动播放语音")
-        self.auto_play_btn.setStyleSheet("""
-            TransparentToolButton {
-                border: none;
-                background-color: transparent;
-            }
-        """)
         self.auto_play_btn.clicked.connect(self._toggle_auto_play)
         self._update_auto_play_btn_style()
         bottom_row.addWidget(self.auto_play_btn)
 
+        # 快捷用语下拉
         self.quick_phrase_combo = ComboBox()
-        self.quick_phrase_combo.setFixedHeight(30)
-        self.quick_phrase_combo.setMinimumWidth(150)
-
+        self.quick_phrase_combo.setFixedHeight(28)
+        self.quick_phrase_combo.setMinimumWidth(120)
         self._init_quick_phrases()
-
         self.quick_phrase_combo.currentIndexChanged.connect(self.on_quick_phrase_selected)
         bottom_row.addWidget(self.quick_phrase_combo)
 
         self.tools_btn = TransparentToolButton(FIF.APPLICATION, self)
-        self.tools_btn.setFixedSize(30, 30)
+        self.tools_btn.setFixedSize(28, 28)
         self.tools_btn.setToolTip("选择工具插件")
         self.tools_btn.clicked.connect(self.show_tools_menu)
         self.update_tools_button_icon()
         bottom_row.addWidget(self.tools_btn)
 
+        # 角色切换
         self.persona_combo = ComboBox()
-        self.persona_combo.setFixedHeight(30)
+        self.persona_combo.setFixedHeight(28)
         self.load_personas()
         self.persona_combo.currentIndexChanged.connect(self.on_persona_changed)
         bottom_row.addWidget(self.persona_combo, 1)
 
-        self.send_btn = ToolButton(FIF.SEND, self)
-        self.send_btn.setFixedSize(32, 32)
+        # 发送按钮 - 图标+文字
+        self.send_btn = PrimaryPushButton(FIF.SEND, "发送", self)
+        self.send_btn.setFixedHeight(32)
         self.send_btn.clicked.connect(self.send_message)
         self.send_btn.setEnabled(False)
         bottom_row.addWidget(self.send_btn)
@@ -980,9 +1081,7 @@ class QuickChatWindow(QWidget):
 
         control_layout.addLayout(bottom_row)
 
-        main_layout.addWidget(control_panel)
-
-        self.load_chat_history()
+        return control_panel
 
     def _init_quick_phrases(self):
         self.quick_phrase_combo.addItem("选择快捷用语...")
@@ -997,38 +1096,63 @@ class QuickChatWindow(QWidget):
 
     def create_title_bar(self):
         title_bar = QWidget()
-        title_bar.setFixedHeight(40)
+        title_bar.setFixedHeight(44)
         title_bar.setStyleSheet("background-color: transparent;")
 
         layout = QHBoxLayout(title_bar)
-        layout.setContentsMargins(10, 0, 5, 0)
+        layout.setContentsMargins(14, 0, 8, 0)
 
         is_dark = isDarkTheme()
 
-        self.title_label = QLabel("💬 Doro 沉浸聊天")
+        # Logo + 标题
+        title_widget = QWidget()
+        title_widget.setStyleSheet("background-color: transparent;")
+        title_layout = QHBoxLayout(title_widget)
+        title_layout.setContentsMargins(0, 0, 0, 0)
+        title_layout.setSpacing(8)
+
+        logo_label = QLabel("🦞")
+        logo_label.setStyleSheet("font-size: 18px; background: transparent;")
+        title_layout.addWidget(logo_label)
+
+        self.title_label = QLabel("Doro 沉浸聊天")
         if is_dark:
             self.title_label.setStyleSheet("""
-                color: rgba(255, 255, 255, 220);
+                color: rgba(255, 255, 255, 230);
                 font-size: 14px;
-                font-weight: bold;
+                font-weight: 600;
+                background: transparent;
             """)
         else:
             self.title_label.setStyleSheet("""
-                color: rgba(0, 0, 0, 200);
+                color: rgba(0, 0, 0, 210);
                 font-size: 14px;
-                font-weight: bold;
+                font-weight: 600;
+                background: transparent;
             """)
-        layout.addWidget(self.title_label)
+        title_layout.addWidget(self.title_label)
+        layout.addWidget(title_widget)
+
+        # 在线状态指示点
+        status_dot = QLabel()
+        status_dot.setFixedSize(8, 8)
+        status_dot.setStyleSheet("""
+            background-color: #4caf50;
+            border-radius: 4px;
+        """)
+        layout.addWidget(status_dot)
+
+        layout.addSpacing(8)
 
         self.clear_history_btn = TransparentToolButton(FIF.DELETE, self)
-        self.clear_history_btn.setFixedSize(25, 25)
+        self.clear_history_btn.setFixedSize(28, 28)
         self.clear_history_btn.setToolTip("清空聊天记录")
         if is_dark:
             self.clear_history_btn.setStyleSheet("""
                 TransparentToolButton {
                     border: none;
-                    border-radius: 3px;
-                    background-color: rgba(255, 255, 255, 30);
+                    border-radius: 6px;
+                    background-color: rgba(255, 255, 255, 25);
                 }
                 TransparentToolButton:hover {
                     background-color: rgba(255, 100, 100, 100);
@@ -1038,8 +1162,8 @@ class QuickChatWindow(QWidget):
             self.clear_history_btn.setStyleSheet("""
                 TransparentToolButton {
                     border: none;
-                    border-radius: 3px;
-                    background-color: rgba(0, 0, 0, 30);
+                    border-radius: 6px;
+                    background-color: rgba(0, 0, 0, 25);
                 }
                 TransparentToolButton:hover {
                     background-color: rgba(255, 100, 100, 100);
@@ -1051,39 +1175,39 @@ class QuickChatWindow(QWidget):
         layout.addStretch()
 
         min_btn = TransparentToolButton(FIF.MINIMIZE, self)
-        min_btn.setFixedSize(25, 25)
+        min_btn.setFixedSize(28, 28)
         if is_dark:
             min_btn.setStyleSheet("""
                 TransparentToolButton {
                     border: none;
-                    border-radius: 3px;
-                    background-color: rgba(255, 255, 255, 30);
+                    border-radius: 6px;
+                    background-color: rgba(255, 255, 255, 25);
                 }
                 TransparentToolButton:hover {
-                    background-color: rgba(255, 255, 255, 60);
+                    background-color: rgba(255, 255, 255, 50);
                 }
             """)
         else:
             min_btn.setStyleSheet("""
                 TransparentToolButton {
                     border: none;
-                    border-radius: 3px;
-                    background-color: rgba(0, 0, 0, 30);
+                    border-radius: 6px;
+                    background-color: rgba(0, 0, 0, 25);
                 }
                 TransparentToolButton:hover {
-                    background-color: rgba(0, 0, 0, 60);
+                    background-color: rgba(0, 0, 0, 50);
                 }
             """)
         min_btn.clicked.connect(self.showMinimized)
         layout.addWidget(min_btn)
 
         close_btn = TransparentToolButton(FIF.CLOSE, self)
-        close_btn.setFixedSize(25, 25)
+        close_btn.setFixedSize(28, 28)
         close_btn.setStyleSheet("""
             TransparentToolButton {
                 border: none;
-                border-radius: 3px;
-                background-color: rgba(255, 100, 100, 150);
+                border-radius: 6px;
+                background-color: rgba(255, 80, 80, 120);
             }
             TransparentToolButton:hover {
                 background-color: rgba(255, 50, 50, 200);
@@ -1096,7 +1220,7 @@ class QuickChatWindow(QWidget):
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            if event.y() < 40:
+            if event.y() < 44:
                 self._mouse_pressed = True
                 self._drag_position = event.globalPos() - self.frameGeometry().topLeft()
                 event.accept()
@@ -1108,6 +1232,10 @@ class QuickChatWindow(QWidget):
 
     def mouseReleaseEvent(self, event):
         self._mouse_pressed = False
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.main_container.setGeometry(self.rect())
 
     def take_screenshot(self):
         if self.window():
@@ -1281,9 +1409,9 @@ class QuickChatWindow(QWidget):
 
         logger.info(f"[QuickChat] add_message_to_ui: chat_layout count after = {self.chat_layout.count()}")
 
-        self.chat_scroll.verticalScrollBar().setValue(
+        QTimer.singleShot(30, lambda: self.chat_scroll.verticalScrollBar().setValue(
             self.chat_scroll.verticalScrollBar().maximum()
-        )
+        ))
 
         return bubble
 
@@ -1419,6 +1547,7 @@ class QuickChatWindow(QWidget):
         self._state.generation_state = GenerationState.PREPARING
 
         self._streaming_buffer = ""
+        self._streaming_content = ""
         self._streaming_bubble = None
 
         self.llm_worker = LLMWorker(
@@ -1432,6 +1561,8 @@ class QuickChatWindow(QWidget):
         )
         self._streaming_bubble = self.add_message_to_ui("assistant", "", None, allow_empty=True)
         self._streaming_buffer = ""
+        self._streaming_content = ""
+        self._streaming_timer.start()
         self.llm_worker.chunk_received.connect(self._on_llm_chunk_received)
         self.llm_worker.thinking_chunk.connect(self._on_thinking_chunk)
         self.llm_worker.finished.connect(self.on_response_received)
@@ -1843,6 +1974,8 @@ class QuickChatWindow(QWidget):
         self._streaming_buffer = ""
 
     def on_response_received(self, content, reasoning, tool_calls, generated_images):
+        self._streaming_timer.stop()
+        self._flush_streaming()  # 消费剩余缓冲区
         logger.info(f"[QuickChat] on_response_received: _streaming_bubble = {self._streaming_bubble}")
         logger.info(f"[QuickChat] on_response_received: _streaming_buffer length = {len(self._streaming_buffer)}")
         logger.info(f"[QuickChat] on_response_received: generated_images = {generated_images}")
@@ -1909,6 +2042,7 @@ class QuickChatWindow(QWidget):
         self._state.generation_state = GenerationState.COMPLETED
 
     def on_error_occurred(self, error):
+        self._streaming_timer.stop()
         logger.error(f"[QuickChat] LLM 错误：{error}")
 
         if self._streaming_bubble is not None:
@@ -1930,6 +2064,8 @@ class QuickChatWindow(QWidget):
         self.send_message()
 
     def stop_generation(self):
+        self._streaming_timer.stop()
+        self._flush_streaming()
         if hasattr(self, 'llm_worker') and self.llm_worker.isRunning():
             self.llm_worker.stop()
 
@@ -1949,7 +2085,7 @@ class QuickChatWindow(QWidget):
         if geometry:
             self.restoreGeometry(geometry)
         else:
-            self.resize(550, 800)
+            self.resize(512, 768)
 
         auto_play = settings.value("auto_play_voice", False, type=bool)
         self._auto_play_enabled = auto_play
@@ -1978,82 +2114,29 @@ class QuickChatWindow(QWidget):
 
         if is_dark:
             setTheme(Theme.DARK)
-            self.main_container.setStyleSheet("""
-                QWidget#mainContainer {
-                    background-color: rgba(32, 32, 32, 220);
-                    border-radius: 10px;
-                }
-                QScrollArea {
-                    background-color: rgba(0, 0, 0, 80);
-                }
-            """)
-            self.chat_scroll.setStyleSheet("""
-                QScrollArea {
-                    background-color: rgba(20, 20, 20, 120);
-                    border: 1px solid rgba(255, 255, 255, 20);
-                    border-radius: 8px;
-                }
-                QScrollBar:vertical {
-                    background-color: rgba(255, 255, 255, 30);
-                    width: 8px;
-                    border-radius: 4px;
-                }
-                QScrollBar::handle:vertical {
-                    background-color: rgba(255, 255, 255, 80);
-                    border-radius: 4px;
-                    min-height: 20px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background-color: rgba(255, 255, 255, 120);
-                }
-            """)
         else:
             setTheme(Theme.LIGHT)
-            self.main_container.setStyleSheet("""
-                QWidget#mainContainer {
-                    background-color: rgba(255, 255, 255, 180);
-                    border-radius: 10px;
-                    border: 1px solid rgba(0, 0, 0, 30);
-                }
-                QScrollArea {
-                    background-color: rgba(255, 255, 255, 100);
-                }
-            """)
-            self.chat_scroll.setStyleSheet("""
-                QScrollArea {
-                    background-color: rgba(255, 255, 255, 120);
-                    border: 1px solid rgba(0, 0, 0, 20);
-                    border-radius: 8px;
-                }
-                QScrollBar:vertical {
-                    background-color: rgba(0, 0, 0, 30);
-                    width: 8px;
-                    border-radius: 4px;
-                }
-                QScrollBar::handle:vertical {
-                    background-color: rgba(0, 0, 0, 80);
-                    border-radius: 4px;
-                    min-height: 20px;
-                }
-                QScrollBar::handle:vertical:hover {
-                    background-color: rgba(0, 0, 0, 120);
-                }
-            """)
+
+        container_style, scroll_style = self._get_main_style()
+        self.main_container.setStyleSheet(container_style)
+        self.chat_scroll.setStyleSheet(scroll_style)
 
         self.load_chat_history()
 
         if hasattr(self, 'title_label'):
             if is_dark:
                 self.title_label.setStyleSheet("""
-                    color: rgba(255, 255, 255, 220);
+                    color: rgba(255, 255, 255, 230);
                     font-size: 14px;
-                    font-weight: bold;
+                    font-weight: 600;
+                    background: transparent;
                 """)
             else:
                 self.title_label.setStyleSheet("""
-                    color: rgba(0, 0, 0, 200);
+                    color: rgba(0, 0, 0, 210);
                     font-size: 14px;
-                    font-weight: bold;
+                    font-weight: 600;
+                    background: transparent;
                 """)
 
     def closeEvent(self, event):
