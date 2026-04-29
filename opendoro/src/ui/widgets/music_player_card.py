@@ -12,6 +12,7 @@ from qfluentwidgets import CardWidget, PushButton, TransparentToolButton, Fluent
 from src.services.music_service import MusicService, SongInfo
 from src.services.extended_music_service import get_music_data_dir
 from src.services.global_music_player import GlobalMusicPlayer
+from src.ui.music.mini_music_window import MiniMusicWindow
 
 
 class PlayMode(Enum):
@@ -952,6 +953,7 @@ class MusicPlayerCard(CardWidget):
         self._is_user_seeking = False
         self._play_mode = PlayMode.LIST_LOOP
         self._played_indices = set()
+        self._mini_window = None
         
         self.global_player = GlobalMusicPlayer.get_instance(self)
         self._music_service = MusicService(self)
@@ -965,6 +967,7 @@ class MusicPlayerCard(CardWidget):
         self.global_player.position_changed.connect(self._on_global_position_changed)
         self.global_player.duration_changed.connect(self._on_global_duration_changed)
         self.global_player.current_song_changed.connect(self._on_global_song_changed)
+        self.global_player.volume_changed.connect(self._on_global_volume_changed)
     
     def _on_global_state_changed(self, is_playing: bool):
         if is_playing:
@@ -1109,6 +1112,12 @@ class MusicPlayerCard(CardWidget):
         self.song_list_btn.setIconSize(self.song_list_btn.size())
         self.song_list_btn.setToolTip("本地歌曲列表")
         self.song_list_btn.clicked.connect(self._toggle_song_list)
+
+        self.mini_btn = TransparentToolButton(FIF.FIT_PAGE, self)
+        self.mini_btn.setFixedSize(16, 16)
+        self.mini_btn.setIconSize(self.mini_btn.size())
+        self.mini_btn.setToolTip("迷你播放窗")
+        self.mini_btn.clicked.connect(self._toggle_mini_window)
         
         self.mode_btn = TransparentToolButton(FIF.SYNC, self)
         self.mode_btn.setFixedSize(16, 16)
@@ -1117,6 +1126,7 @@ class MusicPlayerCard(CardWidget):
         self.mode_btn.clicked.connect(self._toggle_play_mode)
         
         volume_layout.addWidget(self.mode_btn)
+        volume_layout.addWidget(self.mini_btn)
         volume_layout.addWidget(self.song_list_btn)
         
         controls_layout.addLayout(volume_layout)
@@ -1259,6 +1269,15 @@ class MusicPlayerCard(CardWidget):
         self._played_indices.add(next_idx)
         return next_idx
     
+    def _toggle_mini_window(self):
+        if self._mini_window is None:
+            self._mini_window = MiniMusicWindow()
+        if self._mini_window.isVisible():
+            self._mini_window.hide()
+        else:
+            self._mini_window.show()
+            self._mini_window.move(100, 100)
+
     def _toggle_play_mode(self):
         modes = list(PlayMode)
         current_idx = modes.index(self._play_mode)
@@ -1321,6 +1340,12 @@ class MusicPlayerCard(CardWidget):
     
     def _on_volume_changed(self, value):
         self.global_player.set_volume(value)
+        self.volume_value_label.setText(f"{value}%")
+    
+    def _on_global_volume_changed(self, value):
+        self.volume_slider.blockSignals(True)
+        self.volume_slider.setValue(value)
+        self.volume_slider.blockSignals(False)
         self.volume_value_label.setText(f"{value}%")
     
     def _on_duration_changed(self, duration):
@@ -1458,9 +1483,9 @@ class MusicPlayerCard(CardWidget):
         
         if hasattr(self, '_song_popup'):
             self._song_popup.update_theme(is_dark)
-        
-        if hasattr(self, '_song_popup'):
-            self._song_popup.update_theme(is_dark)
+
+        if self._mini_window and self._mini_window.isVisible():
+            self._mini_window.update_theme()
     
     def closeEvent(self, event):
         self.player.stop()

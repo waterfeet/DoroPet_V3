@@ -296,6 +296,7 @@ class GlobalMusicPlayer(QObject):
     position_changed = pyqtSignal(int)
     duration_changed = pyqtSignal(int)
     play_url_refreshed = pyqtSignal(object, str)
+    volume_changed = pyqtSignal(int)
     
     _instance = None
     
@@ -434,6 +435,7 @@ class GlobalMusicPlayer(QObject):
     def set_volume(self, volume: int):
         """设置音量"""
         self.player.set_volume(volume)
+        self.volume_changed.emit(volume)
     
     def get_volume(self) -> int:
         """获取音量"""

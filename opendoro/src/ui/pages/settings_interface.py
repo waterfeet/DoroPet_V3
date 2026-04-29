@@ -42,13 +42,11 @@ class GeneralSettingsPage(QWidget):
         
         self.check_autorun = CheckBox("开机自动启动", self)
         self.check_hide_pet_on_startup = CheckBox("启动时隐藏桌宠 (仅显示主界面)", self)
-        self.check_play_music_on_startup = CheckBox("启动后播放音乐", self)
         self.check_mouse_interact = CheckBox("启用鼠标交互 (取消勾选以锁定)", self)
         self.check_mouse_interact.setChecked(True)
         
         card.addWidget(self.check_autorun)
         card.addWidget(self.check_hide_pet_on_startup)
-        card.addWidget(self.check_play_music_on_startup)
         card.addWidget(self.check_mouse_interact)
         
         layout.addWidget(card)
@@ -660,7 +658,6 @@ class SettingsInterface(ScrollArea):
     def connect_signals(self):
         self.general_page.check_autorun.stateChanged.connect(self.on_autorun_changed)
         self.general_page.check_hide_pet_on_startup.stateChanged.connect(self.on_hide_pet_on_startup_changed)
-        self.general_page.check_play_music_on_startup.stateChanged.connect(self.on_play_music_on_startup_changed)
         self.general_page.check_mouse_interact.stateChanged.connect(self.on_mouse_interact_changed)
         
         self.display_page.check_show_pet_status.stateChanged.connect(self.on_show_pet_status_changed)
@@ -837,9 +834,6 @@ class SettingsInterface(ScrollArea):
     def on_hide_pet_on_startup_changed(self, checked):
         self.settings.setValue("hide_pet_on_startup", checked)
 
-    def on_play_music_on_startup_changed(self, checked):
-        self.settings.setValue("play_music_on_startup", checked)
-
     def load_settings(self):
         scale = self.settings.value("scale", 100, type=int)
         bubble_duration = self.settings.value("bubble_duration", 3000, type=int)
@@ -847,7 +841,6 @@ class SettingsInterface(ScrollArea):
         mouse_interact = self.settings.value("mouse_interact", True, type=bool)
         autorun = self.settings.value("autorun", False, type=bool)
         hide_pet_on_startup = self.settings.value("hide_pet_on_startup", False, type=bool)
-        play_music_on_startup = self.settings.value("play_music_on_startup", False, type=bool)
         inject_time = self.settings.value("inject_time", False, type=bool)
         expression_response = self.settings.value("enable_expression_response", True, type=bool)
         llm_max_tokens = self.settings.value("llm_max_tokens", 8192, type=int)
@@ -862,7 +855,6 @@ class SettingsInterface(ScrollArea):
         
         self.general_page.check_autorun.setChecked(autorun)
         self.general_page.check_hide_pet_on_startup.setChecked(hide_pet_on_startup)
-        self.general_page.check_play_music_on_startup.setChecked(play_music_on_startup)
         self.general_page.check_mouse_interact.setChecked(mouse_interact)
         
         self.display_page.check_show_pet_status.setChecked(show_pet_status)

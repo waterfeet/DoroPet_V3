@@ -1,0 +1,2 @@
+[console_scripts]
+sherpa-onnx-cli = sherpa_onnx.cli:cli

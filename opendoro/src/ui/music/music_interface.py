@@ -24,6 +24,7 @@ from src.utils.lyric_parser import LyricParser, LyricLine
 
 from .constants import PlayMode, PlayerConstants, ColorConstants, PLAY_MODE_CONFIG, PLATFORM_MAP
 from .network_manager import NetworkManager
+from .mini_music_window import MiniMusicWindow
 from .widgets import (
     VinylRecordWidget, LyricsCardWidget, SongListItemWidget, PlaylistItemWidget,
     ClickableLabel, DockablePlaylistWidget, SlidingPlayerPanel, ClickableSlider,
@@ -64,6 +65,7 @@ class MusicInterface(ScrollArea):
         
         self._vinyl_record = None
         self._dockable_playlist = None
+        self._mini_window = None
         
         self._init_ui()
         self._connect_signals()
@@ -99,6 +101,7 @@ class MusicInterface(ScrollArea):
         self.global_player.position_changed.connect(self._on_global_position_changed)
         self.global_player.duration_changed.connect(self._on_global_duration_changed)
         self.global_player.play_url_refreshed.connect(self._on_play_url_refreshed)
+        self.global_player.volume_changed.connect(self._on_global_volume_changed)
 
     def _handle_track_finished(self):
         self._play_next()
@@ -697,6 +700,11 @@ class MusicInterface(ScrollArea):
         self.playlist_toggle_btn.setFixedSize(28, 28)
         self.playlist_toggle_btn.setToolTip("播放列表")
         self.playlist_toggle_btn.clicked.connect(self._toggle_playlist_dock)
+
+        self.mini_btn = TransparentToolButton(FIF.FIT_PAGE, self)
+        self.mini_btn.setFixedSize(28, 28)
+        self.mini_btn.setToolTip("迷你播放窗")
+        self.mini_btn.clicked.connect(self._toggle_mini_window)
         
         self.volume_icon = TransparentToolButton(FIF.VOLUME, self)
         self.volume_icon.setFixedSize(28, 28)
@@ -711,6 +719,7 @@ class MusicInterface(ScrollArea):
         self.volume_label.setObjectName("musicVolumeLabel")
         self.volume_label.setFixedWidth(35)
         
+        volume_layout.addWidget(self.mini_btn)
         volume_layout.addWidget(self.playlist_toggle_btn)
         volume_layout.addWidget(self.volume_icon)
         volume_layout.addWidget(self.volume_slider)
@@ -1597,6 +1606,15 @@ class MusicInterface(ScrollArea):
         self._played_indices.add(next_idx)
         return next_idx
     
+    def _toggle_mini_window(self):
+        if self._mini_window is None:
+            self._mini_window = MiniMusicWindow()
+        if self._mini_window.isVisible():
+            self._mini_window.hide()
+        else:
+            self._mini_window.show()
+            self._mini_window.move(100, 100)
+
     def _toggle_play_mode(self):
         modes = list(PlayMode)
         current_idx = modes.index(self._play_mode)
@@ -1628,6 +1646,12 @@ class MusicInterface(ScrollArea):
     
     def _on_volume_changed(self, value: int):
         self.global_player.set_volume(value)
+        self.volume_label.setText(f"{value}%")
+    
+    def _on_global_volume_changed(self, value: int):
+        self.volume_slider.blockSignals(True)
+        self.volume_slider.setValue(value)
+        self.volume_slider.blockSignals(False)
         self.volume_label.setText(f"{value}%")
     
     def _format_time(self, ms: int) -> str:
@@ -1665,6 +1689,9 @@ class MusicInterface(ScrollArea):
         if hasattr(self, '_spectrum_widget'):
             accent = QColor(96, 165, 250) if is_dark else QColor(0, 120, 212)
             self._spectrum_widget.set_accent_color(accent)
+
+        if self._mini_window and self._mini_window.isVisible():
+            self._mini_window.update_theme()
     
     def _update_lyrics_text_color(self, normal_color: str, hover_color: str, selected_color: str):
         self._lyrics_normal_color = normal_color

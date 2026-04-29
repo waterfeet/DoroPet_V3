@@ -829,10 +829,6 @@ class Live2DWidget(QOpenGLWidget):
                 self.main_window.showNormal()
             if not self.main_window.isVisible():
                 self.main_window.show()
-            self.main_window.setWindowFlags(self.main_window.windowFlags() | Qt.WindowStaysOnTopHint)
-            self.main_window.show()
-            self.main_window.setWindowFlags(self.main_window.windowFlags() & ~Qt.WindowStaysOnTopHint)
-            self.main_window.show()
             self.main_window.raise_()
             self.main_window.activateWindow()
         except Exception as e:

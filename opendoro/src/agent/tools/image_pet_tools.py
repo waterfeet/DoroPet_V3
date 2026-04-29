@@ -48,23 +48,43 @@ class GenerateImageTool(Tool):
             image_path = None
             image_url = ""
 
-            if self._image_provider:
+            provider = self._image_provider
+            if not provider:
                 try:
-                    img_response = self._image_provider.generate(prompt=prompt, size=size, quality=quality)
-                    if img_response.image_path:
+                    from src.provider.manager import ProviderManager
+                    provider = ProviderManager.get_instance().get_image_provider()
+                except Exception:
+                    pass
+
+            if provider:
+                try:
+                    img_response = provider.generate(prompt=prompt, size=size, quality=quality)
+                    if img_response.image_path and os.path.exists(img_response.image_path):
                         image_path = img_response.image_path
+                    elif img_response.image_url:
+                        image_url = img_response.image_url
+                        save_dir = _get_images_dir()
+                        if not os.path.exists(save_dir):
+                            os.makedirs(save_dir, exist_ok=True)
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        filename = f"gen_{timestamp}.png"
+                        file_path = os.path.join(save_dir, filename)
+                        self._download_image(image_url, file_path)
+                        image_path = file_path
                 except Exception as e:
-                    logger.warning(f"[GenerateImageTool] Provider fallback: {e}")
+                    logger.warning(f"[GenerateImageTool] Provider error, falling back: {e}")
 
             if not image_path:
-                save_dir = _get_images_dir()
-                if not os.path.exists(save_dir):
-                    os.makedirs(save_dir, exist_ok=True)
+                fallback_result = self._fallback_generate(prompt, size, quality)
+                if fallback_result:
+                    image_path = fallback_result
 
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"gen_{timestamp}.png"
-                file_path = os.path.join(save_dir, filename)
-                image_path = file_path
+            if not image_path or not os.path.exists(image_path):
+                return ToolResult(
+                    tool_name=self.schema.name,
+                    success=False,
+                    error="Image generation failed: no image provider available and legacy fallback also failed.",
+                )
 
             return ToolResult(
                 tool_name=self.schema.name,
@@ -77,6 +97,74 @@ class GenerateImageTool(Tool):
             )
         except Exception as e:
             return ToolResult(tool_name=self.schema.name, success=False, error=str(e))
+
+    def _download_image(self, url: str, output_path: str):
+        resp = requests.get(url, timeout=60)
+        resp.raise_for_status()
+        with open(output_path, "wb") as f:
+            f.write(resp.content)
+
+    def _fallback_generate(self, prompt: str, size: str, quality: str) -> str:
+        try:
+            import requests as req
+            from PyQt5.QtCore import QSettings
+
+            save_dir = _get_images_dir()
+            if not os.path.exists(save_dir):
+                os.makedirs(save_dir, exist_ok=True)
+
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"gen_{timestamp}.png"
+            file_path = os.path.join(save_dir, filename)
+
+            settings = QSettings("DoroPet", "Settings")
+            img_base_url = settings.value("img_base_url", "")
+            img_api_key = settings.value("img_api_key", "")
+            img_model = settings.value("img_model", "dall-e-3")
+
+            if not img_api_key and not img_base_url:
+                logger.warning("[GenerateImageTool] No image API configuration found in QSettings")
+                return ""
+
+            if img_base_url and img_api_key:
+                endpoint = f"{img_base_url.rstrip('/')}/images/generations"
+                headers = {
+                    "Authorization": f"Bearer {img_api_key}",
+                    "Content-Type": "application/json"
+                }
+                data = {
+                    "model": img_model or "dall-e-3",
+                    "prompt": prompt,
+                    "n": 1,
+                    "size": size,
+                }
+                if "siliconflow" in img_base_url.lower():
+                    data["image_size"] = size
+                    data["batch_size"] = 1
+                    data.pop("n", None)
+
+                resp = req.post(endpoint, headers=headers, json=data, timeout=120)
+                resp.raise_for_status()
+                res_json = resp.json()
+
+                image_url = ""
+                if "data" in res_json and len(res_json["data"]) > 0:
+                    image_url = res_json["data"][0].get("url", "")
+                elif "images" in res_json and len(res_json["images"]) > 0:
+                    image_url = res_json["images"][0].get("url", "")
+
+                if image_url:
+                    img_resp = req.get(image_url, timeout=60)
+                    img_resp.raise_for_status()
+                    with open(file_path, "wb") as f:
+                        f.write(img_resp.content)
+                    return file_path
+                else:
+                    logger.warning(f"[GenerateImageTool] No image_url in API response: {res_json}")
+                    return ""
+        except Exception as e:
+            logger.warning(f"[GenerateImageTool] Fallback generate also failed: {e}")
+        return ""
 
 
 class SetExpressionTool(Tool):
