@@ -30,10 +30,10 @@ def init_provider_framework():
             ProviderEdgeTTS, ProviderOpenAITTS, ProviderGradioTTS,
             ProviderOpenAIImage
         )
-        logger.info("Provider adapters loaded successfully")
+        logger.debug("Provider adapters loaded successfully")
     except ImportError as e:
         logger.warning(f"Some provider adapters could not be loaded: {e}")
-    
+
     db = DatabaseManager().config
     pm = ProviderManager.get_instance()
     pm.load_providers_from_db(db)
@@ -217,7 +217,7 @@ def check_and_create_shortcut_async():
         if not shortcut_exists():
             success, message = create_desktop_shortcut(replace_existing=False)
             if success:
-                logger.info(f"Auto-created desktop shortcut: {message}")
+                logger.debug(f"Auto-created desktop shortcut: {message}")
     threading.Thread(target=_worker, daemon=True).start()
 
 def main():
@@ -232,32 +232,25 @@ def main():
 
     logger.info("Application started.")
 
-    # 设置应用程序图标 (任务栏图标)
     icon_path = resource_path("data/icons/app.png")
     if os.path.exists(icon_path):
         app.setWindowIcon(QIcon(icon_path))
-    
-    # Windows 任务栏图标设置
+
     try:
         import ctypes
         app_id = "DoroPet.Application.v3"
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
     except Exception as e:
         logger.warning(f"Failed to set AppUserModelID: {e}")
-    
-    # 防止关闭主窗口（设置界面）时导致程序退出
-    # 同时也配合系统托盘功能，使程序可以后台运行
-    app.setQuitOnLastWindowClosed(False) 
 
-    # Initialize Provider Framework
+    app.setQuitOnLastWindowClosed(False)
+
     splash.set_status("正在初始化 Provider 框架...")
     init_provider_framework()
 
-    # Initialize Agent Framework
     splash.set_status("正在初始化 Agent 框架...")
     init_agent_framework()
 
-    # Load light.qss
     qss_path = resource_path("themes/light.qss")
     if os.path.exists(qss_path):
         try:
@@ -269,14 +262,13 @@ def main():
     else:
         logger.warning(f"Stylesheet not found: {qss_path}")
 
-    # 确保路径正确
     logger.info("Initializing Live2DWidget...")
     splash.set_status("正在加载Live2D模型...")
-    
+
     from src.core.database import DatabaseManager
     db_manager = DatabaseManager()
     default_model_path = resource_path("models/Doro/Doro.model3.json")
-    
+
     try:
         personas = db_manager.personas.get_personas()
         if personas:
@@ -288,29 +280,24 @@ def main():
                     logger.info(f"Using saved model from persona: {saved_model}")
     except Exception as e:
         logger.warning(f"Failed to load model from database: {e}")
-    
+
     w = Live2DWidget(path=default_model_path)
-    
-    # 读取启动设置
+
     settings = QSettings("DoroPet", "Settings")
     hide_pet_on_startup = settings.value("hide_pet_on_startup", False, type=bool)
-    
+
     if hide_pet_on_startup:
         w.hide()
         w.open_main_window()
         logger.info("Pet hidden on startup, showing main window instead.")
     else:
         w.show()
-    
-    # --- 系统托盘设置 ---
+
     tray_icon = setup_tray_icon(app, w)
-    # -------------------
-    
-    # 测试：启动时说一句话
+
     if not hide_pet_on_startup:
         w.talk("欢迎回来！")
-    
-    # 关闭启动画面
+
     splash.close_splash()
     logger.info("Splash screen closed")
 

@@ -407,7 +407,7 @@ class SkillManager:
             metadata=manifest,
         )
 
-        logger.info(f"Loaded skill from manifest: {name}")
+        logger.debug(f"Loaded skill from manifest: {name}")
 
     def get_tool_schemas(self) -> List[Dict]:
         schemas = []
@@ -472,16 +472,16 @@ class SkillManager:
 
         skill = self.skills[original_name]
         logger.info(f"[SkillManager] Executing skill '{original_name}' (normalized: '{skill_name}', type: {skill.skill_type.value}, entry: {skill.entry_point})")
-        logger.info(f"[SkillManager] Skill '{original_name}' parameters: {kwargs}")
+        logger.debug(f"[SkillManager] Skill '{original_name}' parameters: {kwargs}")
 
         if skill.function:
             try:
-                logger.info(f"[SkillManager] Calling skill function for '{original_name}'...")
+                logger.debug(f"[SkillManager] Calling skill function for '{original_name}'...")
                 result = skill.function(**kwargs)
                 if isinstance(result, str):
-                    logger.info(f"[SkillManager] Skill '{original_name}' executed successfully (string result, length: {len(result)})")
+                    logger.debug(f"[SkillManager] Skill '{original_name}' executed successfully (string result, length: {len(result)})")
                     return result
-                logger.info(f"[SkillManager] Skill '{original_name}' executed successfully (result type: {type(result).__name__})")
+                logger.debug(f"[SkillManager] Skill '{original_name}' executed successfully (result type: {type(result).__name__})")
                 return json.dumps({"status": "success", "result": result}, ensure_ascii=False)
             except TypeError as e:
                 logger.error(f"[SkillManager] Skill '{original_name}' parameter error: {e}. Expected params: {list(skill.parameters.get('properties', {}).keys())}, Got: {list(kwargs.keys())}")
@@ -490,7 +490,7 @@ class SkillManager:
                 logger.error(f"[SkillManager] Error executing skill '{original_name}': {type(e).__name__}: {e}")
                 return json.dumps({"status": "error", "message": str(e)})
 
-        logger.info(f"[SkillManager] Skill '{original_name}' is document-type, returning full content for AI to learn")
+        logger.debug(f"[SkillManager] Skill '{original_name}' is document-type, returning full content for AI to learn")
         return json.dumps({
             "status": "info",
             "message": f"Skill '{original_name}' is a document-type skill. Please read the content below and learn how to use it.",

@@ -913,7 +913,7 @@ class NetworkImageLabel(QLabel):
         
         def download():
             try:
-                logger.info(f"[NetworkImageLabel] 开始加载图片：url={self.image_url[:150]}...")
+                logger.debug(f"[NetworkImageLabel] 开始加载图片：url={self.image_url[:150]}...")
                 
                 if self.image_url.startswith('file://'):
                     if self.image_url.startswith('file:///'):  # file:///C:/path
@@ -921,14 +921,14 @@ class NetworkImageLabel(QLabel):
                     else:  # file://C:/path
                         local_file = self.image_url[7:]
                     local_file = local_file.replace('/', '\\')
-                    logger.info(f"[NetworkImageLabel] 检测到 file:// URI，检查本地文件：{local_file}")
+                    logger.debug(f"[NetworkImageLabel] 检测到 file:// URI，检查本地文件：{local_file}")
                     if os.path.exists(local_file):
-                        logger.info(f"[NetworkImageLabel] ✅ 本地文件存在，直接使用：{local_file}")
+                        logger.debug(f"[NetworkImageLabel] ✅ 本地文件存在，直接使用：{local_file}")
                         self.local_path = local_file
                         QTimer.singleShot(0, self._display_image)
                         return
                     else:
-                        logger.error(f"[NetworkImageLabel] ❌ 本地文件不存在：{local_file}")
+                        logger.warning(f"[NetworkImageLabel] ❌ 本地文件不存在：{local_file}")
                         QTimer.singleShot(0, lambda: self.setText(f"[图片文件不存在]"))
                         return
                 
@@ -940,7 +940,7 @@ class NetworkImageLabel(QLabel):
                         b64_data = match.group(2)
                         image_data = base64.b64decode(b64_data)
 
-                        logger.info(f"[NetworkImageLabel] base64 图片直接解码显示，不缓存")
+                        logger.debug(f"[NetworkImageLabel] base64 图片直接解码显示，不缓存")
                         import tempfile
                         import uuid
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -952,19 +952,19 @@ class NetworkImageLabel(QLabel):
                         with open(temp_path, 'wb') as f:
                             f.write(image_data)
                         self.local_path = temp_path
-                        logger.info(f"[NetworkImageLabel] 临时文件：{self.local_path}")
+                        logger.debug(f"[NetworkImageLabel] 临时文件：{self.local_path}")
                         QTimer.singleShot(0, self._display_image)
                         return
                 else:
-                    logger.info(f"[NetworkImageLabel] 检查 HTTP 图片缓存...")
+                    logger.debug(f"[NetworkImageLabel] 检查 HTTP 图片缓存...")
                     cached_path = self._cache_manager.get_cached_path(self.image_url)
                     if cached_path and os.path.exists(cached_path):
-                        logger.info(f"[NetworkImageLabel] ✅ 缓存命中：{cached_path}")
+                        logger.debug(f"[NetworkImageLabel] ✅ 缓存命中：{cached_path}")
                         self.local_path = cached_path
                         QTimer.singleShot(0, self._display_image)
                         return
 
-                    logger.info(f"[NetworkImageLabel] ❌ 缓存未命中，开始下载...")
+                    logger.debug(f"[NetworkImageLabel] ❌ 缓存未命中，开始下载...")
 
                     response = requests.get(self.image_url, timeout=15)
                     response.raise_for_status()
@@ -991,7 +991,7 @@ class NetworkImageLabel(QLabel):
                         f.write(image_data)
 
                     self._cache_manager.add_image(self.image_url, self.local_path)
-                    logger.info(f"[NetworkImageLabel] 保存到：{self.local_path}")
+                    logger.debug(f"[NetworkImageLabel] 保存到：{self.local_path}")
                     QTimer.singleShot(0, self._display_image)
 
             except Exception as e:

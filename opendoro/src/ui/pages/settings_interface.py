@@ -717,7 +717,7 @@ class SettingsInterface(ScrollArea):
                 if hasattr(tts, 'player') and tts.player:
                     tts.player.setVolume(value)
         except Exception as e:
-            logger.error(f"Error setting volume: {e}")
+            logger.warning(f"Error setting volume: {e}")
         self.settings.setValue("volume", value)
 
     def on_mouse_interact_changed(self, checked):
@@ -832,7 +832,7 @@ class SettingsInterface(ScrollArea):
             self.settings.setValue("autorun", checked)
             logger.info(f"Autorun set to {checked}")
         except Exception as e:
-            logger.error(f"Autorun error: {e}")
+            logger.warning(f"Autorun error: {e}")
 
     def on_hide_pet_on_startup_changed(self, checked):
         self.settings.setValue("hide_pet_on_startup", checked)

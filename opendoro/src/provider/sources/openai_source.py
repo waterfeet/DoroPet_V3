@@ -41,7 +41,7 @@ class ProviderOpenAI(LLMProvider):
         if not api_key or api_key.strip() == "":
             if "ollama" in self.config.base_url.lower() or "localhost:11434" in self.config.base_url:
                 api_key = "ollama"
-                logger.info(f"[ProviderOpenAI] Using placeholder API key for Ollama")
+                logger.debug(f"[ProviderOpenAI] Using placeholder API key for Ollama")
         
         return OpenAI(
             api_key=api_key,

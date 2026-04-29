@@ -186,6 +186,8 @@ class MainWindow(FluentWindow):
             self.chat_interface.update_theme()
         if hasattr(self, 'settings_interface'):
             self.settings_interface.update_theme()
+        if hasattr(self, 'log_interface'):
+            self.log_interface.update_theme()
         if hasattr(self, 'voice_config_interface'):
             self.voice_config_interface.update_theme()
         if hasattr(self, 'live2d_config_interface'):

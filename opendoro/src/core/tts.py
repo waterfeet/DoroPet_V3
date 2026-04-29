@@ -262,7 +262,7 @@ class GradioTTSWorker(QThread):
             prompt_text = self.prompt_text if self.prompt_text else self.DEFAULT_PROMPT_TEXT
             
             logger.info(f"调用 GSV TTS API: {self.base_url}{api_endpoint}")
-            logger.info(f"参考音频：{prompt_audio}, 参考文本：{prompt_text}")
+            logger.debug(f"参考音频：{prompt_audio}, 参考文本：{prompt_text}")
             
             try:
                 # 根据 GSV TTS WebUI 的 API 要求，传递所有必需参数
@@ -405,7 +405,7 @@ class GeminiTTSWorker(QThread):
             os.makedirs(os.path.dirname(self.cache_path), exist_ok=True)
             self._save_wave_file(cache_path_wav, audio_data)
             
-            logger.info(f"Gemini TTS 音频已保存: {cache_path_wav}")
+            logger.debug(f"Gemini TTS 音频已保存: {cache_path_wav}")
             self.finished.emit(cache_path_wav)
         except Exception as e:
             logger.error(f"Gemini TTS 错误: {e}")

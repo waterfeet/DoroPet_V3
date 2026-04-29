@@ -94,7 +94,7 @@ class LLMWorker(QThread):
             logger.info("[LLMWorker] Stop requested")
         
         self.stream_processor.stop()
-        logger.info("[LLMWorker] Stop flag set, waiting for worker to exit gracefully")
+        logger.debug("[LLMWorker] Stop flag set, waiting for worker to exit gracefully")
     
     def is_stopped(self) -> bool:
         with QMutexLocker(self._stop_mutex):
@@ -236,7 +236,7 @@ class LLMWorker(QThread):
                 
                 for response in stream:
                     if self.is_stopped():
-                        logger.info("[LLMWorker] Stopped during streaming")
+                        logger.debug("[LLMWorker] Stopped during streaming")
                         break
                     
                     if response.content:
@@ -273,14 +273,14 @@ class LLMWorker(QThread):
                                 tool_calls_buffer[tc_key]["function"]["arguments"] += tc.arguments
                 
             except StopIteration:
-                logger.info("[LLMWorker] Stream stopped by user")
+                logger.debug("[LLMWorker] Stream stopped by user")
                 return
             except GeneratorExit:
-                logger.info("[LLMWorker] Generator closed by user")
+                logger.debug("[LLMWorker] Generator closed by user")
                 return
             except Exception as e:
                 if self.is_stopped():
-                    logger.info("[LLMWorker] Stopped during streaming (exception)")
+                    logger.debug("[LLMWorker] Stopped during streaming (exception)")
                     return
                 logger.error(f"[LLMWorker] Provider streaming error: {e}")
                 self.error.emit(str(e))
@@ -289,7 +289,7 @@ class LLMWorker(QThread):
                 self._provider_stream = None
             
             if self.is_stopped():
-                logger.info("[LLMWorker] Processing stop state after streaming")
+                logger.debug("[LLMWorker] Processing stop state after streaming")
                 return
             
             if current_turn_reasoning:
@@ -300,7 +300,7 @@ class LLMWorker(QThread):
 
             if not tool_calls_buffer:
                 logger.info(f"[LLMWorker] Finished. Total length: {len(full_content)}")
-                logger.info(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
+                logger.debug(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
                 self.finished.emit(full_content, self.reasoning_accumulated, self.tool_calls_accumulated, self.generated_images)
                 break
             
@@ -336,7 +336,7 @@ class LLMWorker(QThread):
         if not api_key_for_client or api_key_for_client.strip() == "":
             if "ollama" in self.base_url.lower() or "localhost:11434" in self.base_url:
                 api_key_for_client = "ollama"
-                logger.info("[LLMWorker] Using placeholder API key for Ollama")
+                logger.debug("[LLMWorker] Using placeholder API key for Ollama")
         
         client = OpenAI(api_key=api_key_for_client, base_url=self.base_url, http_client=self._http_client)
         turn_count = 0
@@ -369,7 +369,7 @@ class LLMWorker(QThread):
                 
                 for chunk in response:
                     if self.is_stopped():
-                        logger.info("[LLMWorker] Stopped during streaming")
+                        logger.debug("[LLMWorker] Stopped during streaming")
                         return
                     
                     if not chunk.choices:
@@ -379,14 +379,14 @@ class LLMWorker(QThread):
                     self.stream_processor.process_chunk(delta)
                 
             except StopIteration:
-                logger.info("[LLMWorker] Stream stopped by user")
+                logger.debug("[LLMWorker] Stream stopped by user")
                 return
             except GeneratorExit:
-                logger.info("[LLMWorker] Generator closed by user")
+                logger.debug("[LLMWorker] Generator closed by user")
                 return
             except Exception as e:
                 if self.is_stopped():
-                    logger.info("[LLMWorker] Stopped during streaming (exception)")
+                    logger.debug("[LLMWorker] Stopped during streaming (exception)")
                     return
                 logger.error(f"[LLMWorker] Legacy streaming error: {e}")
                 self.error.emit(str(e))
@@ -395,7 +395,7 @@ class LLMWorker(QThread):
                 self._response_iterator = None
             
             if self.is_stopped():
-                logger.info("[LLMWorker] Processing stop state after streaming")
+                logger.debug("[LLMWorker] Processing stop state after streaming")
                 return
             
             full_content, current_turn_content, current_turn_reasoning, tool_calls_buffer = self.stream_processor.finalize()
@@ -408,7 +408,7 @@ class LLMWorker(QThread):
 
             if not tool_calls_buffer:
                 logger.info(f"[LLMWorker] Finished. Total length: {len(full_content)}")
-                logger.info(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
+                logger.debug(f"[LLMWorker] Response content: {_truncate_content_for_log(full_content)}")
                 self.finished.emit(full_content, self.reasoning_accumulated, self.tool_calls_accumulated, self.generated_images)
                 break
             
@@ -439,7 +439,7 @@ class LLMWorker(QThread):
     def _execute_tool_calls(self, sorted_indices, tool_calls_buffer):
         for idx in sorted_indices:
             if self.is_stopped():
-                logger.info("[LLMWorker] Stopped during tool execution")
+                logger.debug("[LLMWorker] Stopped during tool execution")
                 return
             
             tc_data = tool_calls_buffer[idx]
@@ -478,7 +478,7 @@ class LLMWorker(QThread):
                     })
                     continue
             
-            logger.info(f"[LLMWorker] [{call_type.upper()}] Executing {func_name} with args: {func_args_str} (provider model: {self.model})")
+            logger.debug(f"[LLMWorker] [{call_type.upper()}] Executing {func_name} with args: {func_args_str} (provider model: {self.model})")
             
             self.tool_status_changed.emit(f"正在调用{'技能' if is_skill_call else '工具'}: {func_name}...")
             self.tool_execution_update.emit(func_name, call_type, "running", func_args_str, "")
@@ -536,6 +536,21 @@ class LLMWorker(QThread):
                                 self.generated_images.append(image_path)
                     except json.JSONDecodeError:
                         pass
+
+                    if func_name == "set_expression":
+                        if "expression_name" in func_args:
+                            self.expression_changed.emit(func_args["expression_name"])
+
+                    if func_name == "modify_pet_attribute":
+                        interaction = func_args.get("interaction", "")
+                        intensity = func_args.get("intensity", "moderate")
+                        attribute = func_args.get("attribute", "")
+                        action = func_args.get("action", "")
+                        if interaction:
+                            self.pet_attribute_changed.emit(interaction, intensity)
+                        elif attribute and action:
+                            self.pet_attribute_changed.emit(action, intensity)
+
                 elif func_name in AVAILABLE_TOOLS:
                     func = AVAILABLE_TOOLS[func_name]
                     
@@ -611,7 +626,7 @@ class LLMWorker(QThread):
                                 res_json["skills"] = filtered_skills
                                 res_json["count"] = len(filtered_skills)
                                 tool_result = json.dumps(res_json, ensure_ascii=False)
-                                logger.info(f"[LLMWorker] Filtered list_agent_skills result: {len(filtered_skills)} enabled skills")
+                                logger.debug(f"[LLMWorker] Filtered list_agent_skills result: {len(filtered_skills)} enabled skills")
                         except json.JSONDecodeError:
                             pass
                         
@@ -626,7 +641,7 @@ class LLMWorker(QThread):
                 elif is_skill_call:
                     logger.info(f"[SkillCall] Executing skill function: {func_name}")
                     tool_result = self.skill_manager.execute_skill(func_name, **func_args)
-                    logger.info(f"[SkillCall] Result for {func_name}: {tool_result[:200]}..." if len(tool_result) > 200 else f"[SkillCall] Result for {func_name}: {tool_result}")
+                    logger.debug(f"[SkillCall] Result for {func_name}: {tool_result[:200]}..." if len(tool_result) > 200 else f"[SkillCall] Result for {func_name}: {tool_result}")
                     try:
                         result_data = json.loads(tool_result)
                         if result_data.get("status") == "error":
@@ -649,7 +664,7 @@ class LLMWorker(QThread):
             self.tool_calls_accumulated[tool_index]["result"] = tool_result
             self.tool_execution_update.emit(func_name, call_type, execution_status, func_args_str, tool_result)
             
-            logger.info(f"[LLMWorker] Tool result: {tool_result}")
+            logger.debug(f"[LLMWorker] Tool result: {tool_result}")
             self.messages.append({
                 "role": "tool",
                 "tool_call_id": call_id,

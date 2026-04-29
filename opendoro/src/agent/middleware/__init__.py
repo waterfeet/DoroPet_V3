@@ -7,12 +7,12 @@ logger = logging.getLogger("DoroPet.Agent")
 
 def create_logging_hook(priority: int = 200) -> Hook:
     def _log_before_run(context: ExecutionContext, data):
-        logger.info(f"[Agent] Starting run. Session={context.session_id}, Role={context.role}")
+        logger.info(f"[Agent] 开始运行 | Session={context.session_id}, Role={context.role}")
         return data
 
     def _log_after_run(context: ExecutionContext, data):
         total_calls = context.get_total_tool_calls()
-        logger.info(f"[Agent] Run complete. Tool calls={total_calls}, Result={data.get('status', 'unknown')}")
+        logger.info(f"[Agent] 运行完成 | Tool调用={total_calls}, 状态={data.get('status', 'unknown')}")
         return data
 
     return Hook(
@@ -26,13 +26,35 @@ def create_logging_hook(priority: int = 200) -> Hook:
 def create_error_logging_hook(priority: int = 300) -> Hook:
     def _log_error(context: ExecutionContext, data):
         error_msg = data.get("error", "Unknown error") if isinstance(data, dict) else str(data)
-        logger.error(f"[Agent] Error occurred. Session={context.session_id}, Error={error_msg}")
+        logger.error(f"[Agent] 运行出错 | Session={context.session_id}, Error={error_msg}")
         return data
 
     return Hook(
         name="error_logging",
         hook_point=HookPoint.ON_ERROR,
         callback=_log_error,
+        priority=priority,
+    )
+
+
+def create_tool_logging_hook(priority: int = 500) -> Hook:
+    def _log_before_tool(context: ExecutionContext, data):
+        tool_name = data.get("tool_name", data.get("name", "unknown")) if isinstance(data, dict) else "unknown"
+        args = data.get("args", data.get("arguments", "")) if isinstance(data, dict) else ""
+        logger.debug(f"[Agent] 调用工具 | 名称={tool_name}, 参数={str(args)[:200]}")
+        return data
+
+    def _log_after_tool(context: ExecutionContext, data):
+        tool_name = data.get("tool_name", data.get("name", "unknown")) if isinstance(data, dict) else "unknown"
+        result = data.get("result", "") if isinstance(data, dict) else str(data)
+        result_preview = str(result)[:200]
+        logger.debug(f"[Agent] 工具完成 | 名称={tool_name}, 结果={result_preview}")
+        return data
+
+    return Hook(
+        name="tool_logging",
+        hook_point=HookPoint.BEFORE_TOOL,
+        callback=_log_before_tool,
         priority=priority,
     )
 
