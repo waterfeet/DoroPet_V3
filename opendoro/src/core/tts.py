@@ -14,9 +14,10 @@ try:
     import pygame
     pygame.mixer.init()
     HAS_PYGAME = True
-except ImportError:
+except (ImportError, Exception) as e:
     HAS_PYGAME = False
     pygame = None
+    logger.warning(f"pygame 音频初始化失败（将使用 QMediaPlayer 作为后备）: {e}")
 
 try:
     from google import genai
