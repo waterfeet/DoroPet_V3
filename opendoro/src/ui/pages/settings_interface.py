@@ -811,7 +811,7 @@ class SettingsInterface(ScrollArea):
         import winreg
         
         app_name = "DoroPet"
-        exe_path = os.path.abspath(sys.argv[0])
+        bat_path = os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "start_app_background.bat")
         
         key = winreg.HKEY_CURRENT_USER
         key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -819,7 +819,7 @@ class SettingsInterface(ScrollArea):
         try:
             registry_key = winreg.OpenKey(key, key_path, 0, winreg.KEY_WRITE)
             if checked:
-                winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, exe_path)
+                winreg.SetValueEx(registry_key, app_name, 0, winreg.REG_SZ, bat_path)
             else:
                 try:
                     winreg.DeleteValue(registry_key, app_name)
@@ -827,7 +827,7 @@ class SettingsInterface(ScrollArea):
                     pass
             winreg.CloseKey(registry_key)
             self.settings.setValue("autorun", checked)
-            logger.info(f"Autorun set to {checked}")
+            logger.info(f"Autorun set to {checked}, path: {bat_path}")
         except Exception as e:
             logger.warning(f"Autorun error: {e}")
 

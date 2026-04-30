@@ -1,18 +1,16 @@
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QGridLayout, QSpacerItem, QSizePolicy, QScrollArea
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QGridLayout
 
-from qfluentwidgets import CardWidget, PrimaryPushButton, PushButton, setStyleSheet, ScrollArea, BodyLabel
+from qfluentwidgets import CardWidget, PrimaryPushButton, PushButton, ScrollArea
 from qfluentwidgets import FluentIcon as FIF
 
 from src.core.pet_constants import (
     ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY,
-    ATTR_NAMES, STATUS_COLORS, RECOVERY_VALUES
+    ATTR_NAMES, STATUS_COLORS
 )
 from src.core.pet_quotes_manager import PetQuotesManager
-from src.core.pet_fun_manager import PetFunManager
 from src.ui.widgets.greeting_banner import GreetingBanner
 from src.ui.widgets.pet_avatar_card import PetAvatarCard
-from src.ui.widgets.fun_games import FunInteractionPanel
 from src.ui.widgets.music_player_card import MusicPlayerCard
 
 
@@ -121,12 +119,12 @@ class PetStatusInterface(ScrollArea):
     fun_message_requested = pyqtSignal(str)
     start_chat_requested = pyqtSignal()
 
-    def __init__(self, attr_manager=None, db=None, parent=None):
+    def __init__(self, attr_manager=None, db=None, parent=None, pomodoro_interface=None):
         super().__init__(parent)
         self.attr_manager = attr_manager
         self.db = db
+        self.pomodoro_interface = pomodoro_interface
         self.quotes_manager = PetQuotesManager(self)
-        self.fun_manager = PetFunManager(self)
         
         self.setObjectName("PetStatusInterface")
         self.setWidgetResizable(True)
@@ -150,78 +148,56 @@ class PetStatusInterface(ScrollArea):
         top_layout = QHBoxLayout(top_section)
         top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(15)
+        top_layout.setAlignment(Qt.AlignTop)
         
         left_section = QWidget()
         left_layout = QVBoxLayout(left_section)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(15)
+        left_layout.setSpacing(12)
         
         self.avatar_card = PetAvatarCard(self.quotes_manager, self.attr_manager, self)
-        left_layout.addWidget(self.avatar_card, 2)
+        left_layout.addWidget(self.avatar_card)
         
         self.music_player_card = MusicPlayerCard(self)
-        left_layout.addWidget(self.music_player_card, 1)
+        left_layout.addWidget(self.music_player_card)
+        
+        self._init_attribute_section(left_layout)
+        
+        self._init_interaction_buttons(left_layout)
+        
+        left_layout.addStretch()
         
         top_layout.addWidget(left_section, 2)
         
-        self.fun_panel = FunInteractionPanel(self.fun_manager, self)
-        self.fun_panel.setMinimumWidth(260)
-        self.fun_panel.event_triggered_with_bonuses = True
-        top_layout.addWidget(self.fun_panel, 1)
-        
-        self._last_event_bonuses = {}
+        if self.pomodoro_interface:
+            self.pomodoro_interface.setMinimumWidth(260)
+            self.pomodoro_interface.setMaximumWidth(380)
+            top_layout.addWidget(self.pomodoro_interface, 1)
         
         main_layout.addWidget(top_section)
         
-        self.event_notification = CardWidget(self._container)
-        self.event_notification.setFixedHeight(50)
-        event_layout = QHBoxLayout(self.event_notification)
-        event_layout.setContentsMargins(15, 8, 15, 8)
-        
-        self.event_icon_label = QLabel("🎉")
-        self.event_icon_label.setStyleSheet("font-size: 20px;")
-        self.event_text_label = BodyLabel("点击「随机事件」看看会发生什么吧！")
-        self.event_text_label.setStyleSheet("font-size: 14px; color: #666;")
-        
-        event_layout.addWidget(self.event_icon_label)
-        event_layout.addWidget(self.event_text_label, 1)
-        
-        self.event_notification.hide()
-        main_layout.addWidget(self.event_notification)
-        
-        self._event_hide_timer = QTimer(self)
-        self._event_hide_timer.setSingleShot(True)
-        self._event_hide_timer.timeout.connect(self._hide_event_notification)
-        
-        self._init_attribute_section(main_layout)
-        
-        self._init_interaction_buttons(main_layout)
-        
         main_layout.addStretch()
 
-    def _init_attribute_section(self, main_layout):
-        attrs_title = QLabel("属性状态")
-        attrs_title.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
-        main_layout.addWidget(attrs_title)
-        
+    def _init_attribute_section(self, parent_layout):
         self.attribute_cards = {}
         
         attrs_container = QWidget()
         attrs_layout = QGridLayout(attrs_container)
-        attrs_layout.setSpacing(12)
+        attrs_layout.setSpacing(8)
         attrs_layout.setContentsMargins(0, 0, 0, 0)
         
         attrs_order = [ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY]
         for i, attr_name in enumerate(attrs_order):
             card = AttributeCard(attr_name, self)
+            card.setMinimumWidth(140)
             self.attribute_cards[attr_name] = card
-            attrs_layout.addWidget(card, 0, i)
+            attrs_layout.addWidget(card, i // 2, i % 2)
         
-        main_layout.addWidget(attrs_container)
+        parent_layout.addWidget(attrs_container)
 
-    def _init_interaction_buttons(self, main_layout):
+    def _init_interaction_buttons(self, parent_layout):
         interaction_layout = QHBoxLayout()
-        interaction_layout.setSpacing(12)
+        interaction_layout.setSpacing(8)
         
         button_configs = [
             ("feed", "投喂", FIF.HOME),
@@ -234,31 +210,25 @@ class PetStatusInterface(ScrollArea):
         for action, text, icon in button_configs:
             btn = PrimaryPushButton(text, self)
             btn.setIcon(icon)
-            btn.setFixedHeight(40)
+            btn.setFixedHeight(36)
             btn.clicked.connect(lambda checked, a=action: self._on_interaction(a))
             interaction_layout.addWidget(btn)
             self.buttons[action] = btn
         
         random_btn = PushButton("💬 开始对话", self)
-        random_btn.setFixedHeight(40)
+        random_btn.setFixedHeight(36)
         random_btn.clicked.connect(self._on_start_chat)
         interaction_layout.addWidget(random_btn)
         
         interaction_widget = QWidget()
         interaction_widget.setLayout(interaction_layout)
-        main_layout.addWidget(interaction_widget)
+        parent_layout.addWidget(interaction_widget)
 
     def _connect_signals(self):
         if self.attr_manager is None:
             return
         self.attr_manager.attribute_changed.connect(self._on_attribute_changed)
         self.attr_manager.status_changed.connect(self._on_status_changed)
-        
-        self.fun_manager.fun_event_triggered.connect(self._on_fun_event)
-        self.fun_manager.game_result.connect(self._on_game_result)
-        self.fun_panel.fun_event_triggered.connect(self._on_fun_message)
-        self.fun_panel.event_bonuses_ready.connect(self._apply_event_bonuses)
-        self.fun_panel.event_with_type.connect(self._show_event_notification)
     
     def _bind_attributes(self):
         if self.attr_manager is None:
@@ -324,44 +294,10 @@ class PetStatusInterface(ScrollArea):
     def _on_start_chat(self):
         self.start_chat_requested.emit()
 
-    def _on_fun_event(self, name: str, description: str):
-        self.avatar_card.quote_label.setText(description)
-        self.fun_message_requested.emit(description)
-
-    def _on_game_result(self, game_type: str, message: str, result: int):
-        pass
-
-    def _on_fun_message(self, message: str):
-        self.avatar_card.quote_label.setText(message)
-        self.fun_message_requested.emit(message)
-    
-    def _show_event_notification(self, message: str, is_positive: bool = True):
-        if is_positive:
-            self.event_icon_label.setText("🎉")
-            self.event_notification.setObjectName("petEventCardPositive")
-            self.event_text_label.setObjectName("petEventText")
-        else:
-            self.event_icon_label.setText("😅")
-            self.event_notification.setObjectName("petEventCardNegative")
-            self.event_text_label.setObjectName("petEventTextNegative")
-        
-        self.event_text_label.setText(message)
-        self.event_notification.show()
-        self._event_hide_timer.start(5000)
-    
-    def _hide_event_notification(self):
-        self.event_notification.hide()
-
     def update_theme(self, is_dark: bool):
         self.greeting_banner.update_theme(is_dark)
         self.avatar_card.update_theme(is_dark)
-        self.fun_panel.update_theme(is_dark)
         self.music_player_card.update_theme(is_dark)
-        
-        section_title_style = f"font-size: 16px; font-weight: bold; color: {'#e0e0e0' if is_dark else '#333'};"
-        for child in self.findChildren(QLabel):
-            if child.text() == "属性状态":
-                child.setStyleSheet(section_title_style)
         
         for attr_name, card in self.attribute_cards.items():
             card.update_theme(is_dark)
@@ -408,52 +344,3 @@ class PetStatusInterface(ScrollArea):
                     background-color: {bg_color};
                     color: {text_color};
                 """)
-        
-        if self.event_notification.isVisible():
-            self._update_event_notification_theme(is_dark)
-
-    def _update_event_notification_theme(self, is_dark: bool):
-        if not self.event_notification.isVisible():
-            return
-        
-        obj_name = self.event_notification.objectName()
-        is_positive = "Positive" in obj_name
-        
-        if is_positive:
-            if is_dark:
-                self.event_notification.setStyleSheet("""
-                    CardWidget {
-                        background-color: #1a3a2a;
-                        border: 1px solid #2e5a3f;
-                        border-radius: 8px;
-                    }
-                """)
-                self.event_text_label.setStyleSheet("font-size: 14px; color: #81c784;")
-            else:
-                self.event_notification.setStyleSheet("""
-                    CardWidget {
-                        background-color: #e8f5e9;
-                        border: 1px solid #a5d6a7;
-                        border-radius: 8px;
-                    }
-                """)
-                self.event_text_label.setStyleSheet("font-size: 14px; color: #2e7d32;")
-        else:
-            if is_dark:
-                self.event_notification.setStyleSheet("""
-                    CardWidget {
-                        background-color: #3a2a1a;
-                        border: 1px solid #5a4a2e;
-                        border-radius: 8px;
-                    }
-                """)
-                self.event_text_label.setStyleSheet("font-size: 14px; color: #ffb74d;")
-            else:
-                self.event_notification.setStyleSheet("""
-                    CardWidget {
-                        background-color: #fff3e0;
-                        border: 1px solid #ffcc80;
-                        border-radius: 8px;
-                    }
-                """)
-                self.event_text_label.setStyleSheet("font-size: 14px; color: #e65100;")

@@ -1,5 +1,6 @@
 import os
 import random
+import time
 import live2d.v3 as live2d
 from live2d.v3 import clearBuffer
 from live2d.utils.canvas import Canvas
@@ -207,6 +208,8 @@ class Live2DWidget(QOpenGLWidget):
         self.system_monitor_enabled = self.settings.value("system_monitor_enabled", True, type=bool)
         self.cpu_threshold = self.settings.value("cpu_threshold", 70, type=int)
         self.mem_threshold = self.settings.value("mem_threshold", 80, type=int)
+        self._last_cpu_alert_time = 0
+        self._last_mem_alert_time = 0
         
         self.model_opacity = self.settings.value("window_opacity", 100, type=int)
         
@@ -935,15 +938,21 @@ class Live2DWidget(QOpenGLWidget):
         try:
             cpu = psutil.cpu_percent()
             mem = psutil.virtual_memory().percent
+            now = time.time()
+            cooldown = 180
             
             if cpu > self.cpu_threshold:
-                self.talk(f"CPU好烫 ({cpu}%)！我要融化了...", 4000)
-                if "失去高光" in self.expression_ids:
-                    self.set_expression_safe("失去高光")
+                if now - self._last_cpu_alert_time >= cooldown:
+                    self._last_cpu_alert_time = now
+                    self.talk(f"CPU好烫 ({cpu}%)！我要融化了...", 4000)
+                    if "失去高光" in self.expression_ids:
+                        self.set_expression_safe("失去高光")
             elif mem > self.mem_threshold:
-                self.talk(f"内存快满了 ({mem}%)！", 4000)
-                if "无语" in self.expression_ids:
-                    self.set_expression_safe("无语")
+                if now - self._last_mem_alert_time >= cooldown:
+                    self._last_mem_alert_time = now
+                    self.talk(f"内存快满了 ({mem}%)！", 4000)
+                    if "无语" in self.expression_ids:
+                        self.set_expression_safe("无语")
         except Exception as e:
             print(f"System monitor error: {e}")
 

@@ -348,7 +348,7 @@ class GlobalMusicPlayer(QObject):
     
     def _reset_starting_flag(self):
         self._is_starting_new_song = False
-        logger.info(f"[GlobalPlayer] _is_starting_new_song reset to False by timer")
+        logger.debug(f"[GlobalPlayer] _is_starting_new_song reset to False")
     
     def _emit_position(self):
         """发射位置变化信号"""
@@ -373,7 +373,7 @@ class GlobalMusicPlayer(QObject):
     
     def play(self, song: SongInfo, playlist: list = None, index: int = 0):
         """播放歌曲"""
-        logger.info(f"[GlobalPlayer] play() called for: {song.name}")
+        logger.debug(f"[GlobalPlayer] play() called for: {song.name}")
         if playlist:
             self._playlist = playlist
             self._current_index = index
@@ -381,7 +381,7 @@ class GlobalMusicPlayer(QObject):
         self._current_song = song
         self._state_reset_timer.stop()
         self._is_starting_new_song = True
-        logger.info(f"[GlobalPlayer] _is_starting_new_song set to True")
+        logger.debug(f"[GlobalPlayer] _is_starting_new_song set to True")
         
         if song.play_url:
             self._play_url(song.play_url)
@@ -393,7 +393,7 @@ class GlobalMusicPlayer(QObject):
     def _play_url(self, url: str):
         """播放 URL"""
         self.player.play(url)
-        logger.info(f"[GlobalPlayer] Playing: {url[:50]}...")
+        logger.debug(f"[GlobalPlayer] Playing: {url[:50]}...")
         
         self._retry_count = 0
         self._state_reset_timer.start(500)

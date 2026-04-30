@@ -24,6 +24,7 @@ from .pages.pet_status_interface import PetStatusInterface
 from .pages.live2d_config_interface import Live2DConfigInterface
 from .music import MusicInterface
 from .galgame import GalgameInterface
+from .pomodoro import PomodoroInterface
 from src.core.database import ChatDatabase
 from src.resource_utils import resource_path
 from src.core.logger import logger
@@ -58,7 +59,8 @@ class MainWindow(FluentWindow):
         
         self.attr_manager = None
         
-        self.pet_status_interface = PetStatusInterface(None, self.db, self)
+        self.pomodoro_interface = PomodoroInterface(self)
+        self.pet_status_interface = PetStatusInterface(None, self.db, self, self.pomodoro_interface)
         self.music_interface = MusicInterface(self)
         self.galgame_interface = GalgameInterface(self.db, self)
         
@@ -96,6 +98,12 @@ class MainWindow(FluentWindow):
         self.voice_config_interface.settingsChanged.connect(self.chat_interface.update_voice_ui_visibility)
         self.pet_status_interface.start_chat_requested.connect(self._switch_to_chat)
         self.pet_status_interface.music_player_card.switch_to_music_interface.connect(self._switch_to_music)
+
+        self.pomodoro_interface.doro_focus_started.connect(self._on_doro_focus_started)
+        self.pomodoro_interface.doro_pomodoro_completed.connect(self._on_doro_pomodoro_completed)
+        self.pomodoro_interface.doro_focus_interrupted.connect(self._on_doro_focus_interrupted)
+        self.pomodoro_interface.doro_streak_warning.connect(self._on_doro_streak_warning)
+        self.pomodoro_interface.doro_idle_reminder.connect(self._on_doro_idle_reminder)
 
         self.navigationInterface.setCurrentItem(self.pet_status_interface.objectName())
         
@@ -164,6 +172,43 @@ class MainWindow(FluentWindow):
     def _switch_to_music(self):
         self.switchTo(self.music_interface)
 
+    def _on_doro_focus_started(self):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            self.live2d_widget.talk("加油！我不打扰你~", 3000)
+
+    def _on_doro_pomodoro_completed(self):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            self.live2d_widget.talk("太棒了！一个番茄完成！", 4000)
+            try:
+                self.live2d_widget.set_expression_safe("stars")
+            except Exception:
+                pass
+
+    def _on_doro_focus_interrupted(self):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            self.live2d_widget.talk("咦？分心了吗？没关系，重新开始~", 3500)
+            try:
+                self.live2d_widget.set_expression_safe("question")
+            except Exception:
+                pass
+
+    def _on_doro_streak_warning(self, minutes: int):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            hours = minutes / 60
+            self.live2d_widget.talk(f"你已经连续专注 {hours:.0f} 小时了，休息一下吧~", 4000)
+            try:
+                self.live2d_widget.set_expression_safe("bag")
+            except Exception:
+                pass
+
+    def _on_doro_idle_reminder(self):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            self.live2d_widget.talk("今天还没有开始专注哦，一起努力吧！", 4000)
+            try:
+                self.live2d_widget.set_expression_safe("exclamation")
+            except Exception:
+                pass
+
     def toggle_theme(self):
         setThemeColor(THEME_COLOR)
         if isDarkTheme():
@@ -198,6 +243,9 @@ class MainWindow(FluentWindow):
         
         if hasattr(self, 'galgame_interface'):
             self.galgame_interface.update_theme()
+
+        if hasattr(self, 'pomodoro_interface'):
+            self.pomodoro_interface.update_theme()
 
         if hasattr(self, 'skills_interface'):
             self.skills_interface.update_theme()

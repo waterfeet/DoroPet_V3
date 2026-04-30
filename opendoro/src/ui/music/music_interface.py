@@ -552,7 +552,6 @@ class MusicInterface(ScrollArea):
         self.playlist_songs_list = ListWidget()
         self.playlist_songs_list.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.playlist_songs_list.setSpacing(2)
-        self.playlist_songs_list.itemDoubleClicked.connect(lambda item: self._on_playlist_song_double_clicked(self.playlist_songs_list.row(item)))
         playlist_songs_layout.addWidget(self.playlist_songs_list)
     
     def _on_playlist_combo_changed(self, index):
@@ -843,7 +842,7 @@ class MusicInterface(ScrollArea):
         
         self._update_now_playing(song)
         
-        logger.info(f"[Music] 播放歌曲：{song.name}, 歌词：{'有' if song.lyric else '无'}")
+        logger.debug(f"[Music] 播放歌曲：{song.name}, 歌词：{'有' if song.lyric else '无'}")
         if not song.lyric:
             logger.info(f"[Music] 开始获取歌词...")
             self._music_service.get_lyric(song)
@@ -1318,7 +1317,7 @@ class MusicInterface(ScrollArea):
             self._play_song_or_add_to_queue(song)
     
     def _on_global_playback_state_changed(self, is_playing: bool):
-        logger.info(f"[MusicUI] _on_global_playback_state_changed: is_playing={is_playing}")
+        logger.debug(f"[MusicUI] _on_global_playback_state_changed: is_playing={is_playing}")
         if is_playing:
             self.play_btn.setIcon(FIF.PAUSE)
             self.play_btn.setToolTip("暂停")

@@ -35,7 +35,8 @@ class AudioSpectrumAnalyzer(QObject):
         self._pyaudio_instance = None
         self._loopback_device_index = None
         self._fallback_mode = not PYAUDIOWPATCH_AVAILABLE
-        self._silence_count = 0
+        self._last_device_name = ""
+        self._device_detected_changed = True
 
         if PYAUDIOWPATCH_AVAILABLE:
             self._find_loopback_device()
@@ -44,13 +45,27 @@ class AudioSpectrumAnalyzer(QObject):
         self._update_timer.timeout.connect(self._process_audio)
 
     def _find_loopback_device(self):
+        self._device_detected_changed = False
         try:
+            if self._pyaudio_instance:
+                try:
+                    self._pyaudio_instance.terminate()
+                except:
+                    pass
+                self._pyaudio_instance = None
+            self._loopback_device_index = None
+
             self._pyaudio_instance = pyaudio.PyAudio()
             
             default_output = self._pyaudio_instance.get_default_output_device_info()
             default_output_name = default_output['name']
-            logger.info(f"[SpectrumAnalyzer] Default output device: {default_output_name}")
-            
+
+            device_changed = (default_output_name != self._last_device_name)
+            if device_changed:
+                logger.info(f"[SpectrumAnalyzer] Default output device: {default_output_name}")
+                self._last_device_name = default_output_name
+                self._device_detected_changed = True
+
             wasapi_index = None
             for i in range(self._pyaudio_instance.get_host_api_count()):
                 api = self._pyaudio_instance.get_host_api_info_by_index(i)
@@ -76,14 +91,16 @@ class AudioSpectrumAnalyzer(QObject):
                         if base_name == default_output_name or default_output_name in name:
                             self._loopback_device_index = i
                             self._sample_rate = int(dev['defaultSampleRate'])
-                            logger.info(f"[SpectrumAnalyzer] Found matching loopback: {name} @ {self._sample_rate}Hz")
+                            if device_changed:
+                                logger.info(f"[SpectrumAnalyzer] Found matching loopback: {name} @ {self._sample_rate}Hz")
                             return
-            
+
             if loopback_devices:
                 idx, dev = loopback_devices[0]
                 self._loopback_device_index = idx
                 self._sample_rate = int(dev['defaultSampleRate'])
-                logger.info(f"[SpectrumAnalyzer] Using first loopback: {dev['name']} @ {self._sample_rate}Hz")
+                if device_changed:
+                    logger.info(f"[SpectrumAnalyzer] Using first loopback: {dev['name']} @ {self._sample_rate}Hz")
                 return
             
             logger.warning("[SpectrumAnalyzer] No loopback device found")
@@ -120,8 +137,12 @@ class AudioSpectrumAnalyzer(QObject):
             return
 
         try:
+            if not self._fallback_mode and PYAUDIOWPATCH_AVAILABLE:
+                self._find_loopback_device()
+
             if self._fallback_mode:
-                logger.info("[SpectrumAnalyzer] Starting in fallback mode (simulated spectrum)")
+                if self._device_detected_changed:
+                    logger.info("[SpectrumAnalyzer] Starting in fallback mode (simulated spectrum)")
                 self._is_running = True
                 self._update_timer.start(30)
                 return
@@ -129,13 +150,25 @@ class AudioSpectrumAnalyzer(QObject):
             self._start_loopback()
             self._is_running = True
             self._update_timer.start(30)
-            logger.info("[SpectrumAnalyzer] Started")
+            if self._device_detected_changed:
+                logger.info("[SpectrumAnalyzer] Started")
 
         except Exception as e:
             logger.error(f"[SpectrumAnalyzer] Failed to start: {e}")
             self._fallback_mode = True
             self._is_running = True
             self._update_timer.start(30)
+
+    def reconnect(self):
+        was_running = self._is_running
+        if was_running:
+            self.stop()
+
+        self._fallback_mode = not PYAUDIOWPATCH_AVAILABLE
+        logger.info(f"[SpectrumAnalyzer] Reconnected, fallback={self._fallback_mode}")
+
+        if was_running:
+            self.start()
 
     def _start_loopback(self):
         if self._stream:
@@ -165,7 +198,8 @@ class AudioSpectrumAnalyzer(QObject):
                 stream_callback=self._audio_callback
             )
             self._stream.start_stream()
-            logger.info(f"[SpectrumAnalyzer] Stream started: {dev_info['name']}")
+            if self._device_detected_changed:
+                logger.info(f"[SpectrumAnalyzer] Stream started: {dev_info['name']}")
             
         except Exception as e:
             logger.error(f"[SpectrumAnalyzer] Failed to open stream: {e}")
@@ -198,12 +232,8 @@ class AudioSpectrumAnalyzer(QObject):
 
             rms = np.sqrt(np.mean(audio_data ** 2))
             if rms < 0.001:
-                self._silence_count += 1
-                if self._silence_count > 10:
-                    self._generate_fallback_data()
-                    return
-            else:
-                self._silence_count = 0
+                self._generate_fallback_data()
+                return
 
             window = np.hanning(len(audio_data))
             windowed_data = audio_data * window
