@@ -597,6 +597,7 @@ class Live2DWidget(QOpenGLWidget):
             self.bubble.close()
 
         if hasattr(self, 'attr_manager'):
+            self.attr_manager.save_state()
             self.attr_manager.stop_decay_timer()
         
         if hasattr(self, 'model'):

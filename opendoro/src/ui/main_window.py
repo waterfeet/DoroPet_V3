@@ -22,6 +22,8 @@ from .pages.skills_interface import SkillsInterface
 from .pages.update_interface import UpdateInterface
 from .pages.pet_status_interface import PetStatusInterface
 from .pages.live2d_config_interface import Live2DConfigInterface
+from .pages.memory_interface import MemoryInterface
+from .dorocity import DoroCityInterface, InventoryManager
 from .music import MusicInterface
 from .galgame import GalgameInterface
 from .pomodoro import PomodoroInterface
@@ -30,6 +32,7 @@ from src.resource_utils import resource_path
 from src.core.logger import logger
 from src.core.font_scale_utils import apply_font_scale
 from src.core.app_theme import THEME_COLOR
+from src.core.orange_manager import OrangeManager
 
 class MainWindow(FluentWindow):
     def __init__(self, version_manager=None):
@@ -59,10 +62,19 @@ class MainWindow(FluentWindow):
         
         self.attr_manager = None
         
+        self._orange_manager = OrangeManager(self)
+        self._inventory_manager = InventoryManager(self)
+        
         self.pomodoro_interface = PomodoroInterface(self)
         self.pet_status_interface = PetStatusInterface(None, self.db, self, self.pomodoro_interface)
         self.music_interface = MusicInterface(self)
         self.galgame_interface = GalgameInterface(self.db, self)
+        self.memory_interface = MemoryInterface(self.db, self)
+        self.doro_city_interface = DoroCityInterface(self._orange_manager, None, self)
+
+        self.pomodoro_interface.set_orange_manager(self._orange_manager)
+        self.pet_status_interface.set_orange_manager(self._orange_manager)
+        self.doro_city_interface.set_inventory_manager(self._inventory_manager)
         
         # 4. 初始化导航栏
         self.init_navigation()
@@ -83,6 +95,7 @@ class MainWindow(FluentWindow):
 
     def init_navigation(self):
         self.addSubInterface(self.pet_status_interface, FIF.HOME, "桌宠状态")
+        self.addSubInterface(self.doro_city_interface, FIF.TILES, "Doro都市")
         self.addSubInterface(self.chat_interface, FIF.CHAT, "AI 聊天")
         self.addSubInterface(self.music_interface, FIF.MUSIC, "音乐播放")
         self.addSubInterface(self.galgame_interface, FIF.GAME, "Galgame")
@@ -90,6 +103,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.voice_config_interface, FIF.MICROPHONE, "语音设置")
         self.addSubInterface(self.live2d_config_interface, FIF.PHOTO, "Live2D模型")
         self.addSubInterface(self.prompt_interface, FIF.PEOPLE, "角色扮演")
+        self.addSubInterface(self.memory_interface, FIF.SAVE, "记忆管理")
         self.addSubInterface(self.plugin_interface, FIF.BOOK_SHELF, "插件管理")
         self.addSubInterface(self.skills_interface, FIF.PALETTE, "技能管理")
         self.addSubInterface(self.log_interface, FIF.COMMAND_PROMPT, "运行日志")
@@ -176,9 +190,10 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'live2d_widget') and self.live2d_widget:
             self.live2d_widget.talk("加油！我不打扰你~", 3000)
 
-    def _on_doro_pomodoro_completed(self):
+    def _on_doro_pomodoro_completed(self, focus_minutes: int = 0):
         if hasattr(self, 'live2d_widget') and self.live2d_widget:
-            self.live2d_widget.talk("太棒了！一个番茄完成！", 4000)
+            orange_count = self._orange_manager.balance if self._orange_manager else 0
+            self.live2d_widget.talk(f"太棒了！一个欧润吉钟完成！🍊×{orange_count}", 4000)
             try:
                 self.live2d_widget.set_expression_safe("stars")
             except Exception:
@@ -208,6 +223,16 @@ class MainWindow(FluentWindow):
                 self.live2d_widget.set_expression_safe("exclamation")
             except Exception:
                 pass
+
+    def _on_doro_level_changed(self, level: int, title: str):
+        if hasattr(self, 'live2d_widget') and self.live2d_widget:
+            self.live2d_widget.talk(f"我升级啦！现在是 Lv.{level} {title}！🍊", 5000)
+            try:
+                self.live2d_widget.set_expression_safe("stars")
+            except Exception:
+                pass
+        if hasattr(self, 'doro_city_interface'):
+            self.doro_city_interface.refresh_data()
 
     def toggle_theme(self):
         setThemeColor(THEME_COLOR)
@@ -247,8 +272,14 @@ class MainWindow(FluentWindow):
         if hasattr(self, 'pomodoro_interface'):
             self.pomodoro_interface.update_theme()
 
+        if hasattr(self, 'doro_city_interface'):
+            self.doro_city_interface.update_theme()
+
         if hasattr(self, 'skills_interface'):
             self.skills_interface.update_theme()
+
+        if hasattr(self, 'memory_interface'):
+            self.memory_interface.update_theme()
 
         if hasattr(self, 'live2d_widget') and hasattr(self.live2d_widget, 'quick_chat_window'):
             if self.live2d_widget.quick_chat_window:
@@ -270,6 +301,11 @@ class MainWindow(FluentWindow):
         
         if hasattr(widget, 'attr_manager'):
             self.attr_manager = widget.attr_manager
+            if self._orange_manager:
+                self.attr_manager.set_orange_manager(self._orange_manager)
+        
+        if hasattr(widget, 'orange_manager'):
+            pass
         
         if hasattr(self, 'settings_interface'):
             self.settings_interface.set_live2d_widget(widget)
@@ -282,9 +318,14 @@ class MainWindow(FluentWindow):
         
         if hasattr(self, 'pet_status_interface') and self.attr_manager:
             self.pet_status_interface.set_attr_manager(self.attr_manager)
+            if hasattr(self, 'doro_city_interface'):
+                self.doro_city_interface.set_attr_manager(self.attr_manager)
         
         if hasattr(widget, '_startup_checker') and widget._startup_checker:
             widget._startup_checker.set_main_window(self)
+        
+        if self._orange_manager:
+            self._orange_manager.level_changed.connect(self._on_doro_level_changed)
         
     def closeEvent(self, event):
         """重写关闭事件，使其隐藏而不是关闭"""

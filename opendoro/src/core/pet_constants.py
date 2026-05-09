@@ -146,3 +146,93 @@ LINKAGE_THRESHOLDS = {
 # QSettings 配置键名
 SETTINGS_KEY_PREFIX = "pet_attribute_"
 SETTINGS_LAST_SAVE_TIME = "pet_attributes_last_save_time"
+
+# ============================================================
+# 欧润吉（Orange）奖励系统
+# ============================================================
+
+# 番茄钟时长对应的欧润吉奖励数量（1🍊基础单位=50）
+ORANGE_REWARDS = {
+    15: 100,
+    25: 150,
+    45: 300,
+    60: 500,
+}
+
+# 连击奖励：连续第N个番茄额外获得
+ORANGE_COMBO_BONUS = {3: 50, 5: 100, 8: 150, 12: 250}
+
+# 每日首次完成额外奖励
+ORANGE_DAILY_FIRST_BONUS = 100
+
+# 欧润吉交互消耗（鼓励使用物品）
+ORANGE_INTERACTION_COST = {
+    "feed": 100,
+    "play": 100,
+    "clean": 100,
+    "rest": 100,
+}
+
+# 使用欧润吉投喂的属性效果（比免费互动更强）
+ORANGE_FEED_EFFECTS = {
+    ATTR_HUNGER: 30,
+    ATTR_MOOD: 15,
+    ATTR_ENERGY: 5,
+}
+
+# QSettings 欧润吉存储键
+ORANGE_SETTINGS_KEY = "orange_balance"
+ORANGE_TODAY_KEY = "orange_today_earned"
+ORANGE_TODAY_DATE_KEY = "orange_today_date"
+ORANGE_TOTAL_EARNED_KEY = "orange_total_earned"
+ORANGE_COMBO_KEY = "orange_current_combo"
+
+# ============================================================
+# Doro 等级进化系统
+# ============================================================
+
+# 等级所需累计番茄数
+DORO_LEVEL_THRESHOLDS = {
+    1: 0,
+    2: 10,
+    3: 30,
+    4: 60,
+    5: 100,
+    6: 150,
+    7: 210,
+    8: 280,
+    9: 360,
+    10: 450,
+}
+
+# 等级称号
+DORO_LEVEL_TITLES = {
+    1: "Doro崽",
+    2: "Doro崽",
+    3: "Doro崽",
+    4: "Doro少年",
+    5: "Doro少年",
+    6: "Doro少年",
+    7: "Doro达人",
+    8: "Doro达人",
+    9: "Doro达人",
+    10: "Doro大师",
+}
+
+# 等级衰减减免：等级越高，衰减越慢（倍率）
+DORO_LEVEL_DECAY_REDUCTION = {
+    1: 1.0,
+    2: 0.95,
+    3: 0.90,
+    4: 0.83,
+    5: 0.77,
+    6: 0.70,
+    7: 0.65,
+    8: 0.60,
+    9: 0.55,
+    10: 0.50,
+}
+
+# QSettings 等级存储键
+DORO_LEVEL_KEY = "doro_level"
+DORO_TOTAL_POMODOROS_KEY = "doro_total_pomodoros"

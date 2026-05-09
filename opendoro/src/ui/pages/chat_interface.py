@@ -1811,6 +1811,10 @@ class ChatInterface(QWidget):
         self.tts_manager.playback_error.connect(self.on_tts_error)
 
         self.update_voice_ui_visibility()
+
+        from src.core.memory_manager import MemoryManager, init_memory_database
+        init_memory_database(self.db)
+        self.memory_manager = MemoryManager(self.db)
     
     def _connect_state_manager_signals(self):
         self.state_manager.generation_state_changed.connect(self._on_generation_state_changed)
@@ -2185,6 +2189,53 @@ class ChatInterface(QWidget):
         if contexts:
             return "\n【桌宠状态】" + "；".join(contexts) + "。请根据此状态调整你的回复风格。"
         return ""
+
+    def _get_memory_context(self) -> str:
+        settings = QSettings("DoroPet", "Settings")
+        if not settings.value("enable_memory", True, type=bool):
+            return ""
+        try:
+            max_count = settings.value("memory_max_count", 10, type=int)
+            memory_context = self.memory_manager.get_context(self.current_session_id, max_count)
+            if memory_context and len(memory_context) > 1:
+                parts = []
+                for msg in memory_context:
+                    if msg["role"] == "system":
+                        parts.append(msg["content"])
+                if parts:
+                    return "\n" + "\n".join(parts)
+        except Exception as e:
+            logger.warning(f"获取记忆上下文失败：{e}")
+        return ""
+
+    def _trigger_memory_analysis(self, user_content: str, assistant_content: str):
+        settings = QSettings("DoroPet", "Settings")
+        if not settings.value("enable_memory", True, type=bool):
+            return
+        try:
+            self.memory_manager.add_message("user", user_content, self.current_session_id)
+            self.memory_manager.add_message("assistant", assistant_content, self.current_session_id)
+
+            combined = f"用户：{user_content}\n助手：{assistant_content}"
+            self.memory_manager.analyze_async(
+                combined, "user",
+                callback=lambda analysis: self._on_memory_analysis_done(analysis)
+            )
+        except Exception as e:
+            logger.warning(f"记忆分析失败：{e}")
+
+    def _on_memory_analysis_done(self, analysis):
+        if analysis.get("should_remember", False):
+            try:
+                self.memory_manager.save_to_long_term_memory(
+                    category=analysis.get("category", "normal"),
+                    content=analysis.get("summary", ""),
+                    importance=analysis.get("importance", 3),
+                    keywords=analysis.get("keywords", []),
+                    original_content=analysis.get("summary", "")
+                )
+            except Exception as e:
+                logger.warning(f"记忆保存失败：{e}")
 
     def on_model_changed(self, index):
         if index < 0: return
@@ -3116,6 +3167,7 @@ class ChatInterface(QWidget):
         QApplication.processEvents()
         self.scroll_to_bottom()
 
+        self._last_user_input = user_input
         self.trigger_llm_generation()
 
     def _on_files_added(self, file_paths: list):
@@ -3268,7 +3320,12 @@ class ChatInterface(QWidget):
         pet_context = self._get_pet_status_context()
         if pet_context:
             history[0]['content'] += pet_context
-        
+
+        # Inject memory context
+        memory_context = self._get_memory_context()
+        if memory_context:
+            history[0]['content'] += memory_context
+
         db_msgs = self.db.get_messages(self.current_session_id)
         
         # Handle branching: truncate history after parent_id
@@ -3778,6 +3835,8 @@ class ChatInterface(QWidget):
             base_url = settings.value("base_url", "https://api.openai.com/v1")
             model = settings.value("model", "gpt-3.5-turbo")
 
+        self.memory_manager.set_model_config(api_key, base_url, model)
+
         # Determine available expressions
         available_expressions = []
         
@@ -4174,6 +4233,10 @@ class ChatInterface(QWidget):
         
         if is_same_session:
             self.check_and_generate_title()
+
+        if is_same_session and content and hasattr(self, '_last_user_input') and self._last_user_input:
+            self._trigger_memory_analysis(self._last_user_input, content)
+            self._last_user_input = None
 
     def handle_llm_error(self, err_msg):
         self.update_timer.stop()

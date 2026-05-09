@@ -40,9 +40,9 @@ class TimerRing(QWidget):
 
         if self._remaining > 0:
             ratio = min(max(ratio, 0), 1)
-            progress_color = QColor("#FF6B6B") if self._is_dark() else QColor("#E53935")
+            progress_color = QColor("#FF8C00") if self._is_dark() else QColor("#F57C00")
         else:
-            progress_color = QColor("#66BB6A")
+            progress_color = QColor("#FF9800")
 
         progress_pen = QPen(progress_color, 12, Qt.SolidLine, Qt.RoundCap)
         painter.setPen(progress_pen)

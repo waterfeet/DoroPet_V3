@@ -13,7 +13,7 @@ class TimerState(Enum):
 class PomodoroTimer(QObject):
     state_changed = pyqtSignal(TimerState, TimerState)
     tick = pyqtSignal(int)
-    pomodoro_completed = pyqtSignal()
+    pomodoro_completed = pyqtSignal(int)
     pomodoro_interrupted = pyqtSignal(int)
     streak_warning = pyqtSignal(int)
 
@@ -142,7 +142,7 @@ class PomodoroTimer(QObject):
             self._state = TimerState.IDLE
             self._timer.stop()
             self._completed_count += 1
-            self.pomodoro_completed.emit()
+            self.pomodoro_completed.emit(self._total)
         elif self._state == TimerState.BREAK:
             self._state = TimerState.IDLE
             self._timer.stop()
@@ -171,7 +171,7 @@ class PomodoroTimer(QObject):
                 self._completed_count += 1
                 self._state = TimerState.IDLE
                 self.state_changed.emit(TimerState.IDLE, old_state)
-                self.pomodoro_completed.emit()
+                self.pomodoro_completed.emit(self._total)
             elif self._state == TimerState.BREAK:
                 self._state = TimerState.IDLE
                 self.state_changed.emit(TimerState.IDLE, old_state)

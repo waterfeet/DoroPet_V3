@@ -1,16 +1,16 @@
 import time
 from typing import Dict, Optional, Callable, List, Tuple
-from PyQt5.QtCore import QObject, pyqtSignal, QTimer, QSettings
+from PyQt5.QtCore import QObject, pyqtSignal, QTimer
 
 from src.core.pet_attribute import PetAttribute
 from src.core.pet_constants import (
     ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY,
     ATTR_NAMES, DEFAULT_VALUES, MAX_VALUES, MIN_VALUES,
     DECAY_RATES, RECOVERY_VALUES, LINKAGE_DECAY_MULTIPLIERS,
-    LINKAGE_THRESHOLDS, SETTINGS_KEY_PREFIX, SETTINGS_LAST_SAVE_TIME,
-    INTERACTION_EFFECTS, INTENSITY_MULTIPLIERS, LEGACY_ACTION_MAPPING,
-    INTERACTION_NAMES
+    LINKAGE_THRESHOLDS, INTERACTION_EFFECTS, INTENSITY_MULTIPLIERS,
+    LEGACY_ACTION_MAPPING, INTERACTION_NAMES
 )
+from src.core.database import PetDatabase
 
 
 class PetAttributesManager(QObject):
@@ -23,10 +23,14 @@ class PetAttributesManager(QObject):
         self.attributes: Dict[str, PetAttribute] = {}
         self.decay_timer = QTimer()
         self.decay_timer.timeout.connect(self._on_decay_tick)
-        self.settings = QSettings("DoroPet", "PetAttributes")
         self._bound_widgets: Dict[str, List[Tuple[Callable, Optional[Callable]]]] = {}
+        self._db = PetDatabase()
+        self._orange_manager = None
         self._init_default_attributes()
         self._load_state()
+
+    def set_orange_manager(self, orange_manager):
+        self._orange_manager = orange_manager
 
     def _init_default_attributes(self):
         for attr_name in [ATTR_HUNGER, ATTR_MOOD, ATTR_CLEANLINESS, ATTR_ENERGY]:
@@ -54,6 +58,9 @@ class PetAttributesManager(QObject):
         if energy < LINKAGE_THRESHOLDS["energy_critical"]:
             rate *= LINKAGE_DECAY_MULTIPLIERS["energy_to_all"]
         
+        if self._orange_manager:
+            rate *= self._orange_manager.decay_reduction
+        
         return rate
 
     def _on_decay_tick(self):
@@ -70,6 +77,7 @@ class PetAttributesManager(QObject):
             
             if old_status != new_status:
                 self.status_changed.emit(attr_name, new_status, old_status)
+        self._save_state()
 
     def start_decay_timer(self, interval_ms: int = 60000):
         self.decay_timer.start(interval_ms)
@@ -96,6 +104,7 @@ class PetAttributesManager(QObject):
             self.status_changed.emit(attr_name, new_status, old_status)
         
         self._notify_bound_widgets(attr_name, new_value, new_status)
+        self._save_state()
 
     def set_attribute(self, attr_name: str, value: float):
         if attr_name not in self.attributes:
@@ -115,6 +124,7 @@ class PetAttributesManager(QObject):
             self.status_changed.emit(attr_name, new_status, old_status)
         
         self._notify_bound_widgets(attr_name, attr.value, new_status)
+        self._save_state()
 
     def get_attribute(self, attr_name: str) -> float:
         if attr_name in self.attributes:
@@ -174,12 +184,6 @@ class PetAttributesManager(QObject):
 
     def perform_interaction_v2(self, interaction: str, intensity: str = "moderate", 
                                attribute: Optional[str] = None, action: Optional[str] = None):
-        """
-        Enhanced interaction method supporting both new and legacy formats.
-        
-        New format: interaction="play_fun", intensity="moderate"
-        Legacy format: attribute="mood", action="play"
-        """
         if interaction:
             self._apply_interaction_effects(interaction, intensity)
             return
@@ -196,37 +200,47 @@ class PetAttributesManager(QObject):
                 self._apply_interaction_effects(default_interaction, default_intensity)
 
     def _save_state(self):
-        for attr_name, attr in self.attributes.items():
-            key = f"{SETTINGS_KEY_PREFIX}{attr_name}"
-            self.settings.setValue(key, attr.value)
-        self.settings.setValue(SETTINGS_LAST_SAVE_TIME, time.time())
-        self.settings.sync()
+        attr_values = {name: attr.value for name, attr in self.attributes.items()}
+        self._db.save_pet_attributes(attr_values, time.time())
 
     def _load_state(self):
-        last_save_time = self.settings.value(SETTINGS_LAST_SAVE_TIME, 0.0, type=float)
+        stored = self._db.load_pet_attributes()
         
+        if not stored:
+            return
+
+        last_save_time = 0.0
+        for attr_data in stored.values():
+            if attr_data.get("last_save_time", 0.0) > last_save_time:
+                last_save_time = attr_data["last_save_time"]
+
         if last_save_time > 0:
             current_time = time.time()
             offline_seconds = current_time - last_save_time
             offline_minutes = offline_seconds / 60.0
             
             if offline_minutes > 1:
-                for attr_name, attr in self.attributes.items():
-                    stored_value = self.settings.value(
-                        f"{SETTINGS_KEY_PREFIX}{attr_name}", 
-                        DEFAULT_VALUES[attr_name], 
-                        type=float
-                    )
+                for attr_name in self.attributes:
+                    attr_data = stored.get(attr_name)
+                    stored_value = attr_data["value"] if attr_data else DEFAULT_VALUES[attr_name]
                     decay = self._calculate_decay_rate(attr_name) * offline_minutes
-                    attr.value = max(attr.min_value, stored_value - decay)
+                    self.attributes[attr_name].value = max(
+                        self.attributes[attr_name].min_value, stored_value - decay
+                    )
+            else:
+                for attr_name in self.attributes:
+                    attr_data = stored.get(attr_name)
+                    if attr_data:
+                        self.attributes[attr_name].value = attr_data["value"]
+                    else:
+                        self.attributes[attr_name].value = DEFAULT_VALUES[attr_name]
         else:
             for attr_name in self.attributes:
-                stored_value = self.settings.value(
-                    f"{SETTINGS_KEY_PREFIX}{attr_name}",
-                    DEFAULT_VALUES[attr_name],
-                    type=float
-                )
-                self.attributes[attr_name].value = stored_value
+                attr_data = stored.get(attr_name)
+                if attr_data:
+                    self.attributes[attr_name].value = attr_data["value"]
+                else:
+                    self.attributes[attr_name].value = DEFAULT_VALUES[attr_name]
 
     def save_state(self):
         self._save_state()
@@ -250,20 +264,6 @@ class PetAttributesManager(QObject):
     
     def bind_attribute_widget(self, attr_name: str, update_callback: Callable[[float], None], 
                                status_callback: Optional[Callable[[str], None]] = None):
-        """
-        绑定一个属性到UI组件的更新回调函数
-        
-        Args:
-            attr_name: 属性名称 (ATTR_HUNGER, ATTR_MOOD, etc.)
-            update_callback: 当属性值变化时调用的函数，参数为新的属性值
-            status_callback: 当状态变化时调用的函数（可选），参数为新的状态字符串
-        
-        Example:
-            def on_hunger_changed(value: float):
-                progress_bar.setValue(int(value))
-            
-            attr_manager.bind_attribute_widget(ATTR_HUNGER, on_hunger_changed)
-        """
         if attr_name not in self.attributes:
             return
         
@@ -280,13 +280,6 @@ class PetAttributesManager(QObject):
             status_callback(current_status)
     
     def unbind_attribute_widget(self, attr_name: str, update_callback: Callable):
-        """
-        解绑一个属性更新回调
-        
-        Args:
-            attr_name: 属性名称
-            update_callback: 之前绑定的更新回调函数
-        """
         if attr_name not in self._bound_widgets:
             return
         
@@ -296,26 +289,12 @@ class PetAttributesManager(QObject):
         ]
     
     def unbind_all_widgets(self, attr_name: str = None):
-        """
-        解绑所有或指定属性的UI组件
-        
-        Args:
-            attr_name: 如果指定，只解绑该属性；否则解绑所有属性
-        """
         if attr_name:
             self._bound_widgets.pop(attr_name, None)
         else:
             self._bound_widgets.clear()
     
     def _notify_bound_widgets(self, attr_name: str, value: float, status: str):
-        """
-        通知所有绑定的UI组件更新
-        
-        Args:
-            attr_name: 属性名称
-            value: 新的属性值
-            status: 新的状态
-        """
         if attr_name not in self._bound_widgets:
             return
         

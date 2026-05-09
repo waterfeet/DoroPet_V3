@@ -775,7 +775,7 @@ class ConfigInterface(QWidget):
         
         providers = self._get_providers_for_mode(self.current_mode)
         
-        self.provider_combo.addItem("自定义配置", userData="custom")
+        self.provider_combo.addItem("OpenAI 自定义", userData="custom")
         for p in providers:
             self.provider_combo.addItem(p["display_name"], userData=p["type"])
         
@@ -1060,7 +1060,7 @@ class ConfigInterface(QWidget):
 
     def fetch_models_from_provider(self):
         provider_type = self.provider_combo.currentData()
-        if not provider_type or provider_type == "custom":
+        if not provider_type:
             InfoBar.warning(
                 "提示",
                 "请先选择一个 AI 平台",
@@ -1082,7 +1082,12 @@ class ConfigInterface(QWidget):
             )
             return
         
-        metadata = get_provider_metadata(provider_type)
+        if provider_type == "custom":
+            use_type = "openai_chat_completion"
+        else:
+            use_type = provider_type
+        
+        metadata = get_provider_metadata(use_type)
         if not metadata or not metadata.cls_type:
             InfoBar.error(
                 "错误",
@@ -1095,7 +1100,7 @@ class ConfigInterface(QWidget):
         config = ProviderConfig(
             id="temp_fetch",
             name="temp",
-            type=provider_type,
+            type=use_type,
             provider_type="chat_completion",
             api_key=api_key,
             base_url=base_url,

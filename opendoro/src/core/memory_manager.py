@@ -4,34 +4,130 @@ AI 驱动的智能记忆管理系统
 import json
 from datetime import datetime
 from typing import List, Dict, Optional
-from PyQt5.QtCore import QEventLoop
-from src.core.database import DatabaseManager
+from PyQt5.QtCore import QEventLoop, QThread, pyqtSignal
+from src.core.database import ChatDatabase
+
+
+class MemoryAnalyzeWorker(QThread):
+    """后台异步分析消息记忆的 Worker 线程"""
+    finished = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, api_key, base_url, model, messages, parent=None):
+        super().__init__(parent)
+        self._api_key = api_key
+        self._base_url = base_url
+        self._model = model
+        self._messages = messages
+
+    def run(self):
+        try:
+            from src.services.llm_service import LLMWorker
+
+            loop = QEventLoop()
+            result = [None]
+
+            worker = LLMWorker(
+                api_key=self._api_key,
+                base_url=self._base_url,
+                messages=self._messages,
+                model=self._model,
+                db=None,
+                is_thinking=0,
+                enabled_plugins=[],
+                skip_tools_and_max_tokens=True,
+            )
+
+            def on_finished(content, reasoning, tool_calls, images):
+                result[0] = content
+                loop.quit()
+
+            def on_error(error_msg):
+                loop.quit()
+
+            worker.finished.connect(on_finished)
+            worker.error.connect(on_error)
+            worker.start()
+
+            loop.exec_()
+
+            if result[0]:
+                analysis = json.loads(result[0].strip())
+                self.finished.emit(analysis)
+            else:
+                self.error.emit("analysis returned empty")
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class MemoryManager:
     """智能记忆管理器"""
-    
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager = db_manager
-        self.db = db_manager.chat  # 使用 chat 数据库
-        self.short_term_messages = []  # 短期记忆（完整对话）
-        self.max_short_term = 15  # 最多保留 15 条完整对话
-        
+
+    def __init__(self, chat_db):
+        self.db = chat_db
+        self.short_term_messages = []
+        self.max_short_term = 15
+        self._active_model_config = None
+
+    def set_model_config(self, api_key, base_url, model):
+        self._active_model_config = (api_key, base_url, model)
+
+    def _get_active_model_config(self):
+        if self._active_model_config:
+            return self._active_model_config
+        try:
+            models = self.db.get_models()
+            for m in models:
+                if len(m) >= 6 and m[6]:
+                    api_key = m[3] or ""
+                    base_url = m[4] or ""
+                    model_name = m[5] or ""
+                    if api_key and base_url and model_name:
+                        self._active_model_config = (api_key, base_url, model_name)
+                        return self._active_model_config
+        except Exception as e:
+            print(f"[MemoryManager] 获取模型配置失败：{e}")
+        return None
+
     def analyze_message_importance(self, content: str, role: str) -> Dict:
-        """
-        使用 AI 分析消息的重要性和类型
-        
-        返回：
-        {
-            "importance": 1-5,  # 重要性等级
-            "category": "fact|preference|emotion|event|normal",  # 消息类型
-            "should_remember": True/False,  # 是否需要长期记忆
-            "summary": "一句话概括",  # 如果是重要消息，提取关键信息
-            "keywords": ["关键词 1", "关键词 2"]  # 提取的关键词
-        }
-        """
-        from src.services.llm_service import LLMWorker
-        
+        prompt = f"""
+你是一个智能记忆分析助手。请分析以下对话内容，判断其重要性和类型。
+
+【分析标准】
+- 事实信息（5 分）：用户的个人信息、名字、年龄、职业、住址等
+- 偏好设定（4 分）：用户的喜好、厌恶、习惯、偏好等
+- 重要事件（3 分）：用户提到的重要事情、计划、决定等
+- 情绪表达（2 分）：用户的情绪状态、感受等
+- 日常对话（1 分）：普通问候、闲聊等
+
+【输出格式】
+请严格按照以下 JSON 格式输出：
+{{
+    "importance": 数字 (1-5),
+    "category": "fact|preference|event|emotion|normal",
+    "should_remember": true/false,
+    "summary": "如果是重要信息，用一句话概括（20 字以内）",
+    "keywords": ["关键词 1", "关键词 2"],
+    "reason": "简要说明判断理由"
+}}
+
+【待分析的对话】
+角色：{role}
+内容：{content}
+
+请分析："""
+        return self.simple_analyze(content, role)
+
+    def analyze_async(self, content: str, role: str, callback=None):
+        model_config = self._get_active_model_config()
+        if not model_config:
+            analysis = self.simple_analyze(content, role)
+            if callback:
+                callback(analysis)
+            return
+
+        api_key, base_url, model_name = model_config
+
         prompt = f"""
 你是一个智能记忆分析助手。请分析以下对话内容，判断其重要性和类型。
 
@@ -59,63 +155,26 @@ class MemoryManager:
 
 请分析："""
 
-        try:
-            model_config = self._get_active_model_config()
-            if not model_config:
-                print("[MemoryManager] 无有效模型配置，使用默认分析")
-                return self.simple_analyze(content, role)
-            
-            api_key, base_url, model_name = model_config
-            
-            worker = LLMWorker(
-                api_key=api_key,
-                base_url=base_url,
-                messages=[{"role": "user", "content": prompt}],
-                model=model_name,
-                db=None,
-                is_thinking=0,
-                enabled_plugins=[]
-            )
-            
-            loop = QEventLoop()
-            result = [None]
-            
-            def on_finished(content, reasoning, tool_calls, images):
-                result[0] = content
-                loop.quit()
-            
-            def on_error(error):
-                loop.quit()
-            
-            worker.finished.connect(on_finished)
-            worker.error.connect(on_error)
-            worker.start()
-            
-            loop.exec_()
-            
-            if result[0]:
-                analysis = json.loads(result[0].strip())
-                return analysis
-            else:
-                return self.simple_analyze(content, role)
-            
-        except Exception as e:
-            print(f"[MemoryManager] 分析失败：{e}")
-            return self.simple_analyze(content, role)
-    
-    def _get_active_model_config(self) -> tuple:
-        """获取当前活动的模型配置"""
-        try:
-            active_model = self.db_manager.config.get_active_model()
-            if active_model and len(active_model) >= 6:
-                api_key = active_model[3] or ""
-                base_url = active_model[4] or ""
-                model_name = active_model[5] or ""
-                if api_key and base_url and model_name:
-                    return (api_key, base_url, model_name)
-        except Exception as e:
-            print(f"[MemoryManager] 获取模型配置失败：{e}")
-        return None
+        self._analysis_worker = MemoryAnalyzeWorker(
+            api_key=api_key,
+            base_url=base_url,
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}]
+        )
+
+        def on_finished(analysis):
+            if callback:
+                callback(analysis)
+
+        def on_error(err):
+            print(f"[MemoryManager] 异步分析失败：{err}")
+            analysis = self.simple_analyze(content, role)
+            if callback:
+                callback(analysis)
+
+        self._analysis_worker.finished.connect(on_finished)
+        self._analysis_worker.error.connect(on_error)
+        self._analysis_worker.start()
     
     def compress_conversation(self, messages: List[Dict]) -> str:
         """
@@ -246,23 +305,66 @@ class MemoryManager:
             "should_remember": False
         }
     
+    def _text_similarity(self, a: str, b: str) -> float:
+        """计算两个文本的相似度 (0-1)，基于字符 bigram 的 Jaccard 系数"""
+        if not a or not b:
+            return 0.0
+        a = a.strip().lower()
+        b = b.strip().lower()
+
+        def bigrams(s):
+            return {s[i:i+2] for i in range(len(s) - 1)} if len(s) >= 2 else {s}
+
+        ba, bb = bigrams(a), bigrams(b)
+        union = len(ba | bb)
+        if union == 0:
+            return 0.0
+        return len(ba & bb) / union
+
+    def _find_similar_memory(self, category: str, content: str, threshold: float = 0.55):
+        """查找同类别中与 content 相似度超过阈值的第一条记忆，返回 (id, content, sim, keywords)"""
+        cursor = self.db.conn.cursor()
+        cursor.execute("""
+            SELECT id, content, keywords FROM user_memories
+            WHERE category=?
+            ORDER BY importance DESC
+        """, (category,))
+        rows = cursor.fetchall()
+        for row in rows:
+            sim = self._text_similarity(content, row[1])
+            if sim >= threshold:
+                return (row[0], row[1], sim, row[2])
+        return None
+
     def save_to_long_term_memory(self, category: str, content: str, 
                                   importance: int, keywords: List[str],
                                   original_content: str):
         """保存到长期记忆数据库"""
-        cursor = self.db.conn.cursor()
-        
-        # 检查是否已存在相似记忆（避免重复）
-        cursor.execute("""
-            SELECT id FROM user_memories 
-            WHERE category=? AND content LIKE ?
-        """, (category, f"%{content[:20]}%"))
-        
-        if cursor.fetchone():
-            print(f"[MemoryManager] 记忆已存在，跳过：{content}")
+        if not content or len(content.strip()) < 2:
             return
-        
-        # 插入新记忆
+
+        cursor = self.db.conn.cursor()
+
+        similar = self._find_similar_memory(category, content)
+        if similar:
+            mem_id, existing_content, sim, existing_keywords = similar
+            if sim >= 0.85:
+                print(f"[MemoryManager] 记忆高度相似({sim:.2f})，跳过：{content} | 已有：{existing_content}")
+                return
+            else:
+                existing_kws = json.loads(existing_keywords) if existing_keywords else []
+                merged_kws = list(set(keywords + existing_kws))
+                cursor.execute("""
+                    UPDATE user_memories
+                    SET content=?, importance=MAX(importance, ?), keywords=?,
+                        original_content=?, last_accessed=datetime('now')
+                    WHERE id=?
+                """, (content, importance, json.dumps(merged_kws),
+                      original_content, mem_id))
+                self.db.conn.commit()
+                print(f"[MemoryManager] 记忆合并更新({sim:.2f})：{content} ← 已有：{existing_content}")
+                return
+
         cursor.execute("""
             INSERT INTO user_memories 
             (category, content, importance, keywords, original_content, created_at)
@@ -275,7 +377,7 @@ class MemoryManager:
             original_content,
             datetime.now()
         ))
-        
+
         self.db.conn.commit()
         print(f"[MemoryManager] 保存长期记忆：{content}")
     
@@ -307,7 +409,7 @@ class MemoryManager:
         
         self.short_term_messages = remaining
     
-    def get_context(self, session_id: int) -> List[Dict]:
+    def get_context(self, session_id: int, memory_limit: int = 10) -> List[Dict]:
         """
         构建发送给 AI 的完整上下文
         
@@ -319,7 +421,7 @@ class MemoryManager:
         context = []
         
         # 1. 添加长期记忆
-        long_term = self.get_long_term_memories()
+        long_term = self.get_long_term_memories(memory_limit)
         if long_term:
             facts = self.format_long_term_memories(long_term)
             context.append({
@@ -340,15 +442,15 @@ class MemoryManager:
         
         return context
     
-    def get_long_term_memories(self) -> List[Dict]:
+    def get_long_term_memories(self, limit: int = 50) -> List[Dict]:
         """获取长期记忆"""
         cursor = self.db.conn.cursor()
         cursor.execute("""
             SELECT category, content, importance, keywords, created_at
             FROM user_memories
             ORDER BY importance DESC, created_at DESC
-            LIMIT 50
-        """)
+            LIMIT ?
+        """, (limit,))
         
         memories = []
         for row in cursor.fetchall():
@@ -403,10 +505,9 @@ class MemoryManager:
 
 
 # 数据库初始化函数
-def init_memory_database(db_manager: DatabaseManager):
+def init_memory_database(chat_db):
     """初始化记忆数据库表"""
-    # 使用 chat 数据库的连接
-    cursor = db_manager.chat.conn.cursor()
+    cursor = chat_db.conn.cursor()
     
     # 用户记忆表
     cursor.execute("""
@@ -450,5 +551,5 @@ def init_memory_database(db_manager: DatabaseManager):
         ON conversation_summaries(session_id)
     """)
     
-    db_manager.chat.conn.commit()
+    chat_db.conn.commit()
     print("[MemoryManager] 数据库表初始化完成")

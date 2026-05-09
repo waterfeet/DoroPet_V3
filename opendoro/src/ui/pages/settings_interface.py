@@ -575,10 +575,30 @@ class AISettingsPage(QWidget):
         
         self.check_inject_time = CheckBox("在上下文注入当前时间", self)
         self.check_expression_response = CheckBox("开启表情响应 (AI自动控制表情)", self)
+        self.check_enable_memory = CheckBox("开启 AI 记忆功能 (记住用户重要信息)", self)
         
         card.addWidget(self.check_inject_time)
         card.addWidget(self.check_expression_response)
-        
+        card.addWidget(self.check_enable_memory)
+
+        card.addWidget(StrongBodyLabel("每次注入记忆条数上限", self))
+
+        h_mem_layout = QHBoxLayout()
+        mem_slider = Slider(Qt.Horizontal, self)
+        mem_slider.setRange(1, 30)
+        mem_slider.setValue(10)
+
+        mem_val_label = CaptionLabel("10 条", self)
+        mem_val_label.setFixedWidth(60)
+
+        mem_slider.valueChanged.connect(lambda v: mem_val_label.setText(f"{v} 条"))
+
+        h_mem_layout.addWidget(mem_slider)
+        h_mem_layout.addWidget(mem_val_label)
+        card.addLayout(h_mem_layout)
+
+        self.sliders["memory_max_count"] = mem_slider
+
         card.addWidget(StrongBodyLabel("LLM 最大输出长度", self))
         
         h_layout = QHBoxLayout()
@@ -676,6 +696,8 @@ class SettingsInterface(ScrollArea):
         
         self.ai_page.check_inject_time.stateChanged.connect(self.on_inject_time_changed)
         self.ai_page.check_expression_response.stateChanged.connect(self.on_expression_response_changed)
+        self.ai_page.check_enable_memory.stateChanged.connect(self.on_enable_memory_changed)
+        self.ai_page.sliders["memory_max_count"].valueChanged.connect(self.on_memory_max_count_changed)
         self.ai_page.sliders["LLM 最大输出长度"].valueChanged.connect(self.on_max_tokens_changed)
 
     def set_live2d_widget(self, widget):
@@ -805,6 +827,12 @@ class SettingsInterface(ScrollArea):
     def on_max_tokens_changed(self, value):
         self.settings.setValue("llm_max_tokens", value)
 
+    def on_enable_memory_changed(self, checked):
+        self.settings.setValue("enable_memory", checked)
+
+    def on_memory_max_count_changed(self, value):
+        self.settings.setValue("memory_max_count", value)
+
     def on_autorun_changed(self, checked):
         import sys
         import os
@@ -875,6 +903,11 @@ class SettingsInterface(ScrollArea):
         self.ai_page.check_inject_time.setChecked(inject_time)
         self.ai_page.check_expression_response.setChecked(expression_response)
         self.ai_page.sliders["LLM 最大输出长度"].setValue(llm_max_tokens)
+
+        enable_memory = self.settings.value("enable_memory", True, type=bool)
+        memory_max_count = self.settings.value("memory_max_count", 10, type=int)
+        self.ai_page.check_enable_memory.setChecked(enable_memory)
+        self.ai_page.sliders["memory_max_count"].setValue(memory_max_count)
 
         self._init_font_buttons_style()
 

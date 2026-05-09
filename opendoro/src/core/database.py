@@ -683,6 +683,175 @@ class CacheDatabase(BaseDatabase):
         cursor.execute("INSERT OR REPLACE INTO image_analysis (file_path, description) VALUES (?, ?)", (file_path, description))
         self.conn.commit()
 
+
+class PetDatabase(BaseDatabase):
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        super().__init__("pet.db")
+        self._initialized = True
+
+    def create_tables(self):
+        cursor = self.conn.cursor()
+        cursor.execute('''CREATE TABLE IF NOT EXISTS pet_attributes (
+                            name TEXT PRIMARY KEY,
+                            value REAL NOT NULL DEFAULT 50.0,
+                            last_save_time REAL NOT NULL DEFAULT 0.0
+                          )''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS orange_data (
+                            id INTEGER PRIMARY KEY CHECK (id = 1),
+                            balance INTEGER NOT NULL DEFAULT 0,
+                            today_earned INTEGER NOT NULL DEFAULT 0,
+                            today_date TEXT NOT NULL DEFAULT '',
+                            total_earned INTEGER NOT NULL DEFAULT 0,
+                            current_combo INTEGER NOT NULL DEFAULT 0,
+                            doro_level INTEGER NOT NULL DEFAULT 1,
+                            total_pomodoros INTEGER NOT NULL DEFAULT 0
+                          )''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            item_key TEXT NOT NULL,
+                            name TEXT NOT NULL,
+                            category TEXT NOT NULL,
+                            quantity INTEGER DEFAULT 1,
+                            rarity TEXT DEFAULT 'common',
+                            obtained_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                          )''')
+        self.conn.commit()
+
+        cursor.execute("SELECT count(*) FROM orange_data")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute('''INSERT INTO orange_data (id, balance, today_earned, today_date, 
+                              total_earned, current_combo, doro_level, total_pomodoros)
+                              VALUES (1, 100, 0, '', 0, 0, 1, 0)''')
+            self.conn.commit()
+
+    def migrate(self):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE orange_data SET balance = 100 WHERE balance = 0 AND total_earned = 0"
+        )
+        self.conn.commit()
+
+    def load_pet_attributes(self) -> dict:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT name, value, last_save_time FROM pet_attributes")
+        rows = cursor.fetchall()
+        result = {}
+        for row in rows:
+            result[row["name"]] = {
+                "value": row["value"],
+                "last_save_time": row["last_save_time"],
+            }
+        return result
+
+    def save_pet_attributes(self, attributes: dict, save_time: float):
+        cursor = self.conn.cursor()
+        for name, value in attributes.items():
+            cursor.execute(
+                "INSERT OR REPLACE INTO pet_attributes (name, value, last_save_time) VALUES (?, ?, ?)",
+                (name, value, save_time)
+            )
+        self.conn.commit()
+
+    def load_orange_data(self) -> dict:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT balance, today_earned, today_date, total_earned, "
+                       "current_combo, doro_level, total_pomodoros FROM orange_data WHERE id = 1")
+        row = cursor.fetchone()
+        if row:
+            return {
+                "balance": row["balance"],
+                "today_earned": row["today_earned"],
+                "today_date": row["today_date"],
+                "total_earned": row["total_earned"],
+                "current_combo": row["current_combo"],
+                "doro_level": row["doro_level"],
+                "total_pomodoros": row["total_pomodoros"],
+            }
+        return {}
+
+    def save_orange_data(self, data: dict):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE orange_data SET balance=?, today_earned=?, today_date=?, "
+            "total_earned=?, current_combo=?, doro_level=?, total_pomodoros=? WHERE id=1",
+            (data["balance"], data["today_earned"], data["today_date"],
+             data["total_earned"], data["current_combo"], data["doro_level"], data["total_pomodoros"])
+        )
+        self.conn.commit()
+
+    def load_inventory(self) -> list:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, item_key, name, category, quantity, rarity, obtained_at "
+            "FROM inventory ORDER BY category, id"
+        )
+        return cursor.fetchall()
+
+    def add_inventory_item(self, item_key: str, name: str, category: str, 
+                           quantity: int = 1, rarity: str = "common"):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, quantity FROM inventory WHERE item_key = ?",
+            (item_key,)
+        )
+        row = cursor.fetchone()
+        if row:
+            cursor.execute(
+                "UPDATE inventory SET quantity = ? WHERE id = ?",
+                (row["quantity"] + quantity, row["id"])
+            )
+        else:
+            cursor.execute(
+                "INSERT INTO inventory (item_key, name, category, quantity, rarity) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (item_key, name, category, quantity, rarity)
+            )
+        self.conn.commit()
+
+    def remove_inventory_item(self, item_key: str, quantity: int = 1) -> bool:
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, quantity FROM inventory WHERE item_key = ?", (item_key,))
+        row = cursor.fetchone()
+        if not row or row["quantity"] < quantity:
+            return False
+        new_qty = row["quantity"] - quantity
+        if new_qty <= 0:
+            cursor.execute("DELETE FROM inventory WHERE id = ?", (row["id"],))
+        else:
+            cursor.execute("UPDATE inventory SET quantity = ? WHERE id = ?", (new_qty, row["id"]))
+        self.conn.commit()
+        return True
+
+    def get_inventory_count(self, item_key: str = None) -> int:
+        cursor = self.conn.cursor()
+        if item_key:
+            cursor.execute("SELECT quantity FROM inventory WHERE item_key = ?", (item_key,))
+            row = cursor.fetchone()
+            return row["quantity"] if row else 0
+        cursor.execute("SELECT SUM(quantity) as total FROM inventory")
+        row = cursor.fetchone()
+        return row["total"] if row and row["total"] else 0
+
+    def get_inventory_by_category(self, category: str) -> list:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, item_key, name, category, quantity, rarity, obtained_at "
+            "FROM inventory WHERE category = ? ORDER BY id",
+            (category,)
+        )
+        return cursor.fetchall()
+
+
 class DatabaseManager:
     _instance = None
     

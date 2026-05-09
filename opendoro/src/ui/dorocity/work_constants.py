@@ -1,0 +1,82 @@
+WORK_JOBS = {
+    "fruit_shop": {
+        "name": "🍊 欧润吉水果店",
+        "accent": "#FF8C00",
+        "jobs": [
+            {
+                "key": "fruit_sorter",
+                "name": "水果整理员",
+                "desc": "帮橙子爷爷把水果分类摆好",
+                "earnings": 50,
+                "unlock_level": 2,
+                "duration_minutes": 5,
+                "effects": {"energy": -3, "mood": 3},
+                "icon": "🧹",
+            },
+            {
+                "key": "cashier_helper",
+                "name": "收银小帮手",
+                "desc": "帮客人结账，Doro算数可厉害了",
+                "earnings": 150,
+                "unlock_level": 3,
+                "duration_minutes": 10,
+                "effects": {"energy": -5, "mood": 5},
+                "icon": "💰",
+            },
+            {
+                "key": "orange_taster",
+                "name": "欧润吉品鉴师",
+                "desc": "品尝新到的欧润吉，给出专业评价",
+                "earnings": 250,
+                "unlock_level": 6,
+                "duration_minutes": 15,
+                "effects": {"hunger": 5, "energy": -8, "mood": 8},
+                "icon": "🍊",
+            },
+        ],
+    },
+    "cafe": {
+        "name": "☕ 猫咪咖啡馆",
+        "accent": "#795548",
+        "jobs": [
+            {
+                "key": "greeter",
+                "name": "迎宾小可爱",
+                "desc": "在门口迎接客人，大家都喜欢Doro",
+                "earnings": 100,
+                "unlock_level": 4,
+                "duration_minutes": 5,
+                "effects": {"energy": -3, "mood": 5},
+                "icon": "👋",
+            },
+            {
+                "key": "latte_helper",
+                "name": "拉花小助手",
+                "desc": "帮咖啡姐姐在拿铁上画小花",
+                "earnings": 200,
+                "unlock_level": 5,
+                "duration_minutes": 10,
+                "effects": {"energy": -6, "mood": 8},
+                "icon": "☕",
+            },
+            {
+                "key": "manager_recommender",
+                "name": "店长推荐员",
+                "desc": "Doro推荐今天的特色欧润吉拿铁",
+                "earnings": 400,
+                "unlock_level": 7,
+                "duration_minutes": 20,
+                "effects": {"energy": -10, "mood": 10},
+                "icon": "🌟",
+            },
+        ],
+    },
+}
+
+WORK_EVENTS = [
+    {"name": "客人夸奖了Doro！", "prob": 20, "effect": {"earnings_bonus": 50, "mood": 3}},
+    {"name": "发现了隐藏的欧润吉！", "prob": 10, "effect": {"earnings_bonus": 100}},
+    {"name": "不小心打翻了东西...", "prob": 8, "effect": {"mood": -5, "cleanliness": -5}},
+    {"name": "遇到了老朋友！", "prob": 12, "effect": {"mood": 5}},
+    {"name": "老板发了奖金！", "prob": 5, "effect": {"earnings_multiplier": 2}},
+]

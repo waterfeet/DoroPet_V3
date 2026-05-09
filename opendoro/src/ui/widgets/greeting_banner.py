@@ -17,10 +17,10 @@ class GreetingBanner(CardWidget):
         self._refresh_timer.start(60000)
 
     def _init_ui(self):
-        self.setFixedHeight(50)
+        self.setFixedHeight(36)
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 10, 20, 10)
+        layout.setContentsMargins(16, 6, 16, 6)
 
         self.greeting_label = QLabel()
         self.greeting_label.setObjectName("greetingLabel")

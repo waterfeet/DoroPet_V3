@@ -32,21 +32,21 @@ class PetAvatarCard(CardWidget):
 
     def _init_ui(self):
         self.setObjectName("petAvatarCard")
-        self.setMinimumHeight(180)
-        self.setMaximumHeight(220)
+        self.setMinimumHeight(140)
+        self.setMaximumHeight(160)
 
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(20, 15, 20, 15)
-        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(14, 10, 14, 10)
+        main_layout.setSpacing(14)
 
         avatar_section = QWidget()
         avatar_layout = QVBoxLayout(avatar_section)
         avatar_layout.setContentsMargins(0, 0, 0, 0)
-        avatar_layout.setSpacing(8)
+        avatar_layout.setSpacing(4)
         avatar_layout.setAlignment(Qt.AlignCenter)
 
         self.avatar_label = QLabel()
-        self.avatar_label.setFixedSize(90, 90)
+        self.avatar_label.setFixedSize(62, 62)
         self.avatar_label.setAlignment(Qt.AlignCenter)
         self._load_avatar()
 
@@ -60,12 +60,12 @@ class PetAvatarCard(CardWidget):
         quote_section = QWidget()
         quote_layout = QVBoxLayout(quote_section)
         quote_layout.setContentsMargins(0, 0, 0, 0)
-        quote_layout.setSpacing(12)
+        quote_layout.setSpacing(4)
 
         self.quote_bubble = QWidget()
         self.quote_bubble.setObjectName("petAvatarQuoteBubble")
         bubble_layout = QVBoxLayout(self.quote_bubble)
-        bubble_layout.setContentsMargins(15, 12, 15, 12)
+        bubble_layout.setContentsMargins(10, 6, 10, 6)
 
         self.quote_label = QLabel()
         self.quote_label.setObjectName("petAvatarQuoteLabel")
@@ -81,28 +81,30 @@ class PetAvatarCard(CardWidget):
         self.status_label.setText("状态良好")
 
         system_section = QWidget()
-        system_layout = QVBoxLayout(system_section)
-        system_layout.setContentsMargins(0, 8, 0, 0)
-        system_layout.setSpacing(6)
+        system_layout = QHBoxLayout(system_section)
+        system_layout.setContentsMargins(0, 2, 0, 0)
+        system_layout.setSpacing(10)
 
         cpu_row = QWidget()
         cpu_layout = QHBoxLayout(cpu_row)
         cpu_layout.setContentsMargins(0, 0, 0, 0)
-        cpu_layout.setSpacing(8)
+        cpu_layout.setSpacing(4)
 
         self.cpu_label = QLabel("CPU")
         self.cpu_label.setObjectName("petAvatarCpuLabel")
-        self.cpu_label.setFixedWidth(35)
+        self.cpu_label.setFixedWidth(24)
+        self.cpu_label.setStyleSheet("font-size: 10px; color: #888;")
 
         self.cpu_bar = QProgressBar()
         self.cpu_bar.setObjectName("petAvatarCpuBar")
-        self.cpu_bar.setFixedHeight(8)
+        self.cpu_bar.setFixedHeight(5)
         self.cpu_bar.setTextVisible(False)
         self.cpu_bar.setRange(0, 100)
 
         self.cpu_value = QLabel("0%")
         self.cpu_value.setObjectName("petAvatarCpuValue")
-        self.cpu_value.setFixedWidth(40)
+        self.cpu_value.setFixedWidth(30)
+        self.cpu_value.setStyleSheet("font-size: 10px; color: #888;")
 
         cpu_layout.addWidget(self.cpu_label)
         cpu_layout.addWidget(self.cpu_bar)
@@ -111,21 +113,23 @@ class PetAvatarCard(CardWidget):
         mem_row = QWidget()
         mem_layout = QHBoxLayout(mem_row)
         mem_layout.setContentsMargins(0, 0, 0, 0)
-        mem_layout.setSpacing(8)
+        mem_layout.setSpacing(4)
 
-        self.mem_label = QLabel("内存")
+        self.mem_label = QLabel("MEM")
         self.mem_label.setObjectName("petAvatarMemLabel")
-        self.mem_label.setFixedWidth(35)
+        self.mem_label.setFixedWidth(24)
+        self.mem_label.setStyleSheet("font-size: 10px; color: #888;")
 
         self.mem_bar = QProgressBar()
         self.mem_bar.setObjectName("petAvatarMemBar")
-        self.mem_bar.setFixedHeight(8)
+        self.mem_bar.setFixedHeight(5)
         self.mem_bar.setTextVisible(False)
         self.mem_bar.setRange(0, 100)
 
         self.mem_value = QLabel("0%")
         self.mem_value.setObjectName("petAvatarMemValue")
-        self.mem_value.setFixedWidth(40)
+        self.mem_value.setFixedWidth(30)
+        self.mem_value.setStyleSheet("font-size: 10px; color: #888;")
 
         mem_layout.addWidget(self.mem_label)
         mem_layout.addWidget(self.mem_bar)
@@ -137,7 +141,6 @@ class PetAvatarCard(CardWidget):
         quote_layout.addWidget(self.quote_bubble)
         quote_layout.addWidget(self.status_label)
         quote_layout.addWidget(system_section)
-        quote_layout.addStretch()
 
         main_layout.addWidget(avatar_section)
         main_layout.addWidget(quote_section, 1)
@@ -146,7 +149,7 @@ class PetAvatarCard(CardWidget):
         if self._avatar_path and os.path.exists(self._avatar_path):
             pixmap = QPixmap(self._avatar_path)
             if not pixmap.isNull():
-                scaled = pixmap.scaled(86, 86, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                scaled = pixmap.scaled(60, 60, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
                 self.avatar_label.setPixmap(scaled)
                 self.avatar_label.setStyleSheet("""
                     QLabel {
