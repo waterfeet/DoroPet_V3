@@ -301,8 +301,8 @@ def main():
     splash.close_splash()
     logger.info("Splash screen closed")
 
-    # 后台检查并创建桌面快捷方式（不阻塞主进程）
-    check_and_create_shortcut_async()
+    # 后台检查并创建桌面快捷方式（已禁用自动创建）
+    # check_and_create_shortcut_async()
 
     update_checker = setup_startup_update_checker(w)
     w._startup_checker = update_checker

@@ -302,12 +302,11 @@ class PetStatusInterface(ScrollArea):
         
         left_layout.addStretch()
         
-        top_layout.addWidget(left_section, 2)
+        top_layout.addWidget(left_section, 3)
         
         if self.pomodoro_interface:
-            self.pomodoro_interface.setMinimumWidth(280)
-            self.pomodoro_interface.setMaximumWidth(400)
-            top_layout.addWidget(self.pomodoro_interface, 1)
+            self.pomodoro_interface.setMinimumWidth(260)
+            top_layout.addWidget(self.pomodoro_interface, 2)
         
         main_layout.addWidget(top_section)
         
@@ -331,8 +330,9 @@ class PetStatusInterface(ScrollArea):
         parent_layout.addWidget(attrs_container)
 
     def _init_interaction_buttons(self, parent_layout):
-        interaction_layout = QHBoxLayout()
-        interaction_layout.setSpacing(5)
+        grid = QGridLayout()
+        grid.setSpacing(5)
+        grid.setContentsMargins(0, 0, 0, 0)
         
         button_configs = [
             ("feed", "🍖", "投喂"),
@@ -342,21 +342,19 @@ class PetStatusInterface(ScrollArea):
         ]
         
         self.buttons = {}
-        for action, emoji, text in button_configs:
+        for i, (action, emoji, text) in enumerate(button_configs):
             btn = PrimaryPushButton(f"{emoji} {text}", self)
-            btn.setFixedHeight(30)
+            btn.setFixedHeight(34)
             btn.clicked.connect(lambda checked, a=action: self._on_interaction(a))
-            interaction_layout.addWidget(btn)
+            grid.addWidget(btn, i // 2, i % 2)
             self.buttons[action] = btn
         
         random_btn = PushButton("💬 对话", self)
-        random_btn.setFixedHeight(30)
+        random_btn.setFixedHeight(34)
         random_btn.clicked.connect(self._on_start_chat)
-        interaction_layout.addWidget(random_btn)
+        grid.addWidget(random_btn, 2, 0, 1, 2)
         
-        interaction_widget = QWidget()
-        interaction_widget.setLayout(interaction_layout)
-        parent_layout.addWidget(interaction_widget)
+        parent_layout.addLayout(grid)
         
         self._refresh_interaction_buttons()
 

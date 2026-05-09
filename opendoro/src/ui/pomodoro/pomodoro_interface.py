@@ -245,12 +245,6 @@ class PomodoroInterface(QWidget):
 
         duration_layout.addStretch()
 
-        self._test_btn = PushButton("🧪 测试")
-        self._test_btn.setFixedHeight(26)
-        self._test_btn.setToolTip("模拟完成15分钟欧润吉钟")
-        self._test_btn.clicked.connect(self._on_test_complete)
-        duration_layout.addWidget(self._test_btn)
-
         main_layout.addWidget(duration_widget)
 
         self._orange_info = OrangeInfoCard()
@@ -299,12 +293,6 @@ class PomodoroInterface(QWidget):
             if was_focusing:
                 self.doro_focus_interrupted.emit()
                 self._combo_badge.setVisible(False)
-
-    def _on_test_complete(self):
-        self._on_pomodoro_completed(15 * 60)
-        self._status_label.setText("🍊 测试完成！获得欧润吉！")
-        mins = self._timer.get_focus_duration_minutes()
-        self._timer_ring.set_time(mins * 60, mins * 60, "就绪")
 
     def _on_state_changed(self, new_state: TimerState, old_state: TimerState):
         self._update_button_states()

@@ -539,41 +539,6 @@ class DoroCityInterface(QWidget):
         header.addWidget(self._orange_label)
         main_layout.addLayout(header)
 
-        test_bar = QWidget()
-        test_layout = QHBoxLayout(test_bar)
-        test_layout.setContentsMargins(0, 0, 0, 0)
-        test_layout.setSpacing(4)
-
-        test_label = BodyLabel("🧪 测试：")
-        test_label.setStyleSheet("font-size: 11px; color: #888;")
-        test_layout.addWidget(test_label)
-
-        for lv in [1, 3, 5, 10]:
-            btn = PushButton(f"Lv.{lv}")
-            btn.setFixedHeight(22)
-            btn.setMinimumWidth(40)
-            btn.setStyleSheet("font-size: 10px; padding: 0 6px;")
-            btn.clicked.connect(lambda checked, l=lv: self._test_set_level(l))
-            test_layout.addWidget(btn)
-
-        for amount in [500, 1000, 5000]:
-            btn = PushButton(f"+{amount}🍊")
-            btn.setFixedHeight(22)
-            btn.setMinimumWidth(55)
-            btn.setStyleSheet("font-size: 10px; padding: 0 6px;")
-            btn.clicked.connect(lambda checked, a=amount: self._test_add_oranges(a))
-            test_layout.addWidget(btn)
-
-        clear_btn = PushButton("×0🍊")
-        clear_btn.setFixedHeight(22)
-        clear_btn.setMinimumWidth(40)
-        clear_btn.setStyleSheet("font-size: 10px; padding: 0 6px; color: #E53935;")
-        clear_btn.clicked.connect(self._test_clear_oranges)
-        test_layout.addWidget(clear_btn)
-
-        test_layout.addStretch()
-        main_layout.addWidget(test_bar)
-
         self._stack = QStackedWidget()
         self._stack.setStyleSheet("QStackedWidget { background: transparent; }")
         self._map_page = self._create_map_page()
@@ -645,20 +610,6 @@ class DoroCityInterface(QWidget):
 
     def _go_to_map(self):
         self._stack.setCurrentIndex(self.PAGE_MAP)
-
-    def _test_set_level(self, level: int):
-        if self._orange_manager:
-            self._orange_manager.set_level_for_test(level)
-
-    def _test_add_oranges(self, amount: int):
-        if self._orange_manager:
-            self._orange_manager.set_oranges_for_test(
-                self._orange_manager.balance + amount
-            )
-
-    def _test_clear_oranges(self):
-        if self._orange_manager:
-            self._orange_manager.set_oranges_for_test(0)
 
     def _on_inventory_btn(self):
         if self._inventory_page:

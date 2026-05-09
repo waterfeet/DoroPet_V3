@@ -252,6 +252,9 @@ class Live2DWidget(QOpenGLWidget):
         :param model_path: 模型配置文件路径 (.model3.json)
         :return: 是否加载成功
         """
+        if not self.isVisible():
+            return False
+        
         if not os.path.exists(model_path):
             print(f"Model file not found: {model_path}")
             return False
