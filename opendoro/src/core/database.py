@@ -873,6 +873,10 @@ class DatabaseManager:
         
         self._migrate_from_legacy()
     
+    @property
+    def conn(self):
+        return self.chat.conn
+    
     def _migrate_from_legacy(self):
         legacy_db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "doropetdata.db")
         if not os.path.exists(legacy_db_path):
