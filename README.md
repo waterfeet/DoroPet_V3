@@ -6,6 +6,18 @@
 
 ### ✨ 你的智能桌面伴侣，让工作不再孤单
 
+---
+
+
+# 本项目已经全面停止更新
+# 想获取最新版DoroPet，可以去：
+
+[RUST版本DoroPet](https://gitee.com/waterfeet/doropetrelease/releases)
+
+> 开发者说明：这个版本本身功能已经不再稳定，下载后可能无法运行。本人没有精力再维护这个项目，后续只会更新rust的版本。有兴趣可以Fork后自己去修改。无法打开的话，可以让本地的代码agent尝试修复，一般情况下只是依赖库的问题，修改依赖库配置，或者改动少量源码就能跑起来。
+
+---
+
 [![Website](https://img.shields.io/badge/官网-waterfeetbot.top-blue?style=for-the-badge\&logo=google-chrome)](https://www.waterfeetbot.top/)
 [![Version](https://img.shields.io/badge/version-3.5.1-blue.svg)](https://gitee.com/waterfeet/DoroPet_V3/releases)
 [![Python](https://img.shields.io/badge/Python-3.12+-green.svg)](https://www.python.org/)
